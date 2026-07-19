@@ -149,13 +149,13 @@ function normalizeTools(tools) {
   const fixedIds = new Set(fixed.map(({ id }) => id))
   const reservedCustomIds = new Set(custom.map(({ id }) => id).filter((id) => id && !fixedIds.has(id)))
   const usedIds = new Set(fixedIds)
-  const remap = {}
+  const remap = new Map()
   const repaired = custom.map((tool) => {
     const oldId = tool.id
     let id = oldId
     if (!id || usedIds.has(id)) {
       id = uniqueLegacyToolId(usedIds, reservedCustomIds)
-      if (fixedIds.has(oldId) && !remap[oldId]) remap[oldId] = id
+      if (fixedIds.has(oldId) && !remap.has(oldId)) remap.set(oldId, id)
     }
     usedIds.add(id)
     return { ...tool, id }
@@ -171,7 +171,7 @@ function migrateState(raw, now = new Date().toISOString()) {
   const normalizedTools = normalizeTools(raw.tools)
   for (const recipe of recipes) {
     const seen = new Set()
-    recipe.toolIds = recipe.toolIds.map((id) => normalizedTools.remap[id] || id).filter((id) => {
+    recipe.toolIds = recipe.toolIds.map((id) => normalizedTools.remap.get(id) || id).filter((id) => {
       if (seen.has(id)) return false
       seen.add(id)
       return true

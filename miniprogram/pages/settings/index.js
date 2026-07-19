@@ -3,7 +3,8 @@ const {
   orchestrateGlasswareMediaSave,
   orchestrateToolSave,
   orchestrateEquipmentDelete,
-  orchestrateGlasswareMediaDelete
+  orchestrateGlasswareMediaDelete,
+  createEditorOperationGuard
 } = require('./model')
 
 function getRepository() {
@@ -28,7 +29,8 @@ Page({
     editorTitle: '',
     form: {},
     selectedImagePath: '',
-    imagePreviewPath: ''
+    imagePreviewPath: '',
+    savingGlass: false
   },
   onShow() { this.loadData() },
   loadData() {
@@ -41,7 +43,13 @@ Page({
       )
     })
   },
+  operationGuard() {
+    if (!this._editorOperationGuard) this._editorOperationGuard = createEditorOperationGuard()
+    return this._editorOperationGuard
+  },
+  editorMutationAllowed() { return this.savingGlass !== true && this.operationGuard().canMutateEditor() },
   openEditor(type, item) {
+    if (!this.editorMutationAllowed()) return
     const isGlassware = type === 'glassware'
     this.setData({
       editorOpen: true,
@@ -73,16 +81,38 @@ Page({
     } })
   },
   onRemoveGlassImage() { this.setData({ selectedImagePath: '', imagePreviewPath: '' }) },
-  closeEditor() { this.setData({ editorOpen: false }) },
+  closeEditor() { if (this.editorMutationAllowed()) this.setData({ editorOpen: false }) },
+  closeEditorAfterSave() { this.setData({ editorOpen: false }) },
   noop() {},
   async onSaveEditor() {
+    if (this.savingGlass === true) return
     const options = { repository: getRepository(), form: this.data.form, notify: toast }
-    const result = this.data.editorType === 'glassware'
-      ? await orchestrateGlasswareMediaSave({ ...options, mediaFiles: getMediaFiles(), selectedImagePath: this.data.selectedImagePath, warn: toast })
-      : orchestrateToolSave(options)
-    if (result.saved) { this.closeEditor(); this.loadData() }
+    if (this.data.editorType !== 'glassware') {
+      const result = orchestrateToolSave(options)
+      if (result.saved) { this.closeEditor(); this.loadData() }
+      return
+    }
+    const guard = this.operationGuard()
+    const token = guard.begin()
+    if (!token) return
+    this.savingGlass = true
+    this.setData({ savingGlass: true })
+    let result = { saved: false }
+    let isCurrent = false
+    try {
+      result = await orchestrateGlasswareMediaSave({ ...options, mediaFiles: getMediaFiles(), selectedImagePath: this.data.selectedImagePath, warn: toast })
+    } finally {
+      isCurrent = guard.isCurrent(token)
+      if (isCurrent) {
+        guard.finish(token)
+        this.savingGlass = false
+        this.setData({ savingGlass: false })
+      }
+    }
+    if (result.saved && isCurrent) { this.closeEditorAfterSave(); this.loadData() }
   },
   requestDelete(type, id) {
+    if (!this.editorMutationAllowed()) return
     const repository = getRepository()
     const check = orchestrateEquipmentDelete({ repository, type, id, notify: toast })
     if (!check.needsConfirmation || typeof wx === 'undefined' || !wx.showModal) return

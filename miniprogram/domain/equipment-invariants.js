@@ -1,5 +1,4 @@
 const MAX_GLASS_CAPACITY_ML = 5000
-const DEFAULT_GLASS_CAPACITY_ML = 300
 
 function normalizeEquipmentName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ')
@@ -11,8 +10,12 @@ function equipmentNameIdentity(value) {
 
 function normalizeGlassCapacity(value) {
   const numeric = Number(value)
-  if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_GLASS_CAPACITY_ML
-  return Math.min(numeric, MAX_GLASS_CAPACITY_ML)
+  if (value === null || value === undefined || value === '' || !Number.isFinite(numeric) || numeric <= 0 || numeric > MAX_GLASS_CAPACITY_ML) return null
+  return numeric
+}
+
+function isValidGlassCapacity(value) {
+  return normalizeGlassCapacity(value) !== null
 }
 
 function makeUniqueEquipmentName(value, fallback, usedIdentities) {
@@ -27,9 +30,9 @@ function makeUniqueEquipmentName(value, fallback, usedIdentities) {
 
 module.exports = {
   MAX_GLASS_CAPACITY_ML,
-  DEFAULT_GLASS_CAPACITY_ML,
   normalizeEquipmentName,
   equipmentNameIdentity,
   normalizeGlassCapacity,
+  isValidGlassCapacity,
   makeUniqueEquipmentName
 }

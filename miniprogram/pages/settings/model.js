@@ -1,4 +1,23 @@
-const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName } = require('../../domain/equipment-invariants')
+const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, isValidGlassCapacity } = require('../../domain/equipment-invariants')
+
+function createEditorOperationGuard() {
+  let currentToken = null
+  let sequence = 0
+  return {
+    begin() {
+      if (currentToken) return null
+      currentToken = { id: ++sequence }
+      return currentToken
+    },
+    isCurrent(token) { return Boolean(token && token === currentToken) },
+    canMutateEditor() { return currentToken === null },
+    finish(token) {
+      if (token !== currentToken) return false
+      currentToken = null
+      return true
+    }
+  }
+}
 
 function validateGlasswareForm(input) {
   const source = input && typeof input === 'object' ? input : {}
@@ -22,7 +41,9 @@ function usageCount(recipes, predicate) {
 
 function buildSettingsView(glassware = [], tools = [], recipes = []) {
   const glasswareItems = (Array.isArray(glassware) ? glassware : []).map((item) => ({
-    ...item, usageCount: usageCount(recipes, (recipe) => recipe.glasswareId === item.id)
+    ...item,
+    capacityLabel: isValidGlassCapacity(item.capacityMl) ? `${Number(item.capacityMl)}ml` : '容量待补充',
+    usageCount: usageCount(recipes, (recipe) => recipe.glasswareId === item.id)
   }))
   const toolItems = (Array.isArray(tools) ? tools : []).map((item) => ({
     ...item, usageCount: usageCount(recipes, (recipe) => Array.isArray(recipe.toolIds) && recipe.toolIds.includes(item.id))
@@ -57,6 +78,20 @@ async function cleanupManagedImage(mediaFiles, path, message, warn) {
   try { await mediaFiles.removeManagedFile(path) } catch (_) { warn(message) }
 }
 
+async function cleanupIfUnreferenced({ repository, mediaFiles, path, message, warn = () => {} } = {}) {
+  if (!path || !mediaFiles || typeof mediaFiles.removeManagedFile !== 'function') return { removed: false }
+  if (typeof mediaFiles.isManagedPath === 'function' && !mediaFiles.isManagedPath(path)) return { removed: false }
+  try {
+    if (!repository || typeof repository.listGlassware !== 'function') throw new Error('Glassware lookup unavailable')
+    const glasses = repository.listGlassware()
+    if (glasses.some((item) => item && item.imagePath === path)) return { removed: false }
+    return await mediaFiles.removeManagedFile(path)
+  } catch (_) {
+    warn(message)
+    return { removed: false, failed: true }
+  }
+}
+
 async function orchestrateGlasswareMediaSave({ repository, mediaFiles, form, selectedImagePath, notify = () => {}, warn = () => {} } = {}) {
   const validation = validateGlasswareForm(form)
   if (!validation.valid) { notify(validation.message); return { saved: false, item: null } }
@@ -76,7 +111,7 @@ async function orchestrateGlasswareMediaSave({ repository, mediaFiles, form, sel
   try {
     const item = repository && repository.upsertGlassware({ ...validation.value, imagePath: persisted.path })
     if (!item) throw new Error('not saved')
-    if (priorPath && priorPath !== persisted.path) await cleanupManagedImage(mediaFiles, priorPath, '杯具已保存，但旧图片清理失败', warn)
+    if (priorPath && priorPath !== persisted.path) await cleanupIfUnreferenced({ repository, mediaFiles, path: priorPath, message: '杯具已保存，但旧图片清理失败', warn })
     notify('已保存')
     return { saved: true, item }
   } catch (error) {
@@ -114,8 +149,8 @@ function orchestrateEquipmentDelete({ repository, type, id, confirmed = false, n
 async function orchestrateGlasswareMediaDelete({ repository, mediaFiles, id, confirmed = false, notify = () => {}, warn = () => {} } = {}) {
   const existing = repository && repository.getGlassware ? repository.getGlassware(id) : null
   const result = orchestrateEquipmentDelete({ repository, type: 'glassware', id, confirmed, notify })
-  if (result.deleted && existing && existing.imagePath) await cleanupManagedImage(mediaFiles, existing.imagePath, '杯具已删除，但图片清理失败', warn)
+  if (result.deleted && existing && existing.imagePath) await cleanupIfUnreferenced({ repository, mediaFiles, path: existing.imagePath, message: '杯具已删除，但图片清理失败', warn })
   return result
 }
 
-module.exports = { MAX_GLASS_CAPACITY_ML, buildSettingsView, validateGlasswareForm, validateToolForm, orchestrateGlasswareSave, orchestrateGlasswareMediaSave, orchestrateToolSave, orchestrateEquipmentDelete, orchestrateGlasswareMediaDelete }
+module.exports = { MAX_GLASS_CAPACITY_ML, createEditorOperationGuard, buildSettingsView, validateGlasswareForm, validateToolForm, cleanupIfUnreferenced, orchestrateGlasswareSave, orchestrateGlasswareMediaSave, orchestrateToolSave, orchestrateEquipmentDelete, orchestrateGlasswareMediaDelete }

@@ -3,6 +3,7 @@ const { analyzeLiquidVolume, calculateAbv } = require('../../domain/abv')
 const { getMaterialVisualState } = require('../../domain/material')
 const { normalizePrepSelections } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
+const { isValidGlassCapacity } = require('../../domain/equipment-invariants')
 
 const UNIT_LABELS = UNITS.reduce((labels, unit) => {
   labels[unit.value] = unit.label
@@ -186,7 +187,7 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     glassware: selectedGlass ? {
       id: selectedGlass.id,
       name: selectedGlass.name || '未命名杯具',
-      capacityLabel: Number.isFinite(Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)) ? `${Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)}ml` : '',
+      capacityLabel: isValidGlassCapacity(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity) ? `${Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)}ml` : '容量待补充',
       ...(selectedGlass.imagePath ? { imagePath: selectedGlass.imagePath } : {}),
       ...(selectedGlass.notes || selectedGlass.note ? { notes: selectedGlass.notes || selectedGlass.note } : {})
     } : (recipe.glasswareId ? { id: recipe.glasswareId, name: `杯具资料缺失（${recipe.glasswareId}）`, capacityLabel: '', orphaned: true } : null),

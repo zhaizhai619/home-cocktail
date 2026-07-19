@@ -1,4 +1,5 @@
 const { TOP_UP_VOLUME, analyzeLiquidVolume } = require('./abv')
+const { isValidGlassCapacity } = require('./equipment-invariants')
 
 function compactNumber(value) {
   return Math.round(Number(value) * 10) / 10
@@ -13,7 +14,7 @@ function calculateGlassCapacity(ingredients, glassware) {
   const volume = liquidVolumeSummary(ingredients)
   const source = glassware && typeof glassware === 'object' ? glassware : null
   const capacity = source && Number(source.capacityMl !== undefined ? source.capacityMl : source.capacity)
-  const hasGlass = Boolean(source && Number.isFinite(capacity) && capacity > 0)
+  const hasGlass = Boolean(source && isValidGlassCapacity(source.capacityMl !== undefined ? source.capacityMl : source.capacity))
   if (!volume.complete) {
     const known = volume.liquidVolume > 0 ? `（已知液体至少 ${volume.liquidVolume}ml）` : ''
     return { status: 'incomplete', liquidVolume: volume.liquidVolume, capacityMl: hasGlass ? capacity : null, differenceMl: null, message: `总体积信息不完整${known}`, ignored: volume.ignored }

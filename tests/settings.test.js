@@ -15,7 +15,8 @@ const {
   orchestrateToolSave,
   orchestrateEquipmentDelete,
   orchestrateGlasswareMediaSave,
-  orchestrateGlasswareMediaDelete
+  orchestrateGlasswareMediaDelete,
+  createEditorOperationGuard
 } = require('../miniprogram/pages/settings/model')
 const { buildRecipeDetail } = require('../miniprogram/pages/recipe-detail/model')
 const { createEmptyRecipeForm, hydrateEquipmentSelections, getFormPreview } = require('../miniprogram/pages/recipe-edit/model')
@@ -149,6 +150,7 @@ test('settings model groups built-ins, validates forms, orchestrates writes, and
     recipes
   )
   assert.equal(view.glassware[0].usageCount, 1)
+  assert.equal(buildSettingsView([{ id: 'legacy', name: '旧杯', capacityMl: null }], [], []).glassware[0].capacityLabel, '容量待补充')
   assert.deepEqual(view.builtInTools.map(({ name }) => name), ['摇酒壶'])
   assert.equal(view.customTools[0].usageCount, 1)
   assert.equal(validateGlasswareForm({ name: '', capacityMl: 100 }).valid, false)
@@ -180,6 +182,11 @@ test('recipe editor and detail hydrate latest equipment, retain orphans, and use
   assert.equal(detail.glassware.notes, '冷藏')
   assert.equal(detail.capacity.status, 'over')
   assert.equal(detail.tools[1].orphaned, true)
+
+  const legacyCapacity = buildRecipeDetail({ id: 'legacy', name: '旧酒', glasswareId: 'legacy-glass', ingredients: [{ materialId: 'gin', amount: 50, unit: 'ml' }] }, [{ id: 'gin', name: '金酒', alcoholic: true, abv: 40, acquisition: 'long-term', owned: true }], [{ id: 'legacy-glass', name: '旧杯', capacityMl: null }], [])
+  assert.equal(legacyCapacity.glassware.capacityLabel, '容量待补充')
+  assert.equal(legacyCapacity.capacity.status, 'invalid-glass')
+  assert.equal(legacyCapacity.capacity.differenceMl, null)
 })
 
 test('settings and recipe pages expose the expected route events and non-color status text', () => {
@@ -192,6 +199,45 @@ test('settings and recipe pages expose the expected route events and non-color s
   assert.match(editor, /preview\.capacity\.message/)
   assert.match(editor, /资料缺失/)
   assert.match(detail, /detail\.capacity\.message/)
+  assert.match(settings, /disabled="{{savingGlass}}"/)
+  assert.match(settings, /loading="{{savingGlass}}"/)
+})
+
+test('editor operation guard prevents double saves and unlocks after success or failure', async () => {
+  const guard = createEditorOperationGuard()
+  let copies = 0; let saves = 0; let release
+  const pending = new Promise((resolve) => { release = resolve })
+  async function guardedSave(fail = false) {
+    const token = guard.begin()
+    if (!token) return { started: false }
+    try {
+      copies += 1
+      await pending
+      if (fail) throw new Error('failed')
+      saves += 1
+      return { started: true }
+    } finally { guard.finish(token) }
+  }
+
+  const first = guardedSave()
+  const second = await guardedSave()
+  assert.equal(second.started, false)
+  assert.equal(copies, 1)
+  assert.equal(guard.canMutateEditor(), false)
+  release()
+  await first
+  assert.equal(saves, 1)
+  assert.equal(guard.canMutateEditor(), true)
+
+  let rejectRelease
+  const failingPending = new Promise((resolve) => { rejectRelease = resolve })
+  const failureGuard = createEditorOperationGuard()
+  const token = failureGuard.begin()
+  const failing = (async () => { try { await failingPending; throw new Error('failed') } finally { failureGuard.finish(token) } })()
+  assert.equal(failureGuard.canMutateEditor(), false)
+  rejectRelease()
+  await assert.rejects(failing, /failed/)
+  assert.equal(failureGuard.canMutateEditor(), true)
 })
 
 test('media service copies temporary glass images to a unique managed path and never deletes external files', async () => {
@@ -226,6 +272,7 @@ test('glassware media save coordinates copy, repository commit, replacement clea
   let stored = { id: 'g1', name: '杯', capacityMl: 100, imagePath: '/managed/old.jpg', notes: '' }
   const repository = {
     getGlassware: () => structuredClone(stored),
+    listGlassware: () => [structuredClone(stored)],
     upsertGlassware(value) { events.push(['save', value.imagePath]); stored = { ...value, id: 'g1' }; return stored }
   }
 
@@ -240,7 +287,7 @@ test('glassware media save coordinates copy, repository commit, replacement clea
   assert.deepEqual(events, [['copy', '/tmp/fail.jpg']])
 
   events.length = 0
-  const failingRepository = { getGlassware: () => stored, upsertGlassware() { events.push(['save-failed']); throw new Error('storage') } }
+  const failingRepository = { getGlassware: () => stored, listGlassware: () => [stored], upsertGlassware() { events.push(['save-failed']); throw new Error('storage') } }
   const rollback = await orchestrateGlasswareMediaSave({ repository: failingRepository, mediaFiles, form: stored, selectedImagePath: '/tmp/new.jpg', notify: (m) => notices.push(m), warn: (m) => warnings.push(m) })
   assert.equal(rollback.saved, false)
   assert.deepEqual(events, [['copy', '/tmp/new.jpg'], ['save-failed'], ['remove', '/managed/new.jpg']])
@@ -251,6 +298,45 @@ test('glassware media save coordinates copy, repository commit, replacement clea
   assert.equal(cleanupWarning.saved, true)
   assert.deepEqual(events, [['save', ''], ['remove', '/managed/cleanup-fails.jpg']])
   assert.match(warnings.at(-1), /旧图片清理失败/)
+
+  events.length = 0
+  const cleanupLookupFailure = await orchestrateGlasswareMediaSave({
+    repository: { getGlassware: () => ({ ...stored, imagePath: '/managed/old-again.jpg' }), upsertGlassware: (value) => ({ ...value, id: 'g1' }), listGlassware() { throw new Error('read failed') } },
+    mediaFiles, form: { ...stored, imagePath: '/managed/old-again.jpg' }, selectedImagePath: '',
+    notify: (m) => notices.push(m), warn: (m) => warnings.push(m)
+  })
+  assert.equal(cleanupLookupFailure.saved, true)
+  assert.match(warnings.at(-1), /旧图片清理失败/)
+})
+
+test('old managed images are cleaned only after their final glassware reference is gone', async () => {
+  const removed = []
+  const mediaFiles = {
+    isManagedPath: (path) => String(path).startsWith('/managed/'),
+    async persistGlasswareImage(path) { return { path, created: false } },
+    async removeManagedFile(path) { removed.push(path); return { removed: true } }
+  }
+  let glasses = [
+    { id: 'g1', name: '一号杯', capacityMl: 100, imagePath: '/managed/shared.jpg', notes: '' },
+    { id: 'g2', name: '二号杯', capacityMl: 120, imagePath: '/managed/shared.jpg', notes: '' }
+  ]
+  const repository = {
+    getGlassware(id) { return structuredClone(glasses.find((item) => item.id === id)) },
+    listGlassware() { return structuredClone(glasses) },
+    upsertGlassware(value) { const index = glasses.findIndex((item) => item.id === value.id); glasses[index] = { ...value }; return glasses[index] },
+    getGlasswareUsageCount: () => 0,
+    deleteGlassware(id) { glasses = glasses.filter((item) => item.id !== id); return true }
+  }
+
+  await orchestrateGlasswareMediaSave({ repository, mediaFiles, form: glasses[0], selectedImagePath: '' })
+  assert.deepEqual(removed, [])
+  await orchestrateGlasswareMediaDelete({ repository, mediaFiles, id: 'g2', confirmed: true })
+  assert.deepEqual(removed, ['/managed/shared.jpg'])
+
+  removed.length = 0
+  glasses = [{ id: 'g3', name: '三号杯', capacityMl: 100, imagePath: '/external/shared.jpg', notes: '' }]
+  await orchestrateGlasswareMediaDelete({ repository, mediaFiles, id: 'g3', confirmed: true })
+  assert.deepEqual(removed, [])
 })
 
 test('glassware deletion cleans its managed image only after repository deletion succeeds', async () => {
@@ -258,6 +344,7 @@ test('glassware deletion cleans its managed image only after repository deletion
   const mediaFiles = { async removeManagedFile(path) { removed.push(path); return { removed: true } } }
   const repository = {
     getGlassware: () => ({ id: 'g1', imagePath: '/managed/old.jpg' }),
+    listGlassware: () => [],
     getGlasswareUsageCount: () => 0,
     deleteGlassware: () => true
   }

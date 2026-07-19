@@ -210,9 +210,9 @@ test('migration canonicalizes legacy equipment names and capacities without losi
   const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
 
   assert.deepEqual(migrated.glassware.map(({ id, name, capacityMl }) => ({ id, name, capacityMl })), [
-    { id: 'g-empty', name: '未命名杯具', capacityMl: 300 },
-    { id: 'g-coupe', name: 'Coupe', capacityMl: 5000 },
-    { id: 'g-coupe-2', name: 'coupe (2)', capacityMl: 300 }
+    { id: 'g-empty', name: '未命名杯具', capacityMl: null },
+    { id: 'g-coupe', name: 'Coupe', capacityMl: null },
+    { id: 'g-coupe-2', name: 'coupe (2)', capacityMl: null }
   ])
   assert.deepEqual(migrated.tools.slice(QUICK_TOOLS.length).map(({ id, name }) => ({ id, name })), [
     { id: 't-empty', name: '未命名用具' },
@@ -222,6 +222,17 @@ test('migration canonicalizes legacy equipment names and capacities without losi
   ])
   assert.equal(migrated.recipes[0].glasswareId, 'g-empty')
   assert.deepEqual(migrated.recipes[0].toolIds, ['t-empty', 't-fixed-name'])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('migration keeps every invalid legacy glass capacity explicit instead of inventing a value', () => {
+  const migrated = migrateState({ glassware: [
+    { id: 'missing' }, { id: 'null', capacityMl: null }, { id: 'blank', capacityMl: '' },
+    { id: 'zero', capacityMl: 0 }, { id: 'nan', capacityMl: 'nope' }, { id: 'large', capacityMl: 5000.1 },
+    { id: 'valid', capacityMl: 250.5 }
+  ] }, '2026-01-01T00:00:00.000Z')
+
+  assert.deepEqual(migrated.glassware.map(({ capacityMl }) => capacityMl), [null, null, null, null, null, null, 250.5])
   assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
 })
 
@@ -241,6 +252,23 @@ test('migration remaps custom tool IDs that collide with built-ins and updates r
   assert.deepEqual(migrated.recipes[0].toolIds, ['legacy-tool-2', 'legacy-tool-3', 'legacy-tool-1'])
   assert.equal(migrated.tools.find(({ id }) => id === migrated.recipes[0].toolIds[0]).name, '我的喷枪')
   assert.notEqual(migrated.recipes[0].toolIds[0], 'quick-tool-1')
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('migration treats prototype-like tool IDs as data and never leaks non-string references', () => {
+  const raw = {
+    tools: [
+      { id: 'quick-tool-1', name: '冲突用具' },
+      { id: 'toString', name: 'To String' },
+      { id: '__proto__', name: 'Proto' },
+      { id: 'constructor', name: 'Constructor' }
+    ],
+    recipes: [{ id: 'r1', toolIds: ['quick-tool-1', 'toString', '__proto__', 'constructor'] }]
+  }
+  const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
+
+  assert.deepEqual(migrated.recipes[0].toolIds, ['legacy-tool-1', 'toString', '__proto__', 'constructor'])
+  assert.ok(migrated.recipes[0].toolIds.every((id) => typeof id === 'string'))
   assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
 })
 
