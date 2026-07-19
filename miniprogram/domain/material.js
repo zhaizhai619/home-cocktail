@@ -146,6 +146,12 @@ function createMaterialDefaults(category, name) {
   }
 }
 
+function getMaterialIdentityKey(category, name) {
+  let defaults
+  try { defaults = createMaterialDefaults(category || 'other-liquid', String(name || '').trim()) } catch (_) { defaults = createMaterialDefaults('other-liquid', String(name || '').trim()) }
+  return `${defaults.category}:${String(defaults.name || '').trim().toLowerCase()}`
+}
+
 function getMaterialVisualState(material) {
   if (material.assumedAvailable && material.trackFreshness === false) {
     return 'owned'
@@ -160,5 +166,6 @@ function getMaterialVisualState(material) {
 
 module.exports = {
   createMaterialDefaults,
+  getMaterialIdentityKey,
   getMaterialVisualState
 }

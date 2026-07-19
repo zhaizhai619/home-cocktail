@@ -9,3 +9,4 @@
 .unit { min-width:88rpx; padding:16rpx; color:#685a4e; background:#f3ece4; }
 .remove { margin:0; padding:0 14rpx; color:#9b5d48; background:transparent; }
 .abv,.observation { width:100%; padding:0 14rpx; background:#fff; border:1rpx solid #ded2c3; }
+.abv-warning { width:100%; color:#a54d36; font-size:22rpx; }

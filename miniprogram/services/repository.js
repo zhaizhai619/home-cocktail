@@ -1,4 +1,4 @@
-const { createMaterialDefaults } = require('../domain/material')
+const { createMaterialDefaults, getMaterialIdentityKey } = require('../domain/material')
 const { STORAGE_KEY, migrateState } = require('./schema')
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
@@ -60,15 +60,23 @@ function createRepository(adapter, options = {}) {
   }
   function materialKey(value) {
     const source = value && typeof value === 'object' ? value : {}
-    let defaults
-    try { defaults = createMaterialDefaults(source.category || 'other-liquid', String(source.name || '').trim()) } catch (_) { defaults = createMaterialDefaults('other-liquid', String(source.name || '').trim()) }
-    return `${defaults.category}:${defaults.name}`
+    return getMaterialIdentityKey(source.category, source.name)
   }
-  function saveRecipeWithMaterials(recipeValue, materialDrafts = []) {
+  function saveRecipeWithMaterials(recipeValue, materialDrafts = [], materialUpdates = []) {
     current()
     const originalState = state
     state = clone(originalState)
     try {
+      const updatesById = new Map()
+      for (const update of Array.isArray(materialUpdates) ? materialUpdates : []) {
+        if (update && typeof update.id === 'string') updatesById.set(update.id, update)
+      }
+      for (const [id, update] of updatesById) {
+        const index = state.materials.findIndex((item) => item.id === id)
+        const abv = Number(update.abv)
+        if (index === -1 || !state.materials[index].alcoholic || !Number.isFinite(abv) || abv <= 0 || abv > 100) throw new RangeError('Invalid ABV update')
+        state.materials[index] = material({ ...state.materials[index], abv }, state.materials[index])
+      }
       const idsByDraftKey = {}
       const idsByMaterialKey = {}
       for (const existingMaterial of state.materials) {

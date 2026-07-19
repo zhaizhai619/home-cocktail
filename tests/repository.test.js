@@ -301,3 +301,25 @@ test('recipe save transaction rolls back all in-memory and storage changes when 
   assert.deepEqual(repository.getState(), before)
   assert.deepEqual(adapter.read(STORAGE_KEY), before)
 })
+
+test('recipe save transaction uses a case-insensitive trimmed identity key for materials', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `id-${++id}` })() })
+  repository.initialize()
+  const save = (name) => repository.saveRecipeWithMaterials({ name, ingredients: [{ materialId: '', draftKey: 'base-spirit:gin', amount: 45, unit: 'ml' }] }, [{ draftKey: 'base-spirit:gin', category: 'base-spirit', name }])
+  const first = save(' Gin ')
+  const second = save('gin')
+  assert.equal(repository.listMaterials().length, 1)
+  assert.equal(first.ingredients[0].materialId, second.ingredients[0].materialId)
+})
+
+test('recipe save transaction atomically updates a missing existing material ABV and rejects invalid values', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `id-${++id}` })() })
+  repository.initialize()
+  const liqueur = repository.upsertMaterial({ name: '君度', category: 'liqueur' })
+  const saved = repository.saveRecipeWithMaterials({ name: '白色佳人', ingredients: [{ materialId: liqueur.id, amount: 20, unit: 'ml' }] }, [], [{ id: liqueur.id, abv: 40 }])
+  assert.equal(repository.getMaterial(liqueur.id).abv, 40)
+  assert.equal(saved.ingredients[0].materialId, liqueur.id)
+  assert.throws(() => repository.saveRecipeWithMaterials({ name: '不应保存', ingredients: [] }, [], [{ id: liqueur.id, abv: 0 }]), /Invalid ABV/)
+  assert.equal(repository.listRecipes().length, 1)
+  assert.equal(repository.getMaterial(liqueur.id).abv, 40)
+})

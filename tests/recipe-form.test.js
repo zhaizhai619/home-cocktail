@@ -13,6 +13,7 @@ const {
   updateIngredientField,
   hydrateRecipeIngredient,
   selectExistingIngredient,
+  orchestrateRecipeSave,
   getFormPreview
 } = require('../miniprogram/pages/recipe-edit/model')
 
@@ -59,7 +60,7 @@ test('ingredient draft derives category defaults and preserves existing material
   assert.equal(createIngredientDraft('soda', '汤力水').unit, 'top-up')
   const existing = { id: 'm1', name: '黑朗姆', category: 'other-base-spirit', defaultUnit: 'ml', alcoholic: true, abv: 47, owned: true }
   assert.deepEqual(createIngredientDraft(null, null, existing), {
-    name: '黑朗姆', category: 'other-base-spirit', amount: '', unit: 'ml', alcoholic: true, abv: 47, materialId: 'm1', status: 'existing', observation: ''
+    name: '黑朗姆', category: 'other-base-spirit', amount: '', unit: 'ml', alcoholic: true, abv: 47, materialId: 'm1', status: 'existing', abvMissing: false, abvNeedsPersist: false, observation: ''
   })
 })
 
@@ -171,6 +172,25 @@ test('selecting an existing material retains the typed row observation', () => {
   form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '手写备注' }]
   const selected = selectExistingIngredient(form, 0, { id: 'm-cointreau', name: '君度', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 40 })
   assert.deepEqual(selected.ingredients[0], { ...createIngredientDraft(null, null, { id: 'm-cointreau', name: '君度', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 40 }), amount: 20, observation: '手写备注' })
+})
+
+test('missing existing alcoholic ABV accepts a valid repair, emits an update, and rejects zero or over-range values', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '白色佳人'
+  form.ingredients = [{ ...createIngredientDraft(null, null, { id: 'm-cointreau', name: '君度', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: null }), amount: 20 }]
+  const repaired = updateIngredientField(form, 0, 'abv', '40')
+  assert.deepEqual(buildRecipePayload(repaired).materialUpdates, [{ id: 'm-cointreau', abv: 40 }])
+  assert.match(normalizeAndValidateForm(updateIngredientField(form, 0, 'abv', '0')).errors.ingredients, /酒精度/)
+  assert.match(normalizeAndValidateForm(updateIngredientField(form, 0, 'abv', '101')).errors.ingredients, /酒精度/)
+})
+
+test('save orchestration toasts and does not navigate when the transaction rejects', () => {
+  const messages = []; let navigations = 0
+  const form = createEmptyRecipeForm(); form.name = '失败保存'; form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), amount: 25 }]
+  const outcome = orchestrateRecipeSave({ repository: { saveRecipeWithMaterials() { throw new Error('offline') } }, form, notify: (message) => messages.push(message), navigateBack: () => { navigations++ } })
+  assert.equal(outcome.saved, false)
+  assert.deepEqual(messages, ['保存失败，请重试'])
+  assert.equal(navigations, 0)
 })
 
 test('preview delegates enriched material rows to existing ABV calculation', () => {

@@ -1,5 +1,5 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
-const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, getGlasswareSelection, getFormPreview } = require('./model')
+const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, getGlasswareSelection, getFormPreview, orchestrateRecipeSave } = require('./model')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
@@ -9,7 +9,7 @@ const NEW_CATEGORIES = [
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
-function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', showAbvInput: !isExisting && row.alcoholic === true, showAbvReadonly: isExisting && row.alcoholic === true, ...unitView(row.unit) } }
+function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true; return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', missingExistingAbv, showAbvInput: (!isExisting && row.alcoholic === true) || needsExistingAbvInput, showAbvReadonly: isExisting && row.alcoholic === true && !needsExistingAbvInput, ...unitView(row.unit) } }
 function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]; const index = units.findIndex((item) => item.value === row.unit); return { ...row, needsDuration: row.type !== '即调', units, unitIndex: index < 0 ? 0 : index, unitLabel: units[index < 0 ? 0 : index].label } }
 function emptyData(form, glassware) {
   const preview = getFormPreview(form)
@@ -70,14 +70,7 @@ Page({
   noop() {},
   onChooseImage() { if (typeof wx !== 'undefined' && wx.chooseMedia) wx.chooseMedia({ count: 1, mediaType: ['image'], success: (result) => this.sync({ ...this.data.form, imagePath: result.tempFiles && result.tempFiles[0] ? result.tempFiles[0].tempFilePath : '' }) }) },
   onSave() {
-    const checked = normalizeAndValidateForm(this.data.form); if (!checked.valid) { this.sync(checked.form, checked.errors); if (typeof wx !== 'undefined') wx.showToast({ title: Object.values(checked.errors)[0], icon: 'none' }); return }
-    const repo = repository(); if (!repo) return
-    try {
-      const built = buildRecipePayload(checked.form)
-      repo.saveRecipeWithMaterials(built.recipe, built.materialDrafts)
-      if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack()
-    } catch (error) {
-      if (typeof wx !== 'undefined') wx.showToast({ title: '保存失败，请重试', icon: 'none' })
-    }
+    const result = orchestrateRecipeSave({ repository: repository(), form: this.data.form, notify: (title) => { if (typeof wx !== 'undefined') wx.showToast({ title, icon: 'none' }) }, navigateBack: () => { if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack() } })
+    if (!result.saved && Object.keys(result.errors).length) this.sync(result.form, result.errors)
   }
 })

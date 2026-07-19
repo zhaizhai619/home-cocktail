@@ -9,6 +9,7 @@
   <label wx:if="{{item.canEditMetadata}}" class="alcoholic"><switch checked="{{item.alcoholic}}" bindchange="onAlcoholic" />含酒精</label>
   <text wx:else class="alcoholic">{{item.alcoholicLabel}}</text>
   <input wx:if="{{item.showAbvInput}}" class="abv" data-field="abv" value="{{item.abv}}" type="digit" placeholder="酒精度%（可空）" bindinput="onInput" />
+  <text wx:if="{{item.missingExistingAbv}}" class="abv-warning">酒精度缺失，请补全</text>
   <text wx:if="{{item.showAbvReadonly}}" class="abv readonly">酒精度 {{item.abv}}%</text>
   <input class="observation" data-field="observation" value="{{item.observation}}" placeholder="本杯材料备注（可选）" bindinput="onInput" />
 </view>

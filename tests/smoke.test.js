@@ -51,4 +51,5 @@ test('fast recipe editor route and focused form components are registered', () =
   assert.match(ingredientRow, /category/)
   assert.match(ingredientRow, /switch/)
   assert.match(ingredientRow, /item\.isExisting/)
+  assert.match(ingredientRow, /酒精度缺失，请补全/)
 })
