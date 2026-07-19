@@ -131,7 +131,7 @@ function buildRecipePayload(input) {
   const ingredients = form.ingredients.filter(usableIngredient)
   const historicalObservations = (Array.isArray(form.materialObservations) ? form.materialObservations : [])
     .filter((item) => item && typeof item.materialId === 'string' && item.materialId && typeof item.note === 'string' && item.note.trim())
-    .map((item) => ({ materialId: item.materialId, note: item.note.trim() }))
+    .map((item) => ({ materialId: item.materialId, note: item.note.trim(), ...(typeof item.createdAt === 'string' && item.createdAt ? { createdAt: item.createdAt } : {}) }))
   const materialDrafts = []
   const seenDraftKeys = new Set()
   for (const row of ingredients.filter((item) => !item.materialId)) {
@@ -156,7 +156,7 @@ function resolveRecipeMaterialIds(recipe, idsByDraftKey = {}) {
   return {
     ...source,
     ingredients: (Array.isArray(source.ingredients) ? source.ingredients : []).map((item) => ({ materialId: resolve(item), amount: item.amount, unit: item.unit })),
-    materialObservations: (Array.isArray(source.materialObservations) ? source.materialObservations : []).map((item) => ({ materialId: resolve(item), note: item.note })).filter((item) => item.materialId)
+    materialObservations: (Array.isArray(source.materialObservations) ? source.materialObservations : []).map((item) => ({ materialId: resolve(item), note: item.note, ...(typeof item.createdAt === 'string' && item.createdAt ? { createdAt: item.createdAt } : {}) })).filter((item) => item.materialId)
   }
 }
 

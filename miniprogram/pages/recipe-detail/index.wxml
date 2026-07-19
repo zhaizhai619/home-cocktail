@@ -1,0 +1,72 @@
+<view class="page detail-page">
+  <view wx:if="{{detail.status === 'missing'}}" class="empty-state">
+    <text class="empty-title">这款酒找不到了</text>
+    <text class="empty-copy">{{detail.message}}</text>
+    <button class="primary-button" bindtap="onBackToList">返回我的酒单</button>
+  </view>
+
+  <block wx:elif="{{detail.status === 'ok'}}">
+    <image wx:if="{{detail.imagePath}}" class="hero-image" src="{{detail.imagePath}}" mode="aspectFill" />
+    <view class="hero-card">
+      <view class="hero-heading"><text class="recipe-name">{{detail.name}}</text><text wx:if="{{detail.rating}}" class="rating-badge">{{detail.rating}}</text></view>
+      <text wx:if="{{detail.source}}" class="muted">来源：{{detail.source}}</text>
+      <view class="prep-list">
+        <view wx:for="{{detail.preparations}}" wx:key="type" class="prep-item">
+          <text class="prep-badge">{{item.label}}</text>
+          <text wx:if="{{item.note}}" class="prep-note">{{item.note}}</text>
+        </view>
+      </view>
+      <view class="summary-grid">
+        <view class="summary-item"><text class="summary-label">预估酒精度</text><text class="summary-value">{{detail.abv.valueLabel}}</text></view>
+        <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text></view>
+      </view>
+      <text wx:if="{{detail.abv.status === 'missing'}}" class="warning">待补充计算信息：{{detail.abv.missingText}}</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">材料</text>
+      <view class="ingredient-list">
+        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.unavailable ? 'unavailable' : ''}}">
+          <view class="ingredient-main"><text class="ingredient-name">{{item.name}}</text><text class="state-label {{item.state}}">{{item.stateLabel}}</text></view>
+          <text class="ingredient-amount">{{item.amountLabel}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="section">
+      <text class="section-title">杯具与用具</text>
+      <view wx:if="{{detail.glassware}}" class="equipment-line"><text>杯具</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view>
+      <view wx:if="{{detail.tools.length}}" class="tool-list"><text wx:for="{{detail.tools}}" wx:key="id" class="tool-chip">{{item.name}}</text></view>
+      <text wx:if="{{!detail.glassware && !detail.tools.length}}" class="muted">暂未记录杯具和用具</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">制作步骤</text>
+      <view wx:if="{{detail.steps.length}}" class="steps"><view wx:for="{{detail.steps}}" wx:key="index" class="step"><text class="step-index">{{index + 1}}</text><text class="step-copy">{{item}}</text></view></view>
+      <text wx:else class="muted">暂未记录制作步骤</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">我的评价</text>
+      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" class="rating-option {{item.selected ? 'selected' : ''}}">{{item.label}}</text></view>
+      <text wx:if="{{detail.tastingNote}}" class="tasting-note">{{detail.tastingNote}}</text>
+      <text wx:else class="muted">暂未记录总体备注</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">材料观察</text>
+      <view wx:if="{{detail.observations.length}}" class="observation-list">
+        <view wx:for="{{detail.observations}}" wx:key="index" class="observation-item"><view class="observation-heading"><text>{{item.materialName}}</text><text wx:if="{{item.createdAtLabel}}" class="muted">{{item.createdAtLabel}}</text></view><text class="observation-note">{{item.note}}</text></view>
+      </view>
+      <text wx:else class="muted">还没有针对单个材料的记录</text>
+      <view wx:if="{{detail.ingredientOptions.length}}" class="observation-form">
+        <picker range="{{detail.ingredientOptions}}" range-key="name" value="{{observationMaterialIndex}}" bindchange="onObservationMaterialChange"><view class="picker-field">{{observationMaterialLabel}} ▾</view></picker>
+        <textarea value="{{observationNote}}" maxlength="300" placeholder="这次用这个材料，有什么新发现？" bindinput="onObservationInput" />
+        <button class="secondary-button" bindtap="onSaveObservation">保存本次观察</button>
+      </view>
+    </view>
+
+    <view class="bottom-space"></view>
+    <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button copy" bindtap="onCopy">复制</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
+  </block>
+</view>

@@ -80,5 +80,9 @@ Page({
   },
   noop() {},
   onAddRecipe() { wx.navigateTo({ url: '/pages/recipe-edit/index' }) },
-  onSelectRecipe() { wx.showToast({ title: '配方详情即将上线', icon: 'none' }) }
+  onSelectRecipe(event) {
+    const id = event && event.detail && event.detail.id
+    if (!id) return wx.showToast({ title: '无法打开这款酒', icon: 'none' })
+    wx.navigateTo({ url: `/pages/recipe-detail/index?id=${encodeURIComponent(id)}` })
+  }
 })

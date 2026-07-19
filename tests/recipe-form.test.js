@@ -111,6 +111,14 @@ test('editing preserves historical material observations when no new row note is
   assert.deepEqual(buildRecipePayload(form).recipe.materialObservations, [{ materialId: 'm-lime', note: '上次的青柠很香' }])
 })
 
+test('editing preserves historical material observation timestamps', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '有时间记录的旧配方'
+  form.materialObservations = [{ materialId: 'm-lime', note: '上次的青柠很香', createdAt: '2026-07-19T12:00:00.000Z' }]
+  form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), materialId: 'm-lime', status: 'existing', amount: 25 }]
+  assert.deepEqual(buildRecipePayload(form).recipe.materialObservations, [{ materialId: 'm-lime', note: '上次的青柠很香', createdAt: '2026-07-19T12:00:00.000Z' }])
+})
+
 test('editing appends a new row observation without replacing historical observations', () => {
   const form = createEmptyRecipeForm()
   form.name = '旧配方'

@@ -107,7 +107,7 @@ function createRepository(adapter, options = {}) {
       const resolvedRecipe = {
         ...inputRecipe,
         ingredients: (Array.isArray(inputRecipe.ingredients) ? inputRecipe.ingredients : []).map((item) => ({ materialId: resolveId(item), amount: item.amount, unit: item.unit })),
-        materialObservations: (Array.isArray(inputRecipe.materialObservations) ? inputRecipe.materialObservations : []).map((item) => ({ materialId: resolveId(item), note: item.note })).filter((item) => item.materialId)
+        materialObservations: (Array.isArray(inputRecipe.materialObservations) ? inputRecipe.materialObservations : []).map((item) => ({ materialId: resolveId(item), note: item.note, ...(typeof item.createdAt === 'string' && item.createdAt ? { createdAt: item.createdAt } : {}) })).filter((item) => item.materialId)
       }
       const index = resolvedRecipe.id ? state.recipes.findIndex((item) => item.id === resolvedRecipe.id) : -1
       const savedRecipe = recipe(resolvedRecipe, index === -1 ? null : state.recipes[index])
@@ -126,7 +126,25 @@ function createRepository(adapter, options = {}) {
   }
   return {
     initialize, getState: () => clone(current()),
-    listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), saveRecipeWithMaterials, deleteRecipe: (id) => remove('recipes', id),
+    listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), saveRecipeWithMaterials,
+    appendRecipeObservation(id, value) {
+      const existing = get('recipes', id)
+      const materialId = value && value.materialId
+      const note = String(value && value.note || '').trim()
+      const belongsToRecipe = existing && existing.ingredients.some((ingredient) => ingredient && ingredient.materialId === materialId)
+      if (!belongsToRecipe || !note) return null
+      return upsert('recipes', {
+        ...existing,
+        materialObservations: [...existing.materialObservations, { materialId, note, createdAt: now() }]
+      }, recipe)
+    },
+    duplicateRecipe(id) {
+      const existing = get('recipes', id)
+      if (!existing) return null
+      const { id: ignoredId, createdAt: ignoredCreatedAt, updatedAt: ignoredUpdatedAt, ...copy } = existing
+      return upsert('recipes', { ...copy, name: `${copy.name || ''}副本` }, recipe)
+    },
+    deleteRecipe: (id) => remove('recipes', id),
     listMaterials: () => list('materials'), getMaterial: (id) => get('materials', id), upsertMaterial: (value) => upsert('materials', value, material),
     setMaterialOwned(id, owned) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, owned: owned === true }) : null },
     addToFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, ...fields, freshOnHand: true, purchasedAt: fields.purchasedAt || item.purchasedAt || now(), expiresAt: fields.expiresAt || item.expiresAt || null }) : null },

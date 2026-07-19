@@ -2,6 +2,7 @@
   "pages": [
     "pages/recipes/index",
     "pages/recipe-edit/index",
+    "pages/recipe-detail/index",
     "pages/materials/index",
     "pages/settings/index"
   ],
