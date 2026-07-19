@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/recipes/index",
+    "pages/recipe-edit/index",
     "pages/materials/index",
     "pages/settings/index"
   ],

@@ -79,6 +79,6 @@ Page({
     this.refreshCards()
   },
   noop() {},
-  onAddRecipe() { wx.showToast({ title: '配方编辑即将上线', icon: 'none' }) },
+  onAddRecipe() { wx.navigateTo({ url: '/pages/recipe-edit/index' }) },
   onSelectRecipe() { wx.showToast({ title: '配方详情即将上线', icon: 'none' }) }
 })

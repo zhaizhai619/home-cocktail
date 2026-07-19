@@ -31,3 +31,19 @@ test('declared pages and recipe card component have complete mini-program files'
   const recipePage = fs.readFileSync(path.join(root, 'pages', 'recipes', 'index.json'), 'utf8')
   assert.match(recipePage, /"recipe-card"\s*:\s*"\/components\/recipe-card\/index"/)
 })
+
+test('fast recipe editor route and focused form components are registered', () => {
+  const root = path.join(__dirname, '..', 'miniprogram')
+  const config = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'))
+  assert.ok(config.pages.includes('pages/recipe-edit/index'))
+  for (const component of ['ingredient-row', 'prep-editor']) {
+    for (const extension of ['js', 'json', 'wxml', 'wxss']) {
+      assert.ok(fs.existsSync(path.join(root, 'components', component, `index.${extension}`)))
+    }
+  }
+  const editorConfig = fs.readFileSync(path.join(root, 'pages', 'recipe-edit', 'index.json'), 'utf8')
+  assert.match(editorConfig, /"ingredient-row"/)
+  assert.match(editorConfig, /"prep-editor"/)
+  const ingredientRow = fs.readFileSync(path.join(root, 'components', 'ingredient-row', 'index.wxml'), 'utf8')
+  assert.match(ingredientRow, /data-field="name"/)
+})
