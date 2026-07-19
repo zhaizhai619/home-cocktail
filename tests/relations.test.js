@@ -118,6 +118,22 @@ test('does not claim unlocks for an owned, unknown, or on-demand target', () => 
   })
 })
 
+test('does not claim an unlock for an assumed-available long-term target', () => {
+  const recipes = [{ ingredients: [{ materialId: 'target' }] }]
+  const materialsById = {
+    target: material({
+      owned: false,
+      assumedAvailable: true,
+      trackFreshness: false
+    })
+  }
+
+  assert.deepEqual(
+    getMaterialUsageStats('target', recipes, materialsById),
+    { usageCount: 1, immediateUnlockCount: 0 }
+  )
+})
+
 test('hydrates recipe relationship objects while retaining their IDs', () => {
   const recipe = {
     id: 'martini',

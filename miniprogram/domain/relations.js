@@ -16,7 +16,7 @@ function getRecipesUsingMaterial(materialId, recipes) {
 }
 
 function isImmediateUnlockTarget(material) {
-  return material && material.acquisition === 'long-term' && !material.owned
+  return material && getMaterialVisualState(material) === 'missing-long-term'
 }
 
 function recipeIsAvailableAfterBuying(recipe, targetId, materialsById) {
@@ -151,3 +151,4 @@ module.exports = {
   hydrateRecipeSummary,
   getMaterialPreferenceNotes
 }
+const { getMaterialVisualState } = require('./material')
