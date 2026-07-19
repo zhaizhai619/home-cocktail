@@ -41,11 +41,26 @@ function createRepository(adapter, options = {}) {
     return migrateState({ recipes: [{ ...source, id: source.id || idFactory(), createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).recipes[0]
   }
   function material(value, existing) {
-    const source = { ...(existing || {}), ...(value || {}) }
+    const incoming = value && typeof value === 'object' ? value : {}
+    const source = { ...(existing || {}), ...incoming }
     let defaults
     try { defaults = createMaterialDefaults(source.category || 'other-liquid', source.name || '') } catch (_) { defaults = createMaterialDefaults('other-liquid', source.name || '') }
     const timestamp = now()
-    return migrateState({ materials: [{ ...defaults, ...source, category: defaults.category, id: source.id || idFactory(), freshOnHand: source.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
+    const derivedFields = ['acquisition', 'form', 'defaultUnit', 'alcoholic', 'abv', 'owned', 'freshOnHand', 'trackFreshness', 'assumedAvailable']
+    const categoryChanged = existing && defaults.category !== existing.category
+    const normalizedSource = { ...defaults, ...source, category: defaults.category }
+    if (categoryChanged) {
+      for (const field of derivedFields) {
+        if (!Object.prototype.hasOwnProperty.call(incoming, field) || incoming[field] === existing[field]) {
+          normalizedSource[field] = defaults[field]
+        }
+      }
+    }
+    const inventory = categoryChanged
+      ? { remainingAmount: source.remainingAmount, remainingUnit: source.remainingUnit, purchasedAt: source.purchasedAt, expiresAt: source.expiresAt }
+      : null
+    const result = migrateState({ materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
+    return inventory ? { ...result, ...inventory } : result
   }
   function remove(key, id, predicate = () => true) {
     const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))

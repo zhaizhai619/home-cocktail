@@ -144,7 +144,7 @@ test('materials support defaults, classification overrides, long-term ownership,
 test('material, glassware, and custom tool migration retain canonical and user fields', () => {
   const now = '2026-07-20T00:00:00.000Z'
   const migrated = migrateState({
-    materials: [{ id: 'm1', name: 'Milk', category: 'dairy', remainingAmount: 10, remainingUnit: 'ml', purchasedAt: now, expiresAt: now, preferenceNote: 'whole', createdAt: now, updatedAt: now }],
+    materials: [{ id: 'm1', name: 'Milk', category: 'dairy', freshOnHand: true, remainingAmount: 10, remainingUnit: 'ml', purchasedAt: now, expiresAt: now, preferenceNote: 'whole', createdAt: now, updatedAt: now }],
     glassware: [{ id: 'g1', name: 'Highball', capacity: 300, imagePath: '/glass.png', note: 'cold', custom: true }],
     tools: [{ id: 't1', name: 'Torch', voltage: '220v' }]
   }, now)
@@ -174,6 +174,47 @@ test('material migration and writes normalize category aliases and invalid categ
   assert.equal(repository.upsertMaterial({ name: 'Mystery', category: 'not-a-category' }).category, 'other-liquid')
 })
 
+test('migration repairs missing and duplicate IDs deterministically in every collection', () => {
+  const raw = {
+    recipes: [{ id: 'keep' }, {}, { id: '' }, { id: 'keep' }],
+    materials: [{ id: 'keep' }, {}, { id: 'keep' }],
+    glassware: [{ id: 'keep' }, {}, { id: 'keep' }],
+    tools: [{ id: 'quick-tool-1', name: 'Collision' }, { id: 'keep', name: 'Keep' }, {}, { id: 'keep', name: 'Duplicate' }]
+  }
+  const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
+
+  assert.deepEqual(migrated.recipes.map(({ id }) => id), ['keep', 'legacy-recipe-1', 'legacy-recipe-2', 'legacy-recipe-3'])
+  assert.deepEqual(migrated.materials.map(({ id }) => id), ['keep', 'legacy-material-1', 'legacy-material-2'])
+  assert.deepEqual(migrated.glassware.map(({ id }) => id), ['keep', 'legacy-glassware-1', 'legacy-glassware-2'])
+  assert.deepEqual(migrated.tools.slice(QUICK_TOOLS.length).map(({ id }) => id), ['legacy-tool-1', 'keep', 'legacy-tool-2', 'legacy-tool-3'])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('category transitions reset stale defaults while retaining inventory and explicit same-call overrides', () => {
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: () => 'material',
+    now: () => '2026-01-01T00:00:00.000Z'
+  })
+  repository.initialize()
+  const spirit = repository.upsertMaterial({ name: 'Gin', category: 'base-spirit', preferenceNote: 'dry' })
+  const stockedSpirit = repository.addToFreshShelf(spirit.id, { remainingAmount: 500, remainingUnit: 'ml' })
+  const fruit = repository.upsertMaterial({ ...stockedSpirit, category: 'fruit' })
+  const tonic = repository.upsertMaterial({ ...fruit, category: 'tonic', defaultUnit: 'piece' })
+
+  assert.deepEqual({ acquisition: fruit.acquisition, form: fruit.form, defaultUnit: fruit.defaultUnit, alcoholic: fruit.alcoholic, abv: fruit.abv, owned: fruit.owned, freshOnHand: fruit.freshOnHand, trackFreshness: fruit.trackFreshness, assumedAvailable: fruit.assumedAvailable }, { acquisition: 'on-demand', form: 'solid', defaultUnit: 'ml', alcoholic: false, abv: null, owned: false, freshOnHand: false, trackFreshness: true, assumedAvailable: false })
+  assert.equal(fruit.remainingAmount, 500)
+  assert.equal(fruit.preferenceNote, 'dry')
+  assert.equal(tonic.category, 'soda/tonic')
+  assert.equal(tonic.defaultUnit, 'piece')
+  assert.equal(tonic.form, 'liquid')
+  assert.equal(tonic.trackFreshness, false)
+})
+
+test('migration clears fresh inventory fields when freshOnHand is false', () => {
+  const material = migrateState({ materials: [{ id: 'm1', freshOnHand: false, remainingAmount: 5, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
+  assert.deepEqual({ remainingAmount: material.remainingAmount, remainingUnit: material.remainingUnit, purchasedAt: material.purchasedAt, expiresAt: material.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null })
+})
+
 test('material updates preserve createdAt and refresh updatedAt without legacy fresh fields', () => {
   const repository = createRepository(createMemoryAdapter(), {
     idFactory: () => 'm1',
@@ -182,7 +223,7 @@ test('material updates preserve createdAt and refresh updatedAt without legacy f
   repository.initialize()
   const created = repository.upsertMaterial({ name: 'Milk', category: 'dairy' })
   const updated = repository.upsertMaterial({ ...created, preferenceNote: 'whole' })
-  const legacy = migrateState({ materials: [{ id: 'legacy', freshAddedAt: '2026-01-01T00:00:00.000Z', freshExpiresAt: '2026-01-03T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
+  const legacy = migrateState({ materials: [{ id: 'legacy', freshOnHand: true, freshAddedAt: '2026-01-01T00:00:00.000Z', freshExpiresAt: '2026-01-03T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
 
   assert.equal(updated.createdAt, created.createdAt)
   assert.equal(updated.updatedAt, '2026-01-02T00:00:00.000Z')

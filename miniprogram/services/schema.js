@@ -76,6 +76,12 @@ function normalizeMaterial(material, now) {
   normalized.preferenceNote = typeof source.preferenceNote === 'string' ? source.preferenceNote : ''
   normalized.createdAt = createdAt
   normalized.updatedAt = validDate(source.updatedAt) ? source.updatedAt : createdAt
+  if (!normalized.freshOnHand) {
+    normalized.remainingAmount = null
+    normalized.remainingUnit = null
+    normalized.purchasedAt = null
+    normalized.expiresAt = null
+  }
   return normalized
 }
 
@@ -84,22 +90,37 @@ function normalizeNamedItem(item) {
   return { ...clone(source), id: typeof source.id === 'string' ? source.id : '', name: typeof source.name === 'string' ? source.name : '' }
 }
 
+function repairIds(items, prefix, reservedIds = new Set()) {
+  const used = new Set(reservedIds)
+  let repaired = 0
+  return items.map((item) => {
+    if (typeof item.id === 'string' && item.id && !used.has(item.id)) {
+      used.add(item.id)
+      return item
+    }
+    let id
+    do { id = `legacy-${prefix}-${++repaired}` } while (used.has(id))
+    used.add(id)
+    return { ...item, id }
+  })
+}
+
 function normalizeTools(tools) {
   const supplied = Array.isArray(tools) ? tools : []
   const custom = supplied
-    .filter((tool) => tool && typeof tool === 'object' && tool.builtIn !== true && typeof tool.id === 'string')
-    .map((tool) => ({ ...clone(tool), id: tool.id, name: typeof tool.name === 'string' ? tool.name : '', builtIn: false }))
+    .filter((tool) => tool && typeof tool === 'object' && tool.builtIn !== true)
+    .map((tool) => ({ ...clone(tool), id: typeof tool.id === 'string' ? tool.id : '', name: typeof tool.name === 'string' ? tool.name : '', builtIn: false }))
   const ids = new Set(builtInTools().map(({ id }) => id))
-  return [...builtInTools(), ...custom.filter((tool) => !ids.has(tool.id))]
+  return [...builtInTools(), ...repairIds(custom, 'tool', ids)]
 }
 
 function migrateState(raw, now = new Date().toISOString()) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createInitialState()
   return {
     version: CURRENT_SCHEMA_VERSION,
-    recipes: Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [],
-    materials: Array.isArray(raw.materials) ? raw.materials.map((material) => normalizeMaterial(material, now)) : [],
-    glassware: Array.isArray(raw.glassware) ? raw.glassware.map(normalizeNamedItem) : [],
+    recipes: repairIds(Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [], 'recipe'),
+    materials: repairIds(Array.isArray(raw.materials) ? raw.materials.map((material) => normalizeMaterial(material, now)) : [], 'material'),
+    glassware: repairIds(Array.isArray(raw.glassware) ? raw.glassware.map(normalizeNamedItem) : [], 'glassware'),
     tools: normalizeTools(raw.tools)
   }
 }
