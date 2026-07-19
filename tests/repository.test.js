@@ -191,7 +191,8 @@ test('migration repairs missing and duplicate IDs deterministically in every col
 })
 
 test('category transitions reset stale defaults while retaining inventory and explicit same-call overrides', () => {
-  const repository = createRepository(createMemoryAdapter(), {
+  const adapter = createMemoryAdapter()
+  const repository = createRepository(adapter, {
     idFactory: () => 'material',
     now: () => '2026-01-01T00:00:00.000Z'
   })
@@ -199,15 +200,24 @@ test('category transitions reset stale defaults while retaining inventory and ex
   const spirit = repository.upsertMaterial({ name: 'Gin', category: 'base-spirit', preferenceNote: 'dry' })
   const stockedSpirit = repository.addToFreshShelf(spirit.id, { remainingAmount: 500, remainingUnit: 'ml' })
   const fruit = repository.upsertMaterial({ ...stockedSpirit, category: 'fruit' })
-  const tonic = repository.upsertMaterial({ ...fruit, category: 'tonic', defaultUnit: 'piece' })
 
   assert.deepEqual({ acquisition: fruit.acquisition, form: fruit.form, defaultUnit: fruit.defaultUnit, alcoholic: fruit.alcoholic, abv: fruit.abv, owned: fruit.owned, freshOnHand: fruit.freshOnHand, trackFreshness: fruit.trackFreshness, assumedAvailable: fruit.assumedAvailable }, { acquisition: 'on-demand', form: 'solid', defaultUnit: 'ml', alcoholic: false, abv: null, owned: false, freshOnHand: false, trackFreshness: true, assumedAvailable: false })
-  assert.equal(fruit.remainingAmount, 500)
+  assert.deepEqual({ remainingAmount: fruit.remainingAmount, remainingUnit: fruit.remainingUnit, purchasedAt: fruit.purchasedAt, expiresAt: fruit.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null })
   assert.equal(fruit.preferenceNote, 'dry')
+  assert.deepEqual(createRepository(adapter).getMaterial(fruit.id), fruit)
+  const tonic = repository.upsertMaterial({ ...fruit, category: 'tonic', defaultUnit: 'piece' })
   assert.equal(tonic.category, 'soda/tonic')
   assert.equal(tonic.defaultUnit, 'piece')
   assert.equal(tonic.form, 'liquid')
   assert.equal(tonic.trackFreshness, false)
+})
+
+test('a category transition keeps supplied fresh inventory only when freshOnHand is explicitly enabled', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: () => 'm1' })
+  repository.initialize()
+  const fruit = repository.upsertMaterial({ name: 'Lime', category: 'fruit' })
+  const tonic = repository.upsertMaterial({ id: fruit.id, category: 'tonic', freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' })
+  assert.deepEqual({ freshOnHand: tonic.freshOnHand, remainingAmount: tonic.remainingAmount, remainingUnit: tonic.remainingUnit }, { freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece' })
 })
 
 test('migration clears fresh inventory fields when freshOnHand is false', () => {

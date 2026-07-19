@@ -56,11 +56,7 @@ function createRepository(adapter, options = {}) {
         }
       }
     }
-    const inventory = categoryChanged
-      ? { remainingAmount: source.remainingAmount, remainingUnit: source.remainingUnit, purchasedAt: source.purchasedAt, expiresAt: source.expiresAt }
-      : null
-    const result = migrateState({ materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
-    return inventory ? { ...result, ...inventory } : result
+    return migrateState({ materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
   }
   function remove(key, id, predicate = () => true) {
     const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))
