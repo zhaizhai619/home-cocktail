@@ -14,7 +14,7 @@ Page({
     units: UNITS,
     unitLabels: UNITS.map(({ label }) => label),
     showFreshForm: false,
-    freshDraft: { remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
+    freshDraft: { trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     undo: null
   },
@@ -49,7 +49,7 @@ Page({
     if (item.status !== 'ok') return
     const unit = item.remainingUnit || item.defaultUnit || 'ml'
     const index = Math.max(0, UNITS.findIndex(({ value }) => value === unit))
-    this.setData({ showFreshForm: true, freshUnitIndex: index, freshDraft: { remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' } })
+    this.setData({ showFreshForm: true, freshUnitIndex: index, freshDraft: { trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' } })
   },
   onCloseFreshForm() { this.setData({ showFreshForm: false }) },
   noop() {},
@@ -62,8 +62,8 @@ Page({
   onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '' }) },
   onConfirmFresh() {
     const draft = this.data.freshDraft
-    const fields = { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null }
-    if (String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
+    const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
+    if (draft.trackFreshness && String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
     try {
       const saved = repository().addToFreshShelf(this.materialId, fields)
       if (!saved) throw new Error('not saved')

@@ -76,7 +76,7 @@ function normalizeMaterial(material, now) {
   normalized.preferenceNote = typeof source.preferenceNote === 'string' ? source.preferenceNote : ''
   normalized.createdAt = createdAt
   normalized.updatedAt = validDate(source.updatedAt) ? source.updatedAt : createdAt
-  if (!normalized.freshOnHand) {
+  if (!normalized.freshOnHand || normalized.trackFreshness !== true) {
     normalized.remainingAmount = null
     normalized.remainingUnit = null
     normalized.purchasedAt = null

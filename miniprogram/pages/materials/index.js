@@ -34,7 +34,7 @@ Page({
     freshShelf: [],
     materials: [],
     showFreshForm: false,
-    freshDraft: { materialId: '', name: '', remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
+    freshDraft: { materialId: '', name: '', trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     undo: null
   },
@@ -75,7 +75,7 @@ Page({
     this.setData({
       showFreshForm: true,
       freshUnitIndex: index,
-      freshDraft: { materialId: item.id, name: item.name, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' }
+      freshDraft: { materialId: item.id, name: item.name, trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' }
     })
   },
   onCloseFreshForm() { this.setData({ showFreshForm: false }) },
@@ -89,8 +89,8 @@ Page({
   onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '' }) },
   onConfirmFresh() {
     const draft = this.data.freshDraft
-    const fields = { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null }
-    if (String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
+    const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
+    if (draft.trackFreshness && String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
     try {
       const saved = repository().addToFreshShelf(draft.materialId, fields)
       if (!saved) throw new Error('not saved')

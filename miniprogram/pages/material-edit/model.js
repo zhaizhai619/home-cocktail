@@ -21,11 +21,12 @@ function validateMaterialForm(form = {}) {
   const numericAbv = Number(form.abv)
   if (alcoholic && hasAbv && (!Number.isFinite(numericAbv) || numericAbv <= 0 || numericAbv > 100)) errors.abv = '酒精度需大于 0 且不超过 100'
   const freshOnHand = form.acquisition === 'on-demand' && form.freshOnHand === true
+  const trackFreshness = form.trackFreshness === true
   const hasAmount = form.remainingAmount !== null && form.remainingAmount !== undefined && String(form.remainingAmount).trim() !== ''
   const remainingAmount = Number(form.remainingAmount)
-  if (freshOnHand && hasAmount && (!Number.isFinite(remainingAmount) || remainingAmount < 0)) errors.remainingAmount = '余量不能小于 0'
-  if (freshOnHand && form.remainingUnit && !UNIT_VALUES.includes(form.remainingUnit)) errors.remainingUnit = '请选择有效余量单位'
-  if (!validOptionalDate(form.purchasedAt) || !validOptionalDate(form.expiresAt)) errors.date = '请填写有效日期'
+  if (freshOnHand && trackFreshness && hasAmount && (!Number.isFinite(remainingAmount) || remainingAmount < 0)) errors.remainingAmount = '余量不能小于 0'
+  if (freshOnHand && trackFreshness && form.remainingUnit && !UNIT_VALUES.includes(form.remainingUnit)) errors.remainingUnit = '请选择有效余量单位'
+  if (freshOnHand && trackFreshness && (!validOptionalDate(form.purchasedAt) || !validOptionalDate(form.expiresAt))) errors.date = '请填写有效日期'
   if (Object.keys(errors).length) return { valid: false, value: null, errors }
   return {
     valid: true,
@@ -37,14 +38,14 @@ function validateMaterialForm(form = {}) {
       defaultUnit: form.defaultUnit,
       alcoholic,
       abv: alcoholic && hasAbv ? numericAbv : null,
-      trackFreshness: form.trackFreshness === true,
-      assumedAvailable: form.trackFreshness === true ? false : form.assumedAvailable === true,
+      trackFreshness,
+      assumedAvailable: trackFreshness ? false : form.assumedAvailable === true,
       owned: form.acquisition === 'long-term' && form.owned === true,
       freshOnHand,
-      remainingAmount: freshOnHand && hasAmount ? remainingAmount : null,
-      remainingUnit: freshOnHand ? (form.remainingUnit || null) : null,
-      purchasedAt: freshOnHand ? (form.purchasedAt || null) : null,
-      expiresAt: freshOnHand ? (form.expiresAt || null) : null
+      remainingAmount: freshOnHand && trackFreshness && hasAmount ? remainingAmount : null,
+      remainingUnit: freshOnHand && trackFreshness ? (form.remainingUnit || null) : null,
+      purchasedAt: freshOnHand && trackFreshness ? (form.purchasedAt || null) : null,
+      expiresAt: freshOnHand && trackFreshness ? (form.expiresAt || null) : null
     },
     errors: {}
   }

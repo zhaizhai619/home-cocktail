@@ -10,6 +10,7 @@ function asLookup(items) {
 
 function formatInventory(material) {
   if (!material || material.freshOnHand !== true) return ''
+  if (material.trackFreshness !== true) return '当前在手头'
   if (Number.isFinite(Number(material.remainingAmount))) {
     const labels = { piece: '个', slice: '片', drop: '滴', chunk: '块', 'top-up': '补满', 'to-taste': '适量' }
     return `还剩约 ${Number(material.remainingAmount)}${labels[material.remainingUnit] || material.remainingUnit || ''}`
@@ -32,7 +33,7 @@ function buildCard(material, recipes, materialsById, now) {
   const stats = getMaterialUsageStats(material.id, recipes, materialsById)
   const visualState = getMaterialVisualState(material)
   const inventoryLabel = formatInventory(material)
-  const expiryLabel = formatExpiry(material.expiresAt, now)
+  const expiryLabel = material.trackFreshness === true ? formatExpiry(material.expiresAt, now) : ''
   return {
     ...material,
     visualState,
@@ -43,7 +44,7 @@ function buildCard(material, recipes, materialsById, now) {
     inventoryMeta: [inventoryLabel, expiryLabel].filter(Boolean).join(' · '),
     canToggleOwned: material.acquisition === 'long-term',
     canAddFresh: material.acquisition === 'on-demand' && material.freshOnHand !== true,
-    isFreshShelf: material.acquisition === 'on-demand' && material.trackFreshness === true && material.freshOnHand === true
+    isFreshShelf: material.acquisition === 'on-demand' && material.freshOnHand === true
   }
 }
 

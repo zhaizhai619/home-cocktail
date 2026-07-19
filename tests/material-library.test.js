@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 
-const { STORAGE_KEY } = require('../miniprogram/services/schema')
+const { STORAGE_KEY, migrateState } = require('../miniprogram/services/schema')
 const { createRepository } = require('../miniprogram/services/repository')
 const {
   buildMaterialLibrary,
@@ -102,6 +102,26 @@ test('long-term ownership and fresh inventory lifecycle are separate and use-up 
   assert.equal(repository.restoreFreshMaterial(fruit.id, used.undoToken), null)
 })
 
+test('fresh on-hand and freshness tracking remain independent through every combination', () => {
+  const repository = createRepository(memoryAdapter(), repositoryOptions())
+  repository.initialize()
+  const tonic = repository.saveMaterial({ name: '汤力水', category: 'soda/tonic', trackFreshness: false })
+  const stocked = repository.addToFreshShelf(tonic.id, { remainingAmount: 2, remainingUnit: 'piece', expiresAt: '2026-07-25' })
+  assert.deepEqual({ freshOnHand: stocked.freshOnHand, trackFreshness: stocked.trackFreshness, remainingAmount: stocked.remainingAmount, expiresAt: stocked.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, expiresAt: null })
+
+  const tracked = repository.saveMaterial({ ...stocked, trackFreshness: true, remainingAmount: 2, remainingUnit: 'piece', expiresAt: '2026-07-25' })
+  assert.deepEqual({ freshOnHand: tracked.freshOnHand, trackFreshness: tracked.trackFreshness, remainingAmount: tracked.remainingAmount }, { freshOnHand: true, trackFreshness: true, remainingAmount: 2 })
+  const untracked = repository.saveMaterial({ ...tracked, trackFreshness: false })
+  assert.deepEqual({ freshOnHand: untracked.freshOnHand, trackFreshness: untracked.trackFreshness, remainingAmount: untracked.remainingAmount, remainingUnit: untracked.remainingUnit, expiresAt: untracked.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
+  const offHand = repository.saveMaterial({ ...untracked, freshOnHand: false, trackFreshness: true, remainingAmount: 8, remainingUnit: 'piece' })
+  assert.deepEqual({ freshOnHand: offHand.freshOnHand, trackFreshness: offHand.trackFreshness, remainingAmount: offHand.remainingAmount }, { freshOnHand: false, trackFreshness: true, remainingAmount: null })
+})
+
+test('migration clears inventory metadata for untracked on-hand materials without clearing on-hand', () => {
+  const tonic = migrateState({ materials: [{ id: 'tonic', name: '汤力水', category: 'soda/tonic', freshOnHand: true, trackFreshness: false, remainingAmount: 2, remainingUnit: 'piece', expiresAt: '2026-07-25' }] }, '2026-07-20T00:00:00.000Z').materials[0]
+  assert.deepEqual({ freshOnHand: tonic.freshOnHand, trackFreshness: tonic.trackFreshness, remainingAmount: tonic.remainingAmount, remainingUnit: tonic.remainingUnit, expiresAt: tonic.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
+})
+
 test('stale undo cannot overwrite newly added fresh inventory and repeated use-up is safe', () => {
   const repository = createRepository(memoryAdapter(), repositoryOptions())
   repository.initialize()
@@ -163,10 +183,11 @@ test('library view model separates tracked fresh shelf and supports final filter
     { id: 'r2', ingredients: [{ materialId: 'violet' }, { materialId: 'gin' }] }
   ]
   const all = buildMaterialLibrary(materials, recipes, { now: '2026-07-20T00:00:00+08:00' })
-  assert.deepEqual(all.freshShelf.map(({ id }) => id), ['watermelon'])
-  assert.match(all.freshShelf[0].inventoryLabel, /320g/)
+  assert.deepEqual(all.freshShelf.map(({ id }) => id).sort(), ['tonic', 'watermelon'])
+  assert.match(all.freshShelf.find(({ id }) => id === 'watermelon').inventoryLabel, /320g/)
+  assert.equal(all.freshShelf.find(({ id }) => id === 'tonic').inventoryLabel, '当前在手头')
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'owned' }).materials.map(({ id }) => id).sort(), ['gin', 'tonic', 'watermelon'])
-  assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'fresh' }).materials.map(({ id }) => id), ['watermelon'])
+  assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'fresh' }).materials.map(({ id }) => id).sort(), ['tonic', 'watermelon'])
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'missing' }).materials.map(({ id }) => id).sort(), ['milk', 'violet'])
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { search: '紫罗兰' }).materials.map(({ id }) => id), ['violet'])
 })
@@ -192,7 +213,7 @@ test('material detail hydrates related recipes with full ingredient, glassware, 
     { id: 'gin', name: '金酒', acquisition: 'long-term', owned: true, trackFreshness: false }
   ]
   const recipes = [{
-    id: 'r1', name: '西瓜金酒酸', preparations: [{ type: '即调' }],
+    id: 'r1', name: '西瓜金酒酸', imagePath: '/images/watermelon.jpg', preparations: [{ type: '即调' }],
     ingredients: [{ materialId: 'watermelon', amount: 100, unit: 'g' }, { materialId: 'gin', amount: 45, unit: 'ml' }],
     glasswareId: 'g1', toolIds: ['t1'],
     materialObservations: [{ materialId: 'watermelon', note: '冰一点更好', createdAt: '2026-07-20T00:00:00.000Z' }]
@@ -202,6 +223,7 @@ test('material detail hydrates related recipes with full ingredient, glassware, 
   assert.equal(detail.relatedRecipes[0].ingredients.length, 2)
   assert.equal(detail.relatedRecipes[0].glasswareLabel, '古典杯 · 300ml')
   assert.equal(detail.relatedRecipes[0].toolsLabel, '摇酒壶')
+  assert.equal(detail.relatedRecipes[0].imagePath, '/images/watermelon.jpg')
   assert.equal(detail.observations[0].note, '冰一点更好')
 })
 
@@ -230,6 +252,8 @@ test('material form validation normalizes all fields and allows missing alcoholi
   assert.equal(validateMaterialForm({ name: '利口酒', category: 'liqueur', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: true, abv: '' }).valid, true)
   assert.equal(validateMaterialForm({ name: '', category: 'fruit', acquisition: 'on-demand', form: 'solid', defaultUnit: 'g', alcoholic: false }).errors.name, '请填写材料名称')
   assert.equal(validateMaterialForm({ name: '酒', category: 'liqueur', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: true, abv: 'nope' }).errors.abv, '酒精度需大于 0 且不超过 100')
+  const onHandUntracked = validateMaterialForm({ name: '汤力水', category: 'soda/tonic', acquisition: 'on-demand', form: 'liquid', defaultUnit: 'top-up', alcoholic: false, freshOnHand: true, trackFreshness: false, remainingAmount: '2', remainingUnit: 'piece', expiresAt: '2026-07-25' })
+  assert.deepEqual({ freshOnHand: onHandUntracked.value.freshOnHand, trackFreshness: onHandUntracked.value.trackFreshness, remainingAmount: onHandUntracked.value.remainingAmount, remainingUnit: onHandUntracked.value.remainingUnit, expiresAt: onHandUntracked.value.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
 })
 
 test('route decoding rejects malformed material IDs', () => {
@@ -252,4 +276,7 @@ test('mini program registers material detail and editor with actionable fresh un
   assert.match(materialsWxml, /data-id="\{\{item.id\}\}"/)
   assert.match(materialsWxml, /手头鲜材/)
   assert.match(materialsWxml, /我没有/)
+  const detailWxml = fs.readFileSync('miniprogram/pages/material-detail/index.wxml', 'utf8')
+  assert.match(detailWxml, /wx:if="\{\{item.imagePath\}\}"/)
+  assert.match(detailWxml, /src="\{\{item.imagePath\}\}"/)
 })

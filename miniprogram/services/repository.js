@@ -30,7 +30,7 @@ function validateMaterialValue(value, existing) {
   if (!UNIT_VALUES.has(normalized.defaultUnit)) throw new RangeError('Invalid material unit')
   if (normalized.alcoholic === true && hasSuppliedAbv(normalized.abv) && !hasValidAbv(normalized.abv)) throw new RangeError('Invalid material ABV')
   if (normalized.alcoholic !== true) normalized.abv = null
-  if (normalized.freshOnHand === true) {
+  if (normalized.freshOnHand === true && normalized.trackFreshness === true) {
     if (hasSuppliedAbv(normalized.remainingAmount)) {
       const amount = Number(normalized.remainingAmount)
       if (!Number.isFinite(amount) || amount < 0) throw new RangeError('Invalid material remaining amount')
@@ -38,8 +38,13 @@ function validateMaterialValue(value, existing) {
     } else normalized.remainingAmount = null
     if (normalized.remainingUnit !== null && normalized.remainingUnit !== undefined && normalized.remainingUnit !== '' && !UNIT_VALUES.has(normalized.remainingUnit)) throw new RangeError('Invalid material remaining unit')
     normalized.remainingUnit = normalized.remainingUnit || null
+    if (!isValidOptionalDate(normalized.purchasedAt) || !isValidOptionalDate(normalized.expiresAt)) throw new RangeError('Invalid material date')
+  } else {
+    normalized.remainingAmount = null
+    normalized.remainingUnit = null
+    normalized.purchasedAt = null
+    normalized.expiresAt = null
   }
-  if (!isValidOptionalDate(normalized.purchasedAt) || !isValidOptionalDate(normalized.expiresAt)) throw new RangeError('Invalid material date')
   normalized.alcoholic = normalized.alcoholic === true
   normalized.trackFreshness = normalized.trackFreshness === true
   normalized.assumedAvailable = normalized.trackFreshness ? false : normalized.assumedAvailable === true
@@ -109,7 +114,7 @@ function createRepository(adapter, options = {}) {
     const source = { ...(existing || {}), ...(value || {}) }
     return migrateState({ recipes: [{ ...source, id: source.id || idFactory(), createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).recipes[0]
   }
-  function material(value, existing) {
+  function material(value, existing, preserveExplicitDefaults = false) {
     const incoming = value && typeof value === 'object' ? value : {}
     const source = { ...(existing || {}), ...incoming }
     let defaults
@@ -120,7 +125,7 @@ function createRepository(adapter, options = {}) {
     const normalizedSource = { ...defaults, ...source, category: defaults.category }
     if (categoryChanged) {
       for (const field of derivedFields) {
-        if (!Object.prototype.hasOwnProperty.call(incoming, field) || incoming[field] === existing[field]) {
+        if (!Object.prototype.hasOwnProperty.call(incoming, field) || (!preserveExplicitDefaults && incoming[field] === existing[field])) {
           normalizedSource[field] = defaults[field]
         }
       }
@@ -131,14 +136,21 @@ function createRepository(adapter, options = {}) {
     const source = value && typeof value === 'object' ? value : {}
     return getMaterialIdentityKey(source.category, source.name)
   }
-  function saveMaterial(value) {
+  function saveMaterial(value, saveOptions = {}) {
     return atomicStateUpdate((nextState) => {
       const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
       const index = incoming.id ? nextState.materials.findIndex((entry) => entry.id === incoming.id) : -1
       if (incoming.id && index === -1) throw new RangeError('Invalid material ID')
       const existing = index === -1 ? null : nextState.materials[index]
       const validated = validateMaterialValue(incoming, existing)
-      const saved = material({ ...validated, id: existing ? existing.id : createUniqueMaterialId(nextState.materials), freshUndoToken: null, freshUndoSnapshot: null }, existing)
+      const normalizedForSave = { ...validated }
+      if (existing && validated.category !== existing.category) {
+        const categoryDefaults = createMaterialDefaults(validated.category, validated.name)
+        for (const field of ['acquisition', 'form', 'defaultUnit', 'alcoholic', 'abv', 'owned', 'freshOnHand', 'trackFreshness', 'assumedAvailable']) {
+          if (!Object.prototype.hasOwnProperty.call(incoming, field)) normalizedForSave[field] = categoryDefaults[field]
+        }
+      }
+      const saved = material({ ...normalizedForSave, id: existing ? existing.id : createUniqueMaterialId(nextState.materials), freshUndoToken: null, freshUndoSnapshot: null }, existing, saveOptions.preserveExplicitDefaults !== false)
       if (index === -1) nextState.materials.push(saved); else nextState.materials[index] = saved
       return { changed: true, value: saved }
     })
@@ -243,7 +255,7 @@ function createRepository(adapter, options = {}) {
     upsertMaterial(value) {
       const source = value && typeof value === 'object' ? { ...value } : {}
       if (!MATERIAL_CATEGORIES.has(CATEGORY_ALIASES[source.category] || source.category)) source.category = 'other-liquid'
-      return saveMaterial(source)
+      return saveMaterial(source, { preserveExplicitDefaults: false })
     },
     setMaterialOwned(id, owned) {
       const item = get('materials', id)
@@ -253,15 +265,15 @@ function createRepository(adapter, options = {}) {
       const item = get('materials', id)
       if (!item) return null
       return saveMaterial({
-        ...item, ...fields, freshOnHand: true, trackFreshness: true,
-        purchasedAt: fields.purchasedAt || item.purchasedAt || now(),
-        expiresAt: fields.expiresAt || item.expiresAt || null,
+        ...item, ...fields, freshOnHand: true,
+        purchasedAt: item.trackFreshness ? (fields.purchasedAt || item.purchasedAt || now()) : null,
+        expiresAt: item.trackFreshness ? (fields.expiresAt || item.expiresAt || null) : null,
         freshUndoToken: null
       })
     },
     updateFreshShelf(id, fields = {}) {
       const item = get('materials', id)
-      return item ? saveMaterial({ ...item, ...fields, freshOnHand: true, trackFreshness: true, freshUndoToken: null }) : null
+      return item ? saveMaterial({ ...item, ...fields, freshOnHand: true, freshUndoToken: null }) : null
     },
     useUpFreshMaterial(id) {
       return atomicStateUpdate((nextState) => {

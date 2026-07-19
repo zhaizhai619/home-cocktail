@@ -58,10 +58,13 @@
   <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm">
     <view class="sheet" catchtap="noop">
       <view class="sheet-handle"></view><text class="sheet-title">加入手头鲜材 · {{freshDraft.name}}</text>
-      <text class="field-label">还剩多少（选填）</text>
-      <view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker-value">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
-      <text class="field-label">预计过期日（选填）</text>
-      <picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="date-value">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
+      <block wx:if="{{freshDraft.trackFreshness}}">
+        <text class="field-label">还剩多少（选填）</text>
+        <view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker-value">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
+        <text class="field-label">预计过期日（选填）</text>
+        <picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="date-value">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
+      </block>
+      <text wx:else class="tracking-note">这个材料未开启余量追踪，只记录“当前在手头”。可在编辑材料中开启追踪。</text>
       <button class="primary" bindtap="onConfirmFresh">确认加入</button>
     </view>
   </view>

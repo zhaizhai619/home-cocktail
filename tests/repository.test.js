@@ -120,10 +120,10 @@ test('materials support defaults, classification overrides, long-term ownership,
     now: () => '2026-01-03T00:00:00.000Z'
   })
   repository.initialize()
-  const material = repository.upsertMaterial({ name: 'Lime', category: 'fruit', defaultUnit: 'piece', trackFreshness: false })
+  const material = repository.upsertMaterial({ name: 'Lime', category: 'fruit', defaultUnit: 'piece', trackFreshness: true })
   assert.equal(material.acquisition, 'on-demand')
   assert.equal(material.defaultUnit, 'piece')
-  assert.equal(material.trackFreshness, false)
+  assert.equal(material.trackFreshness, true)
   assert.equal(repository.setMaterialOwned(material.id, true).owned, true)
   const stocked = repository.addToFreshShelf(material.id, { remainingAmount: 3, remainingUnit: 'piece', purchasedAt: '2026-01-03T00:00:00.000Z', expiresAt: '2026-01-07T00:00:00.000Z' })
   assert.equal(stocked.freshOnHand, true)
@@ -212,11 +212,11 @@ test('category transitions reset stale defaults while retaining inventory and ex
   assert.equal(tonic.trackFreshness, false)
 })
 
-test('a category transition keeps supplied fresh inventory only when freshOnHand is explicitly enabled', () => {
+test('a category transition keeps supplied fresh inventory only when on-hand and tracking are explicitly enabled', () => {
   const repository = createRepository(createMemoryAdapter(), { idFactory: () => 'm1' })
   repository.initialize()
   const fruit = repository.upsertMaterial({ name: 'Lime', category: 'fruit' })
-  const tonic = repository.upsertMaterial({ id: fruit.id, category: 'tonic', freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' })
+  const tonic = repository.saveMaterial({ id: fruit.id, category: 'tonic', freshOnHand: true, trackFreshness: true, remainingAmount: 2, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' })
   assert.deepEqual({ freshOnHand: tonic.freshOnHand, remainingAmount: tonic.remainingAmount, remainingUnit: tonic.remainingUnit }, { freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece' })
 })
 
@@ -233,7 +233,7 @@ test('material updates preserve createdAt and refresh updatedAt without legacy f
   repository.initialize()
   const created = repository.upsertMaterial({ name: 'Milk', category: 'dairy' })
   const updated = repository.upsertMaterial({ ...created, preferenceNote: 'whole' })
-  const legacy = migrateState({ materials: [{ id: 'legacy', freshOnHand: true, freshAddedAt: '2026-01-01T00:00:00.000Z', freshExpiresAt: '2026-01-03T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
+  const legacy = migrateState({ materials: [{ id: 'legacy', freshOnHand: true, trackFreshness: true, freshAddedAt: '2026-01-01T00:00:00.000Z', freshExpiresAt: '2026-01-03T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
 
   assert.equal(updated.createdAt, created.createdAt)
   assert.equal(updated.updatedAt, '2026-01-02T00:00:00.000Z')

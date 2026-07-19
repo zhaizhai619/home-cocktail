@@ -24,10 +24,11 @@
       <view wx:if="{{form.acquisition === 'long-term'}}" class="switch-row"><view><text class="switch-title">当前我有</text><text class="switch-note">关闭后，酒款里的材料会变灰</text></view><switch checked="{{form.owned}}" bindchange="onOwnedChange" color="#6d8666"/></view>
       <block wx:else>
         <view class="switch-row"><view><text class="switch-title">当前在手头</text><text class="switch-note">开启后加入“手头鲜材”</text></view><switch checked="{{form.freshOnHand}}" bindchange="onFreshChange" color="#a96826"/></view>
-        <block wx:if="{{form.freshOnHand}}">
+        <block wx:if="{{form.freshOnHand && form.trackFreshness}}">
           <text class="label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{form.remainingAmount}}" bindinput="onAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{remainingUnitIndex}}" bindchange="onRemainingUnitChange"><view class="unit-picker">{{unitLabels[remainingUnitIndex]}}⌄</view></picker></view><text wx:if="{{errors.remainingAmount}}" class="error-text">{{errors.remainingAmount}}</text>
           <view class="two-columns"><view><text class="label">购买日期</text><picker mode="date" value="{{form.purchasedAt}}" bindchange="onPurchasedChange"><view class="picker">{{form.purchasedAt || '选填'}}</view></picker></view><view><text class="label">预计过期日</text><picker mode="date" value="{{form.expiresAt}}" bindchange="onExpiryChange"><view class="picker">{{form.expiresAt || '选填'}}</view></picker></view></view><text wx:if="{{errors.date}}" class="error-text">{{errors.date}}</text>
         </block>
+        <text wx:elif="{{form.freshOnHand}}" class="tracking-hint">当前只记录“在手头”，不会记录余量或过期日。</text>
       </block>
     </view>
 

@@ -82,7 +82,7 @@ Page({
   onOwnedChange(event) { this.setData({ 'form.owned': event.detail.value === true }) },
   onFreshChange(event) {
     const fresh = event.detail.value === true
-    this.setData({ 'form.freshOnHand': fresh, 'form.trackFreshness': fresh ? true : this.data.form.trackFreshness })
+    this.setData({ 'form.freshOnHand': fresh })
   },
   onAmountInput(event) { this.setData({ 'form.remainingAmount': event.detail.value, 'errors.remainingAmount': '' }) },
   onRemainingUnitChange(event) { const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
