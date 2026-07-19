@@ -20,7 +20,7 @@
 .ingredient-row { min-height: 82rpx; padding: 0 12rpx; border-bottom: 1rpx solid #eee6dc; border-radius: 12rpx; }.ingredient-row:last-child { border-bottom: 0; }
 .ingredient-row.quick-buy { margin: 4rpx 0; color: #604b37; background: #fff6e9; }.ingredient-row.missing-long-term { color: #aaa39c; background: #f1efec; }
 .ingredient-name { font-size: 27rpx; }.ingredient-amount { flex: none; font-size: 26rpx; }
-.ingredient-main { justify-content: flex-start; }.availability-dot { width: 14rpx; height: 14rpx; flex: none; background: #789060; border-radius: 50%; }.quick-buy .availability-dot { background: #d99a43; }.missing-long-term .availability-dot { background: #aaa39c; }
+.ingredient-main { justify-content: flex-start; }
 .equipment-line { min-height: 64rpx; color: #5d534a; font-size: 26rpx; }
 .tool-list, .ratings { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 14rpx; }.tool-chip { color: #5d534a; background: #f0e9df; }
 .steps { display: grid; gap: 20rpx; }.step { display: flex; align-items: flex-start; gap: 18rpx; }.step-index { display: flex; flex: none; align-items: center; justify-content: center; width: 42rpx; height: 42rpx; color: #fffaf3; background: #a96826; border-radius: 50%; font-size: 22rpx; }.step-copy { padding-top: 3rpx; color: #544a42; font-size: 27rpx; line-height: 1.6; }

@@ -48,11 +48,17 @@ function buildRelatedRecipe(recipe, lookups) {
     preparationLabel: formatPrep(hydrated.preparations),
     ingredients: hydrated.ingredients.map((ingredient) => {
       const material = ingredient.material
+      const state = material ? getMaterialVisualState(material) : 'missing-long-term'
+      const name = material && material.name || '材料资料缺失'
+      const amountLabel = formatAmount(ingredient)
+      const accessibilityState = { owned: '当前可用', 'quick-buy': '可随买随用', 'missing-long-term': '长期材料当前没有' }[state]
       return {
         materialId: ingredient.materialId || '',
-        name: material && material.name || '材料资料缺失',
-        amountLabel: formatAmount(ingredient),
-        state: material ? getMaterialVisualState(material) : 'missing-long-term'
+        name,
+        amountLabel,
+        state,
+        quickBuyIcon: state === 'quick-buy' ? '🛍' : '',
+        accessibilityLabel: [name, amountLabel, accessibilityState].filter(Boolean).join('，')
       }
     }),
     glasswareLabel,

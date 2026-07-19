@@ -210,7 +210,7 @@ function orchestrateRecipeSave({ repository, form, notify = () => {}, navigateBa
     return { saved: true, recipe, form: checked.form, errors: {} }
   } catch (_) {
     notify('保存失败，请重试')
-    return { saved: false, form: checked.form, errors: {} }
+    return { saved: false, form: checked.form, errors: { form: '保存失败，请重试' } }
   }
 }
 

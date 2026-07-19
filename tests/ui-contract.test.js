@@ -113,3 +113,23 @@ test('recipe detail ingredient rows navigate to their material detail', () => {
   const detail = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
   assert.match(detail, /class="ingredient-row[^>]*data-id="{{item\.materialId}}"[^>]*bindtap="onOpenMaterial"/)
 })
+
+test('recipe material rows use icons and aria without visible availability words or missing decoration', () => {
+  const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxml'), 'utf8')
+  const related = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxml'), 'utf8')
+  const detail = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
+  const cardCss = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
+  const appCss = fs.readFileSync(path.join(MINI, 'app.wxss'), 'utf8')
+  assert.doesNotMatch(card, /需购|我有|我没有|缺少/)
+  assert.match(card, /quickBuyIcon/)
+  assert.match(related, /quickBuyIcon/)
+  assert.match(detail, /quick-buy-icon/)
+  assert.doesNotMatch(cardCss, /missing-long-term[^}]*border[^}]*dashed/)
+  assert.doesNotMatch(appCss, /missing-long-term[^}]*dashed/)
+})
+
+test('recipe save button is guarded by both image and recipe operations', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
+  assert.match(editor, /class="save[^>]*disabled="{{savingImage \|\| savingRecipe}}"[^>]*loading="{{savingImage \|\| savingRecipe}}"/)
+  assert.match(editor, /formError/)
+})

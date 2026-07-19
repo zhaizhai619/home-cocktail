@@ -33,7 +33,7 @@
       <text class="section-title">材料</text>
       <view class="ingredient-list">
         <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
-          <view class="ingredient-main"><text class="availability-dot" aria-hidden="true"></text><text class="ingredient-name">{{item.name}}</text></view>
+          <view class="ingredient-main"><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍</text><text class="ingredient-name">{{item.name}}</text></view>
           <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text><text class="row-arrow" aria-hidden="true">›</text></view>
         </view>
       </view>

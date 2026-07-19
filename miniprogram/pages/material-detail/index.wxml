@@ -23,7 +23,7 @@
         <view wx:for="{{detail.relatedRecipes}}" wx:key="id" class="recipe-card" bindtap="onOpenRecipe" data-id="{{item.id}}">
           <image wx:if="{{item.imagePath}}" class="recipe-image" src="{{item.imagePath}}" mode="aspectFill" aria-label="{{item.name}}配图" />
           <view class="recipe-content"><view class="recipe-title-row"><text class="recipe-title">{{item.name}}</text><text class="prep">{{item.preparationLabel}}</text></view>
-            <view class="ingredients"><text wx:for="{{item.ingredients}}" wx:for-item="ingredient" wx:key="materialId" class="ingredient state-{{ingredient.state}}">{{ingredient.name}} {{ingredient.amountLabel}}{{index < item.ingredients.length - 1 ? ' · ' : ''}}</text></view>
+            <view class="ingredients"><text wx:for="{{item.ingredients}}" wx:for-item="ingredient" wx:key="materialId" class="ingredient state-{{ingredient.state}}" aria-label="{{ingredient.accessibilityLabel}}"><text wx:if="{{ingredient.quickBuyIcon}}" class="quick-buy-icon" aria-hidden="true">{{ingredient.quickBuyIcon}}</text>{{ingredient.name}} {{ingredient.amountLabel}}{{index < item.ingredients.length - 1 ? ' · ' : ''}}</text></view>
             <view class="recipe-meta"><text>杯具：{{item.glasswareLabel}}</text><text>用具：{{item.toolsLabel}}</text></view>
           </view>
         </view>

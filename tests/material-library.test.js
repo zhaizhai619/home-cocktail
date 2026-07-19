@@ -17,7 +17,7 @@ const {
   buildMaterialDetail,
   decodeMaterialId
 } = require('../miniprogram/pages/material-detail/model')
-const { validateMaterialForm } = require('../miniprogram/pages/material-edit/model')
+const { validateMaterialForm, orchestrateMaterialSave } = require('../miniprogram/pages/material-edit/model')
 
 function memoryAdapter(initial, failSet = () => false) {
   const values = new Map(initial ? [[STORAGE_KEY, structuredClone(initial)]] : [])
@@ -372,6 +372,35 @@ test('material form validation normalizes all fields and allows missing alcoholi
   assert.deepEqual({ freshOnHand: onHandUntracked.value.freshOnHand, trackFreshness: onHandUntracked.value.trackFreshness, remainingAmount: onHandUntracked.value.remainingAmount, remainingUnit: onHandUntracked.value.remainingUnit, expiresAt: onHandUntracked.value.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
   const explicitMissingStaple = validateMaterialForm({ name: '柠檬汁', category: 'citrus', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: false, owned: false, assumedAvailable: true, trackFreshness: false })
   assert.deepEqual({ owned: explicitMissingStaple.value.owned, assumedAvailable: explicitMissingStaple.value.assumedAvailable }, { owned: false, assumedAvailable: false })
+})
+
+test('material save orchestration returns inline errors and never navigates after repository failure', () => {
+  const form = {
+    name: '西瓜', category: 'fruit', acquisition: 'on-demand', form: 'solid', defaultUnit: 'g',
+    alcoholic: false, freshOnHand: false, trackFreshness: true
+  }
+  const messages = []
+  let navigations = 0
+  const failed = orchestrateMaterialSave({
+    repository: { saveMaterial() { throw new Error('storage full') } },
+    form,
+    notify: (message) => messages.push(message),
+    navigate: () => { navigations++ }
+  })
+  assert.equal(failed.saved, false)
+  assert.equal(failed.errors.form, '保存失败，请重试')
+  assert.equal(failed.form.name, '西瓜')
+  assert.equal(navigations, 0)
+  assert.deepEqual(messages, ['保存失败，请重试'])
+
+  const duplicate = orchestrateMaterialSave({
+    repository: { saveMaterial() { throw new Error('Material already exists') } },
+    form,
+    notify: () => {},
+    navigate: () => { navigations++ }
+  })
+  assert.equal(duplicate.errors.name, '同一分类下已经有这个材料')
+  assert.equal(navigations, 0)
 })
 
 test('route decoding rejects malformed material IDs', () => {

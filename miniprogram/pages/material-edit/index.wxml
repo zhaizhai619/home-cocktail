@@ -32,7 +32,7 @@
       </block>
     </view>
 
-    <button class="save" bindtap="onSave">保存材料</button>
+    <text wx:if="{{errors.form}}" class="error-text form-error" aria-live="assertive">{{errors.form}}</text><button class="save" bindtap="onSave">保存材料</button>
     <button wx:if="{{mode === 'edit'}}" class="delete" bindtap="onDelete">删除材料</button>
     <text wx:if="{{mode === 'edit'}}" class="delete-note">“用完”只移出手头鲜材；这里才会真正删除材料。</text>
   </block>

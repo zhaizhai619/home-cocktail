@@ -47,7 +47,7 @@ function buildRecipeCard(recipe, materialsById = {}) {
         name: material.name,
         amountLabel,
         state,
-        quickBuyMarker: state === 'quick-buy' ? '需购' : '',
+        quickBuyIcon: state === 'quick-buy' ? '🛍' : '',
         accessibilityLabel: [material.name, amountLabel, availabilityText].filter(Boolean).join('，')
       })
       return items

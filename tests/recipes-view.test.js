@@ -34,9 +34,9 @@ test('buildRecipeCard shows its longest preparation and material visual states',
     rating: '常喝',
     preparationLabel: '冷冻 · 提前1天',
     ingredients: [
-      { name: '金酒', amountLabel: '30ml', state: 'owned', quickBuyMarker: '', accessibilityLabel: '金酒，30ml，当前可用' },
-      { name: '青柠', amountLabel: '1个', state: 'quick-buy', quickBuyMarker: '需购', accessibilityLabel: '青柠，1个，可随买随用' },
-      { name: '金巴利', amountLabel: '30ml', state: 'missing-long-term', quickBuyMarker: '', accessibilityLabel: '金巴利，30ml，长期材料当前没有' }
+      { name: '金酒', amountLabel: '30ml', state: 'owned', quickBuyIcon: '', accessibilityLabel: '金酒，30ml，当前可用' },
+      { name: '青柠', amountLabel: '1个', state: 'quick-buy', quickBuyIcon: '🛍', accessibilityLabel: '青柠，1个，可随买随用' },
+      { name: '金巴利', amountLabel: '30ml', state: 'missing-long-term', quickBuyIcon: '', accessibilityLabel: '金巴利，30ml，长期材料当前没有' }
     ]
   })
 })

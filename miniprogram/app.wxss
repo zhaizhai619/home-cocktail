@@ -26,7 +26,6 @@ input, textarea, picker { box-sizing: border-box; min-height: 88rpx; }
 .materials-page .empty-fresh, .materials-page .empty-list { color: #665f58; border-color: #bdae9a; }
 .materials-page .chip, .materials-page .mini-chip { min-height: 88rpx; border: 2rpx solid transparent; color: #625b55; }
 .materials-page .chip.selected, .materials-page .mini-chip.selected { border-color: #342f2b; box-shadow: inset 0 0 0 2rpx #fff; }
-.materials-page .material-card.state-missing-long-term { border-style: dashed; }
 .materials-page .material-card.state-missing-long-term .material-name { color: #6d6863; }
 .materials-page .quick-marker { border: 1rpx solid #b77727; color: #754712; }
 .materials-page .state-button.owned { border: 2rpx solid #668160; }
@@ -39,9 +38,8 @@ input, textarea, picker { box-sizing: border-box; min-height: 88rpx; }
 .page .tried-row { display: flex; align-items: center; min-height: 88rpx; gap: 16rpx; }
 .detail-page .ingredient-row { min-height: 88rpx; }
 .detail-page .ingredient-name, .detail-page .recipe-name, .detail-page .prep-note, .detail-page .observation-note, .detail-page .tasting-note { overflow-wrap: anywhere; }
-.detail-page .ingredient-row.missing-long-term { color: #6d6863; border: 2rpx dashed #8c8781; }
-.detail-page .quick-buy .availability-dot { border-radius: 2rpx; transform: rotate(45deg); }
-.detail-page .missing-long-term .availability-dot { background: transparent; border: 2rpx dashed #77716b; }
+.detail-page .ingredient-row.missing-long-term, .detail-page .ingredient.state-missing-long-term { color: #5f5a55; }
+.detail-page .quick-buy-icon { margin-right: 6rpx; font-size: 20rpx; }
 .detail-page .rating-option.selected { border: 2rpx solid #342f2b; box-shadow: inset 0 0 0 2rpx #fffaf3; }
 .detail-page .status, .detail-page .edit, .detail-page .primary, .detail-page .undo-bar button { min-height: 88rpx; }
 .detail-page .amount-row input, .detail-page .picker { min-height: 88rpx; height: 88rpx; }

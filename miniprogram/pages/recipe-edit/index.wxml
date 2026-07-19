@@ -7,4 +7,5 @@
   <view class="bottom-space"></view>
   <view wx:if="{{suggestionOpen}}" class="mask" bindtap="closeSuggestions"><view class="sheet" catchtap="noop"><text class="title">选择材料</text><input value="{{suggestionQuery}}" placeholder="搜索已有材料" bindinput="onSuggestionInput" /><button wx:for="{{suggestions}}" wx:key="index" data-index="{{index}}" bindtap="onChooseSuggestion">{{item.name}}</button></view></view>
 </scroll-view>
-<view class="save-bar"><button bindtap="onSave">保存配方</button></view>
+<view class="save-bar"><text wx:if="{{formError}}" class="error save-error" aria-live="assertive">{{formError}}</text><button class="save-button {{savingImage || savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingImage || savingRecipe}}" loading="{{savingImage || savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button></view>
+<view wx:if="{{savingImage}}" class="operation-mask" catchtap="noop" aria-label="图片处理中"><text>图片处理中…</text></view>

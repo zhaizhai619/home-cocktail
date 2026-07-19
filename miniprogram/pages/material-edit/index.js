@@ -1,5 +1,5 @@
 const { UNITS } = require('../../domain/constants')
-const { CATEGORIES, createFormDefaults, validateMaterialForm } = require('./model')
+const { CATEGORIES, createFormDefaults, orchestrateMaterialSave } = require('./model')
 const { decodeMaterialId } = require('../material-detail/model')
 
 const CATEGORY_OPTIONS = [
@@ -51,7 +51,8 @@ Page({
     })
     if (wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: `编辑 · ${form.name}` })
   },
-  onNameInput(event) { this.setData({ 'form.name': event.detail.value || '', 'errors.name': '' }) },
+  clearFormError() { if (this.data.errors.form) this.setData({ 'errors.form': '' }) },
+  onNameInput(event) { this.setData({ 'form.name': event.detail.value || '', 'errors.name': '', 'errors.form': '' }) },
   onCategoryChange(event) {
     const index = Number(event.detail.value)
     const option = CATEGORY_OPTIONS[index] || CATEGORY_OPTIONS[0]
@@ -64,45 +65,39 @@ Page({
     })
   },
   onAcquisitionChange(event) {
+    this.clearFormError()
     const index = Number(event.detail.value); const option = ACQUISITION_OPTIONS[index] || ACQUISITION_OPTIONS[0]
     const updates = { acquisitionIndex: indexFor(ACQUISITION_OPTIONS, option.value), 'form.acquisition': option.value }
     if (option.value === 'long-term') Object.assign(updates, { 'form.freshOnHand': false, 'form.remainingAmount': '', 'form.expiresAt': '' })
     else updates['form.owned'] = false
     this.setData(updates)
   },
-  onFormChange(event) { const index = Number(event.detail.value); const option = FORM_OPTIONS[index] || FORM_OPTIONS[0]; this.setData({ formIndex: indexFor(FORM_OPTIONS, option.value), 'form.form': option.value }) },
-  onUnitChange(event) { const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ unitIndex: indexFor(UNITS, option.value), 'form.defaultUnit': option.value }) },
-  onAlcoholicChange(event) { this.setData({ 'form.alcoholic': event.detail.value === true, 'form.abv': event.detail.value ? this.data.form.abv : '' }) },
-  onAbvInput(event) { this.setData({ 'form.abv': event.detail.value, 'errors.abv': '' }) },
+  onFormChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = FORM_OPTIONS[index] || FORM_OPTIONS[0]; this.setData({ formIndex: indexFor(FORM_OPTIONS, option.value), 'form.form': option.value }) },
+  onUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ unitIndex: indexFor(UNITS, option.value), 'form.defaultUnit': option.value }) },
+  onAlcoholicChange(event) { this.clearFormError(); this.setData({ 'form.alcoholic': event.detail.value === true, 'form.abv': event.detail.value ? this.data.form.abv : '' }) },
+  onAbvInput(event) { this.setData({ 'form.abv': event.detail.value, 'errors.abv': '', 'errors.form': '' }) },
   onTrackChange(event) {
+    this.clearFormError()
     const tracked = event.detail.value === true
     this.setData({ 'form.trackFreshness': tracked, 'form.assumedAvailable': tracked ? false : this.data.form.assumedAvailable })
   },
-  onAssumedChange(event) { this.setData({ 'form.assumedAvailable': event.detail.value === true }) },
-  onOwnedChange(event) { this.setData({ 'form.owned': event.detail.value === true, 'form.assumedAvailable': false }) },
+  onAssumedChange(event) { this.clearFormError(); this.setData({ 'form.assumedAvailable': event.detail.value === true }) },
+  onOwnedChange(event) { this.clearFormError(); this.setData({ 'form.owned': event.detail.value === true, 'form.assumedAvailable': false }) },
   onFreshChange(event) {
+    this.clearFormError()
     const fresh = event.detail.value === true
     this.setData({ 'form.freshOnHand': fresh })
   },
-  onAmountInput(event) { this.setData({ 'form.remainingAmount': event.detail.value, 'errors.remainingAmount': '' }) },
-  onRemainingUnitChange(event) { const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
-  onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '' }) },
-  onExpiryChange(event) { this.setData({ 'form.expiresAt': event.detail.value || '', 'errors.date': '' }) },
+  onAmountInput(event) { this.setData({ 'form.remainingAmount': event.detail.value, 'errors.remainingAmount': '', 'errors.form': '' }) },
+  onRemainingUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
+  onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
+  onExpiryChange(event) { this.setData({ 'form.expiresAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   onSave() {
-    const validation = validateMaterialForm(this.data.form)
-    if (!validation.valid) { this.setData({ errors: validation.errors }); return toast('请检查标红字段') }
-    try {
-      const value = this.materialId ? { ...validation.value, id: this.materialId } : validation.value
-      const saved = repository().saveMaterial(value)
-      if (!saved) throw new Error('not saved')
-      toast('材料已保存')
-      wx.redirectTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(saved.id)}` })
-    } catch (error) {
-      if (error && error.message === 'Material already exists') {
-        this.setData({ 'errors.name': '同一分类下已经有这个材料' })
-        toast('这个材料已经存在')
-      } else toast('保存失败，请重试')
-    }
+    const result = orchestrateMaterialSave({
+      repository: repository(), form: this.data.form, materialId: this.materialId, notify: toast,
+      navigate: (saved) => wx.redirectTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(saved.id)}` })
+    })
+    if (!result.saved) this.setData({ errors: result.errors })
   },
   onDelete() {
     const repo = repository()

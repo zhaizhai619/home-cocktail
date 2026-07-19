@@ -19,7 +19,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], savingImage: false, imageError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], savingImage: false, savingRecipe: false, imageError: '', formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
   onLoad(query) {
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
@@ -36,7 +36,7 @@ Page({
     this.materials = repo.listMaterials(); this.glassware = repo.listGlassware(); this.tools = repo.listTools()
     this.setData({ materials: this.materials, ...emptyData(this.data.form, this.glassware, this.tools) })
   },
-  sync(form, errors) { this.setData({ ...emptyData(form, this.glassware, this.tools), errors: errors || {} }) },
+  sync(form, errors) { const nextErrors = errors || {}; this.setData({ ...emptyData(form, this.glassware, this.tools), errors: nextErrors, formError: nextErrors.form || '' }) },
   onBasicInput(event) { const field = event.currentTarget.dataset.field; this.sync({ ...this.data.form, [field]: event.detail.value }) },
   onTried(event) { this.sync({ ...this.data.form, tried: event.detail.value }) },
   onQuickBase(event) { this.sync(applyQuickBase(this.data.form, event.currentTarget.dataset.name)) },
@@ -91,7 +91,14 @@ Page({
   },
   onSave() {
     if (this.data.savingImage) return wx.showToast({ title: '图片处理中，请稍候', icon: 'none' })
+    if (this._savingRecipe) return
+    this._savingRecipe = true
+    this.setData({ savingRecipe: true, formError: '' })
     const result = orchestrateRecipeSave({ repository: repository(), form: this.data.form, notify: (title) => { if (typeof wx !== 'undefined') wx.showToast({ title, icon: 'none' }) }, navigateBack: () => { if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack() } })
-    if (!result.saved && Object.keys(result.errors).length) this.sync(result.form, result.errors)
+    if (!result.saved) {
+      this._savingRecipe = false
+      this.setData({ savingRecipe: false })
+      if (Object.keys(result.errors).length) this.sync(result.form, result.errors)
+    }
   }
 })

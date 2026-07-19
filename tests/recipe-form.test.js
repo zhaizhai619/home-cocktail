@@ -214,6 +214,8 @@ test('save orchestration toasts and does not navigate when the transaction rejec
   const form = createEmptyRecipeForm(); form.name = '失败保存'; form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), amount: 25 }]
   const outcome = orchestrateRecipeSave({ repository: { saveRecipeWithMaterials() { throw new Error('offline') } }, form, notify: (message) => messages.push(message), navigateBack: () => { navigations++ } })
   assert.equal(outcome.saved, false)
+  assert.equal(outcome.errors.form, '保存失败，请重试')
+  assert.equal(outcome.form.name, '失败保存')
   assert.deepEqual(messages, ['保存失败，请重试'])
   assert.equal(navigations, 0)
 })
