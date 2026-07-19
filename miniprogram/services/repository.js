@@ -1,6 +1,8 @@
 const { createMaterialDefaults, getMaterialIdentityKey } = require('../domain/material')
 const { STORAGE_KEY, migrateState } = require('./schema')
 
+const MAX_UNIQUE_ID_ATTEMPTS = 20
+
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
 function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
 function hasValidAbv(value) { const abv = Number(value); return Number.isFinite(abv) && abv > 0 && abv <= 100 }
@@ -27,6 +29,22 @@ function createRepository(adapter, options = {}) {
   function save() { adapter.set(STORAGE_KEY, clone(state)) }
   function list(key) { return clone(current()[key]) }
   function get(key, id) { const item = current()[key].find((entry) => entry.id === id); return item ? clone(item) : null }
+  function atomicStateUpdate(mutator) {
+    const nextState = clone(current())
+    const outcome = mutator(nextState)
+    if (!outcome || outcome.changed !== true) return outcome ? outcome.value : null
+    adapter.set(STORAGE_KEY, clone(nextState))
+    state = nextState
+    return outcome.value && typeof outcome.value === 'object' ? clone(outcome.value) : outcome.value
+  }
+  function createUniqueRecipeId(recipes) {
+    const existingIds = new Set(recipes.map(({ id }) => id))
+    for (let attempt = 0; attempt < MAX_UNIQUE_ID_ATTEMPTS; attempt++) {
+      const candidate = idFactory()
+      if (typeof candidate === 'string' && candidate && !existingIds.has(candidate)) return candidate
+    }
+    throw new Error('Unable to generate unique recipe ID')
+  }
   function upsert(key, value, normalize) {
     const data = current(); const incoming = value && typeof value === 'object' ? value : {}
     const index = incoming.id ? data[key].findIndex((entry) => entry.id === incoming.id) : -1
@@ -128,23 +146,38 @@ function createRepository(adapter, options = {}) {
     initialize, getState: () => clone(current()),
     listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), saveRecipeWithMaterials,
     appendRecipeObservation(id, value) {
-      const existing = get('recipes', id)
       const materialId = value && value.materialId
       const note = String(value && value.note || '').trim()
-      const belongsToRecipe = existing && existing.ingredients.some((ingredient) => ingredient && ingredient.materialId === materialId)
-      if (!belongsToRecipe || !note) return null
-      return upsert('recipes', {
-        ...existing,
-        materialObservations: [...existing.materialObservations, { materialId, note, createdAt: now() }]
-      }, recipe)
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.recipes.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.recipes[index]
+        const ingredients = Array.isArray(existing && existing.ingredients) ? existing.ingredients : []
+        const belongsToRecipe = ingredients.some((ingredient) => ingredient && ingredient.materialId === materialId)
+        if (!belongsToRecipe || !note) return { changed: false, value: null }
+        const savedRecipe = recipe({
+          ...existing,
+          materialObservations: [...existing.materialObservations, { materialId, note, createdAt: now() }]
+        }, existing)
+        nextState.recipes[index] = savedRecipe
+        return { changed: true, value: savedRecipe }
+      })
     },
     duplicateRecipe(id) {
-      const existing = get('recipes', id)
-      if (!existing) return null
-      const { id: ignoredId, createdAt: ignoredCreatedAt, updatedAt: ignoredUpdatedAt, ...copy } = existing
-      return upsert('recipes', { ...copy, name: `${copy.name || ''}副本` }, recipe)
+      return atomicStateUpdate((nextState) => {
+        const existing = nextState.recipes.find((item) => item.id === id)
+        if (!existing) return { changed: false, value: null }
+        const { id: ignoredId, createdAt: ignoredCreatedAt, updatedAt: ignoredUpdatedAt, ...copy } = existing
+        const savedRecipe = recipe({ ...copy, id: createUniqueRecipeId(nextState.recipes), name: `${copy.name || ''}副本` }, null)
+        nextState.recipes.push(savedRecipe)
+        return { changed: true, value: savedRecipe }
+      })
     },
-    deleteRecipe: (id) => remove('recipes', id),
+    deleteRecipe: (id) => atomicStateUpdate((nextState) => {
+      const index = nextState.recipes.findIndex((item) => item.id === id)
+      if (index === -1) return { changed: false, value: false }
+      nextState.recipes.splice(index, 1)
+      return { changed: true, value: true }
+    }),
     listMaterials: () => list('materials'), getMaterial: (id) => get('materials', id), upsertMaterial: (value) => upsert('materials', value, material),
     setMaterialOwned(id, owned) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, owned: owned === true }) : null },
     addToFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, ...fields, freshOnHand: true, purchasedAt: fields.purchasedAt || item.purchasedAt || now(), expiresAt: fields.expiresAt || item.expiresAt || null }) : null },

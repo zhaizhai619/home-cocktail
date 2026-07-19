@@ -1,5 +1,6 @@
 const {
   buildRecipeDetail,
+  decodeRecipeId,
   orchestrateObservationSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
@@ -22,7 +23,7 @@ Page({
     observationNote: ''
   },
   onLoad(query) {
-    this.recipeId = query && query.id ? decodeURIComponent(query.id) : ''
+    this.recipeId = decodeRecipeId(query && query.id)
     this.loadDetail()
   },
   onShow() {

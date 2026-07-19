@@ -5,18 +5,36 @@ const fs = require('node:fs')
 const { RATINGS } = require('../miniprogram/domain/constants')
 const {
   buildRecipeDetail,
+  decodeRecipeId,
+  formatDate,
   validateObservation,
   orchestrateObservationSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('../miniprogram/pages/recipe-detail/model')
 const { createRepository } = require('../miniprogram/services/repository')
+const { STORAGE_KEY } = require('../miniprogram/services/schema')
 
 function createMemoryAdapter() {
   const values = new Map()
   return {
     get(key) { return values.get(key) },
-    set(key, value) { values.set(key, value) }
+    set(key, value) { values.set(key, value) },
+    read(key) { return structuredClone(values.get(key)) }
+  }
+}
+
+function createFaultAdapter() {
+  const values = new Map()
+  let shouldFail = false
+  return {
+    get(key) { return values.get(key) },
+    set(key, value) {
+      if (shouldFail) { shouldFail = false; throw new Error('storage unavailable') }
+      values.set(key, structuredClone(value))
+    },
+    failNextWrite() { shouldFail = true },
+    read(key) { return structuredClone(values.get(key)) }
   }
 }
 
@@ -179,6 +197,30 @@ test('repository appends timestamped observations without overwriting history', 
   ])
 })
 
+test('recipe observation, duplicate, and delete writes roll back memory and persistence on storage failure', () => {
+  for (const operation of ['observation', 'duplicate', 'delete']) {
+    const adapter = createFaultAdapter()
+    let nextId = 0
+    const repository = createRepository(adapter, {
+      idFactory: () => `id-${++nextId}`,
+      now: () => '2026-07-20T00:00:00.000Z'
+    })
+    repository.initialize()
+    const recipe = repository.upsertRecipe({ name: '原配方', ingredients: [{ materialId: 'gin', amount: 40, unit: 'ml' }] })
+    const beforeState = repository.getState()
+    const beforeStorage = adapter.read(STORAGE_KEY)
+    adapter.failNextWrite()
+
+    assert.throws(() => {
+      if (operation === 'observation') repository.appendRecipeObservation(recipe.id, { materialId: 'gin', note: '新观察' })
+      if (operation === 'duplicate') repository.duplicateRecipe(recipe.id)
+      if (operation === 'delete') repository.deleteRecipe(recipe.id)
+    }, /storage unavailable/, operation)
+    assert.deepEqual(repository.getState(), beforeState, `${operation} in-memory state`)
+    assert.deepEqual(adapter.read(STORAGE_KEY), beforeStorage, `${operation} persisted state`)
+  }
+})
+
 test('observation save orchestration handles validation, success, and repository failures', () => {
   const recipe = createDetailFixture().recipe
   const calls = []; const messages = []
@@ -208,6 +250,51 @@ test('repository duplicates a recipe with a fresh ID while reusing all material 
   assert.equal(repository.listMaterials().length, 1)
   assert.equal(repository.listRecipes().length, 2)
   assert.equal(repository.duplicateRecipe('missing'), null)
+})
+
+test('repository duplicate retries collisions against every recipe ID and commits only a unique ID', () => {
+  const ids = ['original', 'existing', 'original', 'existing', 'unique-copy']
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: () => ids.shift(), now: () => '2026-07-20T00:00:00.000Z'
+  })
+  repository.initialize()
+  const original = repository.upsertRecipe({ name: '原配方' })
+  repository.upsertRecipe({ name: '已有配方' })
+
+  const copy = repository.duplicateRecipe(original.id)
+  assert.equal(copy.id, 'unique-copy')
+  assert.equal(new Set(repository.listRecipes().map(({ id }) => id)).size, 3)
+})
+
+test('repository duplicate fails after finite ID collision retries without mutation', () => {
+  let calls = 0
+  const adapter = createMemoryAdapter()
+  const repository = createRepository(adapter, {
+    idFactory: () => { calls++; return 'same-id' }, now: () => '2026-07-20T00:00:00.000Z'
+  })
+  repository.initialize()
+  const original = repository.upsertRecipe({ name: '原配方' })
+  const before = repository.getState()
+  const beforeStorage = adapter.read(STORAGE_KEY)
+
+  assert.throws(() => repository.duplicateRecipe(original.id), /unique recipe ID/i)
+  assert.ok(calls > 1 && calls <= 21, `finite idFactory calls: ${calls}`)
+  assert.deepEqual(repository.getState(), before)
+  assert.deepEqual(adapter.read(STORAGE_KEY), beforeStorage)
+})
+
+test('formatDate uses device-local calendar dates and has a safe invalid fallback', () => {
+  assert.equal(formatDate('2026-07-19T18:30:00.000Z', 8 * 60), '2026-07-20')
+  assert.equal(formatDate('2026-07-19T15:30:00.000Z', 8 * 60), '2026-07-19')
+  assert.equal(formatDate(new Date('2026-07-19T18:30:00.000Z'), 8 * 60), '2026-07-20')
+  assert.equal(formatDate('not-a-date', 8 * 60), '')
+  assert.equal(formatDate(null, 8 * 60), '')
+})
+
+test('decodeRecipeId safely handles encoded and malformed deep-link IDs', () => {
+  assert.equal(decodeRecipeId('recipe%2Fone'), 'recipe/one')
+  assert.equal(decodeRecipeId('%E0%A4%A'), '')
+  assert.equal(decodeRecipeId(undefined), '')
 })
 
 test('copy and delete orchestration expose success IDs and safe failure feedback', () => {
@@ -244,4 +331,6 @@ test('mini program registers the detail route and wires recipe selection to a st
   assert.match(detailTemplate, /detail\.abv\.issueLines/)
   assert.match(detailTemplate, /detail\.abv\.ignoredText/)
   assert.match(detailTemplate, /去编辑补全/)
+  assert.match(detailController, /decodeRecipeId\(query && query\.id\)/)
+  assert.doesNotMatch(detailController, /decodeURIComponent/)
 })

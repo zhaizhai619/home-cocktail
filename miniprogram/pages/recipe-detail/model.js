@@ -33,9 +33,29 @@ function formatPreparation(preparation) {
   return `${preparation.type} · 提前${formatNumber(preparation.amount)}${unit}`
 }
 
-function formatDate(value) {
-  if (typeof value !== 'string' || !Number.isFinite(new Date(value).getTime())) return ''
-  return value.slice(0, 10)
+function formatDate(value, offsetMinutes) {
+  if (value === null || value === undefined || value === '') return ''
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
+  if (!Number.isFinite(date.getTime())) return ''
+  let year
+  let month
+  let day
+  if (Number.isFinite(offsetMinutes)) {
+    const shifted = new Date(date.getTime() + offsetMinutes * 60 * 1000)
+    year = shifted.getUTCFullYear()
+    month = shifted.getUTCMonth() + 1
+    day = shifted.getUTCDate()
+  } else {
+    year = date.getFullYear()
+    month = date.getMonth() + 1
+    day = date.getDate()
+  }
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function decodeRecipeId(value) {
+  if (typeof value !== 'string' || !value) return ''
+  try { return decodeURIComponent(value) } catch (_) { return '' }
 }
 
 function buildIngredient(ingredient, materialsById) {
@@ -206,6 +226,8 @@ function orchestrateRecipeDelete({ repository, recipeId, notify = () => {} }) {
 
 module.exports = {
   buildRecipeDetail,
+  decodeRecipeId,
+  formatDate,
   validateObservation,
   orchestrateObservationSave,
   orchestrateRecipeCopy,
