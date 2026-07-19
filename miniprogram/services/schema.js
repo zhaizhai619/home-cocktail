@@ -65,6 +65,7 @@ function normalizeMaterial(material, now) {
 
   const createdAt = validDate(source.createdAt) ? source.createdAt : now
   const normalized = { ...defaults, ...clone(userData) }
+  normalized.category = defaults.category
   normalized.id = typeof source.id === 'string' ? source.id : ''
   normalized.name = typeof source.name === 'string' ? source.name : ''
   normalized.freshOnHand = source.freshOnHand === true

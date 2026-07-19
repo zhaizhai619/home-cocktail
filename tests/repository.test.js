@@ -156,6 +156,24 @@ test('material, glassware, and custom tool migration retain canonical and user f
   assert.equal(migrated.tools.find(({ id }) => id === 't1').voltage, '220v')
 })
 
+test('material migration and writes normalize category aliases and invalid categories', () => {
+  const migrated = migrateState({
+    materials: [
+      { id: 'dairy', category: 'dairy' },
+      { id: 'tonic', category: 'tonic' },
+      { id: 'invalid', category: 'not-a-category' }
+    ]
+  }, '2026-01-01T00:00:00.000Z')
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: (() => { let id = 0; return () => `id-${++id}` })()
+  })
+  repository.initialize()
+
+  assert.deepEqual(migrated.materials.map(({ category }) => category), ['dairy/juice', 'soda/tonic', 'other-liquid'])
+  assert.equal(repository.upsertMaterial({ name: 'Milk', category: 'dairy' }).category, 'dairy/juice')
+  assert.equal(repository.upsertMaterial({ name: 'Mystery', category: 'not-a-category' }).category, 'other-liquid')
+})
+
 test('material updates preserve createdAt and refresh updatedAt without legacy fresh fields', () => {
   const repository = createRepository(createMemoryAdapter(), {
     idFactory: () => 'm1',

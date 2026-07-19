@@ -45,7 +45,7 @@ function createRepository(adapter, options = {}) {
     let defaults
     try { defaults = createMaterialDefaults(source.category || 'other-liquid', source.name || '') } catch (_) { defaults = createMaterialDefaults('other-liquid', source.name || '') }
     const timestamp = now()
-    return migrateState({ materials: [{ ...defaults, ...source, id: source.id || idFactory(), freshOnHand: source.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
+    return migrateState({ materials: [{ ...defaults, ...source, category: defaults.category, id: source.id || idFactory(), freshOnHand: source.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
   }
   function remove(key, id, predicate = () => true) {
     const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))
