@@ -8,6 +8,7 @@ const CATEGORY_ALIASES = { tonic: 'soda/tonic', soda: 'soda/tonic', dairy: 'dair
 const ACQUISITIONS = new Set(['long-term', 'on-demand'])
 const FORMS = new Set(['liquid', 'solid'])
 const UNIT_VALUES = new Set(UNITS.map(({ value }) => value))
+const MAX_GLASS_CAPACITY_ML = 5000
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
 function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
@@ -102,6 +103,14 @@ function createRepository(adapter, options = {}) {
     }
     throw new Error('Unable to generate unique recipe ID')
   }
+  function createUniqueEquipmentId(items) {
+    const existingIds = new Set(items.map(({ id }) => id))
+    for (let attempt = 0; attempt < MAX_UNIQUE_ID_ATTEMPTS; attempt++) {
+      const candidate = idFactory()
+      if (typeof candidate === 'string' && candidate && !existingIds.has(candidate)) return candidate
+    }
+    throw new Error('Unable to generate unique equipment ID')
+  }
   function upsert(key, value, normalize) {
     const data = current(); const incoming = value && typeof value === 'object' ? value : {}
     const index = incoming.id ? data[key].findIndex((entry) => entry.id === incoming.id) : -1
@@ -109,8 +118,45 @@ function createRepository(adapter, options = {}) {
     if (index === -1) data[key].push(saved); else data[key][index] = saved
     save(); return clone(saved)
   }
-  function named(value, existing) {
-    return { ...(existing || {}), ...(value || {}), id: value && value.id || existing && existing.id || idFactory(), name: typeof (value && value.name) === 'string' ? value.name : (existing ? existing.name : '') }
+  function equipmentName(value) { return String(value || '').trim().replace(/\s+/g, ' ') }
+  function equipmentIdentity(value) { return equipmentName(value).toLocaleLowerCase('zh-CN') }
+  function saveGlassware(value) {
+    return atomicStateUpdate((nextState) => {
+      const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+      const index = incoming.id ? nextState.glassware.findIndex((item) => item.id === incoming.id) : -1
+      if (incoming.id && index === -1) throw new RangeError('杯具不存在')
+      const existing = index === -1 ? null : nextState.glassware[index]
+      const source = { ...(existing || {}), ...incoming }
+      const name = equipmentName(source.name)
+      const capacityMl = Number(source.capacityMl)
+      if (!name) throw new RangeError('请填写杯具名称')
+      if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) throw new RangeError('杯具容量需大于 0 且不超过 5000ml')
+      if (nextState.glassware.some((item, itemIndex) => itemIndex !== index && equipmentIdentity(item.name) === equipmentIdentity(name))) throw new Error('同名杯具已存在')
+      const saved = {
+        id: existing ? existing.id : createUniqueEquipmentId(nextState.glassware),
+        name,
+        capacityMl,
+        imagePath: String(source.imagePath || '').trim(),
+        notes: String(source.notes !== undefined ? source.notes : source.note || '').trim()
+      }
+      if (index === -1) nextState.glassware.push(saved); else nextState.glassware[index] = saved
+      return { changed: true, value: saved }
+    })
+  }
+  function saveTool(value) {
+    return atomicStateUpdate((nextState) => {
+      const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+      const index = incoming.id ? nextState.tools.findIndex((item) => item.id === incoming.id) : -1
+      if (incoming.id && index === -1) throw new RangeError('用具不存在')
+      const existing = index === -1 ? null : nextState.tools[index]
+      if (existing && existing.builtIn === true) throw new RangeError('固定用具不可编辑')
+      const name = equipmentName(incoming.name !== undefined ? incoming.name : existing && existing.name)
+      if (!name) throw new RangeError('请填写用具名称')
+      if (nextState.tools.some((item, itemIndex) => itemIndex !== index && equipmentIdentity(item.name) === equipmentIdentity(name))) throw new Error('同名用具已存在')
+      const saved = { id: existing ? existing.id : createUniqueEquipmentId(nextState.tools), name, builtIn: false }
+      if (index === -1) nextState.tools.push(saved); else nextState.tools[index] = saved
+      return { changed: true, value: saved }
+    })
   }
   function recipe(value, existing) {
     const timestamp = now()
@@ -215,11 +261,6 @@ function createRepository(adapter, options = {}) {
       throw error
     }
   }
-  function remove(key, id, predicate = () => true) {
-    const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))
-    if (index === -1) return false
-    data[key].splice(index, 1); save(); return true
-  }
   return {
     initialize, getState: () => clone(current()),
     listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), saveRecipeWithMaterials,
@@ -321,8 +362,28 @@ function createRepository(adapter, options = {}) {
         return { changed: true, value: { deleted: true, reason: '', usageCount: 0 } }
       })
     },
-    listGlassware: () => list('glassware'), getGlassware: (id) => get('glassware', id), upsertGlassware: (value) => upsert('glassware', value, named), deleteGlassware: (id) => remove('glassware', id),
-    listTools: () => list('tools'), getTool: (id) => get('tools', id), upsertTool(value) { const existing = value && value.id ? get('tools', value.id) : null; if (existing && existing.builtIn) return false; return upsert('tools', value, (item, prior) => ({ ...named(item, prior), builtIn: false })) }, deleteTool: (id) => remove('tools', id, (tool) => tool.builtIn !== true)
+    listGlassware: () => list('glassware'), getGlassware: (id) => get('glassware', id), upsertGlassware: saveGlassware,
+    getGlasswareUsageCount(id) { return current().recipes.filter((item) => item && item.glasswareId === id).length },
+    deleteGlassware(id) {
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.glassware.findIndex((item) => item.id === id)
+        if (index === -1) return { changed: false, value: false }
+        if (nextState.recipes.some((item) => item && item.glasswareId === id)) return { changed: false, value: false }
+        nextState.glassware.splice(index, 1)
+        return { changed: true, value: true }
+      })
+    },
+    listTools: () => list('tools'), getTool: (id) => get('tools', id), upsertTool: saveTool,
+    getToolUsageCount(id) { return current().recipes.filter((item) => item && Array.isArray(item.toolIds) && item.toolIds.includes(id)).length },
+    deleteTool(id) {
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.tools.findIndex((item) => item.id === id)
+        if (index === -1 || nextState.tools[index].builtIn === true) return { changed: false, value: false }
+        if (nextState.recipes.some((item) => item && Array.isArray(item.toolIds) && item.toolIds.includes(id))) return { changed: false, value: false }
+        nextState.tools.splice(index, 1)
+        return { changed: true, value: true }
+      })
+    }
   }
 }
 

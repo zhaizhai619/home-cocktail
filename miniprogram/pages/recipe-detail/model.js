@@ -2,6 +2,7 @@ const { RATINGS, UNITS } = require('../../domain/constants')
 const { calculateAbv } = require('../../domain/abv')
 const { getMaterialVisualState } = require('../../domain/material')
 const { normalizePrepSelections } = require('../../domain/recipe')
+const { calculateGlassCapacity } = require('../../domain/equipment')
 
 const UNIT_LABELS = UNITS.reduce((labels, unit) => {
   labels[unit.value] = unit.label
@@ -88,11 +89,25 @@ function normalizedAmount(value) {
   return Number.isFinite(numeric) ? numeric : value
 }
 
+function calculationIngredients(recipe, materialsById) {
+  return (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => {
+    if (!ingredient || typeof ingredient !== 'object') return null
+    const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
+    const material = materialsById[source.materialId]
+    const amount = normalizedAmount(source.amount)
+    if (!material) return { name: `缺失材料（${source.materialId || '未知'}）`, amount, unit: source.unit, alcoholic: true, abv: null, form: source.unit === 'ml' ? 'liquid' : undefined }
+    const numericAbv = Number(material.abv)
+    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv > 0 && numericAbv <= 100
+    return { name: material.name || '未命名材料', amount, unit: source.unit, alcoholic: material.alcoholic === true, abv: hasAbv ? numericAbv : null, form: material.form, category: material.category }
+  })
+}
+
 function buildAbv(recipe, materialsById) {
   const missingMaterials = []
   const missingAbv = []
   const missingAmount = []
-  const enriched = (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => {
+  const enriched = calculationIngredients(recipe, materialsById)
+  ;(Array.isArray(recipe.ingredients) ? recipe.ingredients : []).forEach((ingredient) => {
     if (!ingredient || typeof ingredient !== 'object') return null
     const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
     const material = materialsById[source.materialId]
@@ -100,7 +115,7 @@ function buildAbv(recipe, materialsById) {
     if (!material) {
       const name = `缺失材料（${source.materialId || '未知'}）`
       appendUnique(missingMaterials, name)
-      return { name, amount, unit: source.unit, alcoholic: true, abv: null }
+      return null
     }
     const name = material.name || '未命名材料'
     const numericAbv = Number(material.abv)
@@ -110,11 +125,7 @@ function buildAbv(recipe, materialsById) {
     if (source.unit !== 'ml' && source.unit !== 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
     if (source.unit === 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
     if (hasMlAmount && material.alcoholic === true && !hasAbv) appendUnique(missingAbv, name)
-    return {
-      name, amount, unit: source.unit,
-      alcoholic: material.alcoholic === true, abv: hasAbv ? numericAbv : null,
-      form: material.form
-    }
+    return null
   })
   const result = calculateAbv(enriched)
   const explained = new Set([...missingMaterials, ...missingAbv, ...missingAmount])
@@ -169,12 +180,21 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     tried: recipe.tried === true, preparations,
     ingredients: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById)),
     ingredientOptions,
-    glassware: selectedGlass ? { id: selectedGlass.id, name: selectedGlass.name || '未命名杯具', capacityLabel: Number.isFinite(Number(selectedGlass.capacity || selectedGlass.capacityMl)) ? `${Number(selectedGlass.capacity || selectedGlass.capacityMl)}ml` : '' } : null,
-    tools: (Array.isArray(recipe.toolIds) ? recipe.toolIds : []).map((id) => toolsById[id]).filter(Boolean).map((tool) => ({ id: tool.id, name: tool.name || '未命名用具' })),
+    glassware: selectedGlass ? {
+      id: selectedGlass.id,
+      name: selectedGlass.name || '未命名杯具',
+      capacityLabel: Number.isFinite(Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)) ? `${Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)}ml` : '',
+      ...(selectedGlass.imagePath ? { imagePath: selectedGlass.imagePath } : {}),
+      ...(selectedGlass.notes || selectedGlass.note ? { notes: selectedGlass.notes || selectedGlass.note } : {})
+    } : (recipe.glasswareId ? { id: recipe.glasswareId, name: `杯具资料缺失（${recipe.glasswareId}）`, capacityLabel: '', orphaned: true } : null),
+    tools: (Array.isArray(recipe.toolIds) ? recipe.toolIds : []).map((id) => {
+      const tool = toolsById[id]
+      return tool ? { id: tool.id, name: tool.name || '未命名用具' } : { id, name: `用具资料缺失（${id}）`, orphaned: true }
+    }),
     steps: (Array.isArray(recipe.steps) ? recipe.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim()),
     rating: RATINGS.includes(recipe.rating) ? recipe.rating : '', ratings: RATINGS.map((label) => ({ label, selected: label === recipe.rating })),
     tastingNote: typeof recipe.tastingNote === 'string' ? recipe.tastingNote : '',
-    observations, abv: buildAbv(recipe, materialsById)
+    observations, abv: buildAbv(recipe, materialsById), capacity: calculateGlassCapacity(calculationIngredients(recipe, materialsById), selectedGlass || null)
   }
 }
 

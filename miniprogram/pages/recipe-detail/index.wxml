@@ -20,6 +20,8 @@
         <view class="summary-item"><text class="summary-label">预估酒精度</text><text class="summary-value">{{detail.abv.valueLabel}}</text></view>
         <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text></view>
       </view>
+      <text class="capacity-summary {{detail.capacity.status}}">{{detail.capacity.message}}</text>
+      <text wx:if="{{detail.capacity.status === 'over'}}" class="capacity-warning">容量提醒：预计超出 {{detail.capacity.differenceMl}}ml</text>
       <view wx:if="{{detail.abv.issueLines.length || detail.abv.ignoredText}}" class="calculation-notice">
         <text wx:for="{{detail.abv.issueLines}}" wx:key="kind" class="calculation-line {{item.kind}}">{{item.text}}</text>
         <text wx:if="{{detail.abv.ignoredText}}" class="calculation-line ignored">{{detail.abv.ignoredText}}</text>
@@ -39,8 +41,8 @@
 
     <view class="section">
       <text class="section-title">杯具与用具</text>
-      <view wx:if="{{detail.glassware}}" class="equipment-line"><text>杯具</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view>
-      <view wx:if="{{detail.tools.length}}" class="tool-list"><text wx:for="{{detail.tools}}" wx:key="id" class="tool-chip">{{item.name}}</text></view>
+      <view wx:if="{{detail.glassware}}" class="glass-card {{detail.glassware.orphaned ? 'orphaned' : ''}}"><image wx:if="{{detail.glassware.imagePath}}" class="glass-image" src="{{detail.glassware.imagePath}}" mode="aspectFill" /><view class="glass-copy"><view class="equipment-line"><text>杯具</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view><text wx:if="{{detail.glassware.notes}}" class="muted">{{detail.glassware.notes}}</text><text wx:if="{{detail.glassware.orphaned}}" class="orphan-label">资料缺失，请编辑配方重新选择</text></view></view>
+      <view wx:if="{{detail.tools.length}}" class="tool-list"><text wx:for="{{detail.tools}}" wx:key="id" class="tool-chip {{item.orphaned ? 'orphaned' : ''}}">{{item.name}}<text wx:if="{{item.orphaned}}"> · 资料缺失</text></text></view>
       <text wx:if="{{!detail.glassware && !detail.tools.length}}" class="muted">暂未记录杯具和用具</text>
     </view>
 

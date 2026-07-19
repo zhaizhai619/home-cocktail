@@ -1,5 +1,5 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
-const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, getGlasswareSelection, getFormPreview, orchestrateRecipeSave } = require('./model')
+const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateIngredientField, selectExistingIngredient, getFormPreview, orchestrateRecipeSave } = require('./model')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
@@ -11,17 +11,14 @@ function repository() { const app = typeof getApp === 'function' && getApp(); re
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
 function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true; return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', missingExistingAbv, showAbvInput: (!isExisting && row.alcoholic === true) || needsExistingAbvInput, showAbvReadonly: isExisting && row.alcoholic === true && !needsExistingAbvInput, ...unitView(row.unit) } }
 function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]; const index = units.findIndex((item) => item.value === row.unit); return { ...row, needsDuration: row.type !== '即调', units, unitIndex: index < 0 ? 0 : index, unitLabel: units[index < 0 ? 0 : index].label } }
-function emptyData(form, glassware) {
+function emptyData(form, glassware, tools) {
   const preview = getFormPreview(form)
-  const glass = (glassware || []).find((item) => item.id === form.glasswareId)
-  const glasswareSelection = getGlasswareSelection(glassware, form.glasswareId)
-  const capacity = glass && Number.isFinite(Number(glass.capacityMl)) ? Number(glass.capacityMl) : null
-  const remaining = capacity === null ? null : capacity - preview.liquidVolume
-  return { form, ...glasswareSelection, formIngredients: form.ingredients.map(displayIngredient), formPreparations: form.preparations.map(displayPrep), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', missingText: (preview.missing || []).join('、'), capacityKnown: capacity !== null, capacity, remaining, overCapacity: remaining !== null && remaining < 0 }, errors: {} }
+  const equipment = hydrateEquipmentSelections(form, glassware, tools)
+  return { form: equipment.form, glasswareOptions: equipment.glasswareOptions, glasswareIndex: equipment.glasswareIndex, glasswareLabel: equipment.glasswareLabel, tools: equipment.tools, formIngredients: equipment.form.ingredients.map(displayIngredient), formPreparations: equipment.form.preparations.map(displayPrep), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', missingText: (preview.missing || []).join('、'), capacity: equipment.capacity }, errors: {} }
 }
 
 Page({
-  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glassware: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], ...emptyData(createEmptyRecipeForm()) },
+  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], ...emptyData(createEmptyRecipeForm(), [], []) },
   onLoad(query) {
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
@@ -30,9 +27,15 @@ Page({
       const lookup = this.materials.reduce((all, item) => { all[item.id] = item; return all }, {})
       form = { ...form, ...recipe, steps: Array.isArray(recipe.steps) ? recipe.steps.join('\n') : '', ingredients: (recipe.ingredients || []).map((row) => hydrateRecipeIngredient(row, lookup[row.materialId])) }
     }
-    this.setData({ materials: this.materials, glassware: this.glassware, tools: this.tools.map((tool) => ({ ...tool, selected: form.toolIds.includes(tool.id) })), ...emptyData(form, this.glassware) })
+    this.setData({ materials: this.materials, ...emptyData(form, this.glassware, this.tools) })
   },
-  sync(form, errors) { this.setData({ tools: this.tools.map((tool) => ({ ...tool, selected: form.toolIds.includes(tool.id) })), ...emptyData(form, this.glassware), errors: errors || {} }) },
+  onShow() {
+    const repo = repository()
+    if (!repo || !this.data.form) return
+    this.materials = repo.listMaterials(); this.glassware = repo.listGlassware(); this.tools = repo.listTools()
+    this.setData({ materials: this.materials, ...emptyData(this.data.form, this.glassware, this.tools) })
+  },
+  sync(form, errors) { this.setData({ ...emptyData(form, this.glassware, this.tools), errors: errors || {} }) },
   onBasicInput(event) { const field = event.currentTarget.dataset.field; this.sync({ ...this.data.form, [field]: event.detail.value }) },
   onTried(event) { this.sync({ ...this.data.form, tried: event.detail.value }) },
   onQuickBase(event) { this.sync(applyQuickBase(this.data.form, event.currentTarget.dataset.name)) },
@@ -64,8 +67,8 @@ Page({
     this.sync({ ...this.data.form, preparations })
   },
   onPrepChange(event) { const { index, field, value } = event.detail; const preparations = this.data.form.preparations.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item); this.sync({ ...this.data.form, preparations }) },
-  onGlassware(event) { this.sync({ ...this.data.form, glasswareId: this.glassware[event.detail.value] ? this.glassware[event.detail.value].id : '' }) },
-  onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.tools[index]).filter(Boolean).map((tool) => tool.id) }) },
+  onGlassware(event) { const option = this.data.glasswareOptions[Number(event.detail.value)]; this.sync({ ...this.data.form, glasswareId: option ? option.id : '' }) },
+  onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.data.tools[Number(index)]).filter(Boolean).map((tool) => tool.id) }) },
   onRating(event) { this.sync({ ...this.data.form, rating: event.currentTarget.dataset.rating }) },
   noop() {},
   onChooseImage() { if (typeof wx !== 'undefined' && wx.chooseMedia) wx.chooseMedia({ count: 1, mediaType: ['image'], success: (result) => this.sync({ ...this.data.form, imagePath: result.tempFiles && result.tempFiles[0] ? result.tempFiles[0].tempFilePath : '' }) }) },

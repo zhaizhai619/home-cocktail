@@ -2,6 +2,7 @@ const { QUICK_BASE_SPIRITS, PREP_TYPES } = require('../../domain/constants')
 const { createMaterialDefaults, getMaterialIdentityKey } = require('../../domain/material')
 const { normalizePrepSelections } = require('../../domain/recipe')
 const { calculateAbv } = require('../../domain/abv')
+const { calculateGlassCapacity } = require('../../domain/equipment')
 
 const EMPTY_INGREDIENT = (category, name) => createIngredientDraft(category, name)
 
@@ -114,6 +115,7 @@ function normalizeAndValidateForm(input) {
   if (form.ingredients.some((row) => hasName(row) && row.unit !== 'top-up' && (!Number.isFinite(amountFor(row)) || amountFor(row) <= 0))) errors.ingredients = '材料用量需大于 0'
   if (form.ingredients.some((row) => row && row.alcoholic && hasSuppliedAbv(row.abv) && !hasValidAbv(row.abv))) errors.ingredients = '酒精度需大于 0 且不超过 100'
   if (form.preparations.length === 0 || form.preparations.some((prep) => !PREP_TYPES.includes(prep.type) || (prep.type !== '即调' && (!Number.isFinite(prep.amount) || prep.amount <= 0)))) errors.preparations = '预制方式需填写有效时长'
+  if (form.orphanGlasswareId || (Array.isArray(form.orphanToolIds) && form.orphanToolIds.length)) errors.equipment = '杯具或用具资料缺失，请重新选择或取消后保存'
   return { valid: Object.keys(errors).length === 0, errors, form }
 }
 
@@ -171,6 +173,33 @@ function getFormPreview(form) {
   return calculateAbv(rows.filter(usableIngredient).map((row) => ({ ...row, amount: ingredientAmount(row) })))
 }
 
+function hydrateEquipmentSelections(form, glassware = [], tools = []) {
+  const source = cloneForm(form)
+  const glasswareItems = Array.isArray(glassware) ? glassware : []
+  const toolItems = Array.isArray(tools) ? tools : []
+  const selectedGlass = glasswareItems.find((item) => item && item.id === source.glasswareId)
+  const orphanGlasswareId = source.glasswareId && !selectedGlass ? source.glasswareId : ''
+  const glasswareOptions = [{ id: '', name: '不使用杯具' }, ...glasswareItems]
+  if (orphanGlasswareId) glasswareOptions.push({ id: orphanGlasswareId, name: `杯具资料缺失（${orphanGlasswareId}）`, orphaned: true })
+  const glasswareIndex = Math.max(0, glasswareOptions.findIndex((item) => item.id === (source.glasswareId || '')))
+  const knownToolIds = new Set(toolItems.map((item) => item && item.id).filter(Boolean))
+  const orphanToolIds = (Array.isArray(source.toolIds) ? source.toolIds : []).filter((id) => !knownToolIds.has(id))
+  const displayTools = [
+    ...toolItems,
+    ...orphanToolIds.map((id) => ({ id, name: `用具资料缺失（${id}）`, builtIn: false, orphaned: true }))
+  ].map((tool) => ({ ...tool, selected: source.toolIds.includes(tool.id) }))
+  const hydratedForm = { ...source, orphanGlasswareId, orphanToolIds }
+  return {
+    form: hydratedForm,
+    glasswareOptions,
+    glasswareIndex,
+    glasswareLabel: glasswareOptions[glasswareIndex].name,
+    tools: displayTools,
+    hasOrphans: Boolean(orphanGlasswareId || orphanToolIds.length),
+    capacity: calculateGlassCapacity(source.ingredients, selectedGlass || null)
+  }
+}
+
 function orchestrateRecipeSave({ repository, form, notify = () => {}, navigateBack = () => {} } = {}) {
   const checked = normalizeAndValidateForm(form)
   if (!checked.valid) { notify(Object.values(checked.errors)[0]); return { saved: false, form: checked.form, errors: checked.errors } }
@@ -185,4 +214,4 @@ function orchestrateRecipeSave({ repository, form, notify = () => {}, navigateBa
   }
 }
 
-module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview, orchestrateRecipeSave }
+module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview, orchestrateRecipeSave }

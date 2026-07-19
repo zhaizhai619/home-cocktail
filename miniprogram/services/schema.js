@@ -97,9 +97,22 @@ function normalizeMaterial(material, now) {
   return normalized
 }
 
-function normalizeNamedItem(item) {
+function normalizeEquipmentName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ')
+}
+
+function normalizeGlassware(item) {
   const source = item && typeof item === 'object' && !Array.isArray(item) ? item : {}
-  return { ...clone(source), id: typeof source.id === 'string' ? source.id : '', name: typeof source.name === 'string' ? source.name : '' }
+  const { capacity, note, ...userData } = source
+  const capacityMl = Number(source.capacityMl !== undefined ? source.capacityMl : capacity)
+  return {
+    ...clone(userData),
+    id: typeof source.id === 'string' ? source.id : '',
+    name: normalizeEquipmentName(source.name),
+    capacityMl: Number.isFinite(capacityMl) && capacityMl > 0 ? capacityMl : null,
+    imagePath: typeof source.imagePath === 'string' ? source.imagePath.trim() : '',
+    notes: typeof source.notes === 'string' ? source.notes.trim() : (typeof note === 'string' ? note.trim() : '')
+  }
 }
 
 function repairIds(items, prefix, reservedIds = new Set()) {
@@ -121,7 +134,7 @@ function normalizeTools(tools) {
   const supplied = Array.isArray(tools) ? tools : []
   const custom = supplied
     .filter((tool) => tool && typeof tool === 'object' && tool.builtIn !== true)
-    .map((tool) => ({ ...clone(tool), id: typeof tool.id === 'string' ? tool.id : '', name: typeof tool.name === 'string' ? tool.name : '', builtIn: false }))
+    .map((tool) => ({ ...clone(tool), id: typeof tool.id === 'string' ? tool.id : '', name: normalizeEquipmentName(tool.name), builtIn: false }))
   const ids = new Set(builtInTools().map(({ id }) => id))
   return [...builtInTools(), ...repairIds(custom, 'tool', ids)]
 }
@@ -132,7 +145,7 @@ function migrateState(raw, now = new Date().toISOString()) {
     version: CURRENT_SCHEMA_VERSION,
     recipes: repairIds(Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [], 'recipe'),
     materials: repairIds(Array.isArray(raw.materials) ? raw.materials.map((material) => normalizeMaterial(material, now)) : [], 'material'),
-    glassware: repairIds(Array.isArray(raw.glassware) ? raw.glassware.map(normalizeNamedItem) : [], 'glassware'),
+    glassware: repairIds(Array.isArray(raw.glassware) ? raw.glassware.map(normalizeGlassware) : [], 'glassware'),
     tools: normalizeTools(raw.tools)
   }
 }
