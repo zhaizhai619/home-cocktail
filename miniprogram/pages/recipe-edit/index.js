@@ -8,6 +8,7 @@ const NEW_CATEGORIES = [
 ]
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
+function imageMediaFiles() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.mediaFiles }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
 function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true; return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', missingExistingAbv, showAbvInput: (!isExisting && row.alcoholic === true) || needsExistingAbvInput, showAbvReadonly: isExisting && row.alcoholic === true && !needsExistingAbvInput, ...unitView(row.unit) } }
 function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]; const index = units.findIndex((item) => item.value === row.unit); return { ...row, needsDuration: row.type !== '即调', units, unitIndex: index < 0 ? 0 : index, unitLabel: units[index < 0 ? 0 : index].label } }
@@ -18,7 +19,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], savingImage: false, imageError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
   onLoad(query) {
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
@@ -71,8 +72,25 @@ Page({
   onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.data.tools[Number(index)]).filter(Boolean).map((tool) => tool.id) }) },
   onRating(event) { this.sync({ ...this.data.form, rating: event.currentTarget.dataset.rating }) },
   noop() {},
-  onChooseImage() { if (typeof wx !== 'undefined' && wx.chooseMedia) wx.chooseMedia({ count: 1, mediaType: ['image'], success: (result) => this.sync({ ...this.data.form, imagePath: result.tempFiles && result.tempFiles[0] ? result.tempFiles[0].tempFilePath : '' }) }) },
+  onChooseImage() {
+    if (this.data.savingImage || typeof wx === 'undefined' || !wx.chooseMedia) return
+    wx.chooseMedia({ count: 1, mediaType: ['image'], success: async (result) => {
+      const selected = result.tempFiles && result.tempFiles[0] && result.tempFiles[0].tempFilePath
+      if (!selected) return
+      this.setData({ savingImage: true, imageError: '' })
+      try {
+        const mediaFiles = imageMediaFiles()
+        if (!mediaFiles || typeof mediaFiles.persistRecipeImage !== 'function') throw new Error('media unavailable')
+        const persisted = await mediaFiles.persistRecipeImage(selected)
+        this.sync({ ...this.data.form, imagePath: persisted.path })
+      } catch (_) {
+        this.setData({ imageError: '图片保存失败，请重新选择' })
+        wx.showToast({ title: '图片保存失败，请重试', icon: 'none' })
+      } finally { this.setData({ savingImage: false }) }
+    } })
+  },
   onSave() {
+    if (this.data.savingImage) return wx.showToast({ title: '图片处理中，请稍候', icon: 'none' })
     const result = orchestrateRecipeSave({ repository: repository(), form: this.data.form, notify: (title) => { if (typeof wx !== 'undefined') wx.showToast({ title, icon: 'none' }) }, navigateBack: () => { if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack() } })
     if (!result.saved && Object.keys(result.errors).length) this.sync(result.form, result.errors)
   }

@@ -4,7 +4,9 @@ const {
   orchestrateToolSave,
   orchestrateEquipmentDelete,
   orchestrateGlasswareMediaDelete,
-  createEditorOperationGuard
+  createEditorOperationGuard,
+  validateGlasswareForm,
+  validateToolForm
 } = require('./model')
 
 function getRepository() {
@@ -30,7 +32,8 @@ Page({
     form: {},
     selectedImagePath: '',
     imagePreviewPath: '',
-    savingGlass: false
+    savingGlass: false,
+    editorError: ''
   },
   onShow() { this.loadData() },
   loadData() {
@@ -55,6 +58,7 @@ Page({
       editorOpen: true,
       editorType: type,
       editorTitle: `${item ? '编辑' : '新增'}${isGlassware ? '杯具' : '自定义用具'}`,
+      editorError: '',
       selectedImagePath: isGlassware && item && item.imagePath || '',
       imagePreviewPath: isGlassware && item && item.imagePath || '',
       form: isGlassware
@@ -72,24 +76,27 @@ Page({
     const item = this.data.view.customTools.find((entry) => entry.id === event.currentTarget.dataset.id)
     if (item) this.openEditor('tool', item)
   },
-  onFormInput(event) { this.setData({ [`form.${event.currentTarget.dataset.field}`]: event.detail.value }) },
+  onFormInput(event) { if (!this.editorMutationAllowed()) return; this.setData({ [`form.${event.currentTarget.dataset.field}`]: event.detail.value, editorError: '' }) },
   onChooseGlassImage() {
     if (typeof wx === 'undefined' || !wx.chooseMedia) return
     wx.chooseMedia({ count: 1, mediaType: ['image'], success: (result) => {
       const file = result.tempFiles && result.tempFiles[0]
-      if (file) this.setData({ selectedImagePath: file.tempFilePath, imagePreviewPath: file.tempFilePath })
+      if (file && this.editorMutationAllowed()) this.setData({ selectedImagePath: file.tempFilePath, imagePreviewPath: file.tempFilePath, editorError: '' })
     } })
   },
-  onRemoveGlassImage() { this.setData({ selectedImagePath: '', imagePreviewPath: '' }) },
+  onRemoveGlassImage() { if (this.editorMutationAllowed()) this.setData({ selectedImagePath: '', imagePreviewPath: '', editorError: '' }) },
   closeEditor() { if (this.editorMutationAllowed()) this.setData({ editorOpen: false }) },
   closeEditorAfterSave() { this.setData({ editorOpen: false }) },
   noop() {},
   async onSaveEditor() {
     if (this.savingGlass === true) return
+    const validation = this.data.editorType === 'glassware' ? validateGlasswareForm(this.data.form) : validateToolForm(this.data.form)
+    if (!validation.valid) { this.setData({ editorError: validation.message }); toast(validation.message); return }
     const options = { repository: getRepository(), form: this.data.form, notify: toast }
     if (this.data.editorType !== 'glassware') {
       const result = orchestrateToolSave(options)
       if (result.saved) { this.closeEditor(); this.loadData() }
+      else this.setData({ editorError: '保存失败，请重试' })
       return
     }
     const guard = this.operationGuard()
@@ -110,6 +117,7 @@ Page({
       }
     }
     if (result.saved && isCurrent) { this.closeEditorAfterSave(); this.loadData() }
+    else if (isCurrent) this.setData({ editorError: '保存失败，请重试' })
   },
   requestDelete(type, id) {
     if (!this.editorMutationAllowed()) return

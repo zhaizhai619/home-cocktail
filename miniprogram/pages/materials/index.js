@@ -36,6 +36,7 @@ Page({
     showFreshForm: false,
     freshDraft: { materialId: '', name: '', trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
+    freshError: '',
     undo: null
   },
   onShow() { this.reload() },
@@ -74,19 +75,20 @@ Page({
     const index = Math.max(0, UNITS.findIndex(({ value }) => value === unit))
     this.setData({
       showFreshForm: true,
+      freshError: '',
       freshUnitIndex: index,
       freshDraft: { materialId: item.id, name: item.name, trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' }
     })
   },
-  onCloseFreshForm() { this.setData({ showFreshForm: false }) },
+  onCloseFreshForm() { this.setData({ showFreshForm: false, freshError: '' }) },
   noop() {},
-  onFreshAmountInput(event) { this.setData({ 'freshDraft.remainingAmount': event.detail.value }) },
+  onFreshAmountInput(event) { this.setData({ 'freshDraft.remainingAmount': event.detail.value, freshError: '' }) },
   onFreshUnitChange(event) {
     const index = Number(event.detail.value)
     const safe = Number.isInteger(index) && UNITS[index] ? index : 0
-    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value })
+    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
   },
-  onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '' }) },
+  onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '', freshError: '' }) },
   onConfirmFresh() {
     const draft = this.data.freshDraft
     const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
@@ -97,7 +99,7 @@ Page({
       this.setData({ showFreshForm: false })
       this.reload()
       toast('已加入手头鲜材')
-    } catch (_) { toast('请检查余量和日期') }
+    } catch (_) { this.setData({ freshError: '请检查余量和日期' }); toast('请检查余量和日期') }
   },
   onUseUp(event) {
     const undo = orchestrateFreshUseUp({ repository: repository(), materialId: event.currentTarget.dataset.id, notify: toast })

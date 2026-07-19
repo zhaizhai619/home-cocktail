@@ -37,11 +37,18 @@ function buildRecipeCard(recipe, materialsById = {}) {
       const material = safeMaterials[ingredient.materialId]
       if (!material || typeof material.name !== 'string' || !material.name) return items
       const state = getMaterialVisualState(material)
+      const availabilityText = {
+        owned: '当前可用',
+        'quick-buy': '可随买随用',
+        'missing-long-term': '长期材料当前没有'
+      }[state]
+      const amountLabel = formatAmount(ingredient)
       items.push({
         name: material.name,
-        amountLabel: formatAmount(ingredient),
+        amountLabel,
         state,
-        quickBuyMarker: state === 'quick-buy' ? '需购' : ''
+        quickBuyMarker: state === 'quick-buy' ? '需购' : '',
+        accessibilityLabel: [material.name, amountLabel, availabilityText].filter(Boolean).join('，')
       })
       return items
     }, [])

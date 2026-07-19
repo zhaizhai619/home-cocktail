@@ -1,6 +1,7 @@
 const {
   buildRecipeDetail,
   decodeRecipeId,
+  validateObservation,
   orchestrateObservationSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
@@ -20,7 +21,8 @@ Page({
     detail: { status: 'loading' },
     observationMaterialIndex: 0,
     observationMaterialLabel: '选择材料',
-    observationNote: ''
+    observationNote: '',
+    observationError: ''
   },
   onLoad(query) {
     this.recipeId = decodeRecipeId(query && query.id)
@@ -55,20 +57,26 @@ Page({
   onObservationMaterialChange(event) {
     const index = Number(event.detail.value)
     const option = this.data.detail.ingredientOptions[index]
-    this.setData({ observationMaterialIndex: Number.isInteger(index) ? index : 0, observationMaterialLabel: option ? option.name : '选择材料' })
+    this.setData({ observationMaterialIndex: Number.isInteger(index) ? index : 0, observationMaterialLabel: option ? option.name : '选择材料', observationError: '' })
   },
-  onObservationInput(event) { this.setData({ observationNote: event.detail.value || '' }) },
+  onObservationInput(event) { this.setData({ observationNote: event.detail.value || '', observationError: '' }) },
   onSaveObservation() {
     const options = this.data.detail.status === 'ok' ? this.data.detail.ingredientOptions : []
     const selected = options[this.data.observationMaterialIndex]
+    const validation = validateObservation(this.recipe, selected ? selected.id : '', this.data.observationNote)
+    if (!validation.valid) { this.setData({ observationError: validation.message }); toast(validation.message); return }
     const result = orchestrateObservationSave({
       repository: getRepository(), recipe: this.recipe,
       materialId: selected ? selected.id : '', note: this.data.observationNote, notify: toast
     })
     if (result.saved) {
-      this.setData({ observationNote: '' })
+      this.setData({ observationNote: '', observationError: '' })
       this.loadDetail()
-    }
+    } else this.setData({ observationError: '保存失败，请重试' })
+  },
+  onOpenMaterial(event) {
+    const id = event.currentTarget.dataset.id
+    if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
   },
   onEdit() {
     if (!this.recipeId) return toast('无法编辑这款酒')

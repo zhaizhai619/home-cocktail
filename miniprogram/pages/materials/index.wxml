@@ -31,11 +31,11 @@
     <view class="section-head"><view><text class="section-title">完整材料库</text><text class="section-note">状态会同步到所有酒款</text></view></view>
     <scroll-view scroll-x class="chip-scroll" enable-flex>
       <view class="chip-row">
-        <button wx:for="{{filters}}" wx:key="key" class="chip {{filter === item.key ? 'selected' : ''}}" bindtap="onSelectFilter" data-key="{{item.key}}">{{item.label}}</button>
+        <button wx:for="{{filters}}" wx:key="key" class="chip {{filter === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{filter === item.key ? '，已选择' : ''}}" bindtap="onSelectFilter" data-key="{{item.key}}"><text wx:if="{{filter === item.key}}" class="selected-mark">✓</text>{{item.label}}</button>
       </view>
     </scroll-view>
     <view class="acquisition-row">
-      <button wx:for="{{acquisitions}}" wx:key="key" class="mini-chip {{acquisition === item.key ? 'selected' : ''}}" bindtap="onSelectAcquisition" data-key="{{item.key}}">{{item.label}}</button>
+      <button wx:for="{{acquisitions}}" wx:key="key" class="mini-chip {{acquisition === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{acquisition === item.key ? '，已选择' : ''}}" bindtap="onSelectAcquisition" data-key="{{item.key}}"><text wx:if="{{acquisition === item.key}}" class="selected-mark">✓</text>{{item.label}}</button>
     </view>
 
     <view wx:if="{{materials.length}}" class="material-list">
@@ -65,7 +65,7 @@
         <picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="date-value">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
       </block>
       <text wx:else class="tracking-note">这个材料未开启余量追踪，只记录“当前在手头”。可在编辑材料中开启追踪。</text>
-      <button class="primary" bindtap="onConfirmFresh">确认加入</button>
+      <text wx:if="{{freshError}}" class="form-error">{{freshError}}</text><button class="primary" bindtap="onConfirmFresh">确认加入</button>
     </view>
   </view>
 

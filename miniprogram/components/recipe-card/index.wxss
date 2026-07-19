@@ -11,3 +11,9 @@
 .ingredient.quick-buy { color: #81531a; background: #f8e5bd; }
 .ingredient.missing-long-term { color: #766f69; background: #e6e4e0; }
 .quick-buy-marker { margin-left: 6rpx; font-size: 19rpx; }
+
+.recipe-card { min-height: 176rpx; }
+.recipe-name { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.ingredient { max-width: 100%; border: 2rpx solid transparent; overflow-wrap: anywhere; }
+.ingredient.quick-buy { border-color: #b77727; color: #704411; }
+.ingredient.missing-long-term { border-color: #8c8781; border-style: dashed; color: #625d58; }

@@ -47,7 +47,7 @@
     <block wx:if="{{freshDraft.trackFreshness}}"><text class="field-label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
       <text class="field-label">预计过期日（选填）</text><picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="picker full">{{freshDraft.expiresAt || '选择日期'}}</view></picker></block>
     <text wx:else class="tracking-note">这个材料未开启余量追踪，只记录“当前在手头”。可在编辑材料中开启追踪。</text>
-    <button class="primary" bindtap="onConfirmFresh">确认加入</button>
+    <text wx:if="{{freshError}}" class="form-error">{{freshError}}</text><button class="primary" bindtap="onConfirmFresh">确认加入</button>
   </view></view>
   <view wx:if="{{undo}}" class="undo-bar"><text>已从手头鲜材移出</text><button bindtap="onUndoUseUp">撤销</button></view>
 </view>

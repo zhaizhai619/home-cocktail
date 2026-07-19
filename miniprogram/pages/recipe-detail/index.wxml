@@ -32,9 +32,9 @@
     <view class="section">
       <text class="section-title">材料</text>
       <view class="ingredient-list">
-        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" aria-label="{{item.accessibilityLabel}}">
+        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
           <view class="ingredient-main"><text class="availability-dot" aria-hidden="true"></text><text class="ingredient-name">{{item.name}}</text></view>
-          <text class="ingredient-amount">{{item.amountLabel}}</text>
+          <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text><text class="row-arrow" aria-hidden="true">›</text></view>
         </view>
       </view>
     </view>
@@ -54,7 +54,7 @@
 
     <view class="section">
       <text class="section-title">我的评价</text>
-      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" class="rating-option {{item.selected ? 'selected' : ''}}">{{item.label}}</text></view>
+      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" class="rating-option {{item.selected ? 'selected' : ''}}"><text wx:if="{{item.selected}}" class="selected-mark">✓</text>{{item.label}}</text></view>
       <text wx:if="{{detail.tastingNote}}" class="tasting-note">{{detail.tastingNote}}</text>
       <text wx:else class="muted">暂未记录总体备注</text>
     </view>
@@ -68,6 +68,7 @@
       <view wx:if="{{detail.ingredientOptions.length}}" class="observation-form">
         <picker range="{{detail.ingredientOptions}}" range-key="name" value="{{observationMaterialIndex}}" bindchange="onObservationMaterialChange"><view class="picker-field">{{observationMaterialLabel}} ▾</view></picker>
         <textarea value="{{observationNote}}" maxlength="300" placeholder="这次用这个材料，有什么新发现？" bindinput="onObservationInput" />
+        <text wx:if="{{observationError}}" class="form-error">{{observationError}}</text>
         <button class="secondary-button" bindtap="onSaveObservation">保存本次观察</button>
       </view>
     </view>

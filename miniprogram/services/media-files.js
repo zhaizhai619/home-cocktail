@@ -1,4 +1,5 @@
 const MANAGED_DIRECTORY = 'cocktail-glassware'
+const RECIPE_MANAGED_DIRECTORY = 'cocktail-recipes'
 
 function extensionFor(path) {
   const match = String(path || '').match(/\.([a-zA-Z0-9]{1,8})$/)
@@ -18,17 +19,21 @@ function createMediaFileService({ fileSystem, userDataPath, idFactory = () => `$
   if (!fileSystem || !userDataPath) throw new Error('Media file service unavailable')
   const managedDirectory = `${String(userDataPath).replace(/\/$/, '')}/${MANAGED_DIRECTORY}`
   const managedPrefix = `${managedDirectory}/`
+  const recipeManagedDirectory = `${String(userDataPath).replace(/\/$/, '')}/${RECIPE_MANAGED_DIRECTORY}`
+  const recipeManagedPrefix = `${recipeManagedDirectory}/`
 
-  function isManagedPath(path) {
-    if (typeof path !== 'string' || !path.startsWith(managedPrefix)) return false
-    const fileName = path.slice(managedPrefix.length)
+  function isPathWithin(path, prefix) {
+    if (typeof path !== 'string' || !path.startsWith(prefix)) return false
+    const fileName = path.slice(prefix.length)
     return Boolean(fileName && !fileName.includes('/') && fileName !== '.' && fileName !== '..')
   }
 
-  async function ensureDirectory() {
+  function isManagedPath(path) { return isPathWithin(path, managedPrefix) || isPathWithin(path, recipeManagedPrefix) }
+
+  async function ensureDirectory(directory) {
     try {
-      if (typeof fileSystem.mkdir === 'function') await callbackOperation(fileSystem, 'mkdir', { dirPath: managedDirectory, recursive: true })
-      else if (typeof fileSystem.mkdirSync === 'function') fileSystem.mkdirSync(managedDirectory, true)
+      if (typeof fileSystem.mkdir === 'function') await callbackOperation(fileSystem, 'mkdir', { dirPath: directory, recursive: true })
+      else if (typeof fileSystem.mkdirSync === 'function') fileSystem.mkdirSync(directory, true)
       else throw new Error('mkdir unavailable')
     } catch (error) {
       if (!/exist/i.test(String(error && (error.errMsg || error.message)))) throw error
@@ -43,15 +48,18 @@ function createMediaFileService({ fileSystem, userDataPath, idFactory = () => `$
     throw new Error('copy unavailable')
   }
 
-  async function persistGlasswareImage(sourcePath) {
+  async function persistImage(sourcePath, directory, prefix) {
     const path = String(sourcePath || '').trim()
     if (!path) return { path: '', created: false }
-    if (isManagedPath(path)) return { path, created: false }
-    await ensureDirectory()
-    const destination = `${managedPrefix}${safeFileId(idFactory())}${extensionFor(path)}`
+    if (isPathWithin(path, prefix)) return { path, created: false }
+    await ensureDirectory(directory)
+    const destination = `${prefix}${safeFileId(idFactory())}${extensionFor(path)}`
     await copyFile(path, destination)
     return { path: destination, created: true }
   }
+
+  function persistGlasswareImage(sourcePath) { return persistImage(sourcePath, managedDirectory, managedPrefix) }
+  function persistRecipeImage(sourcePath) { return persistImage(sourcePath, recipeManagedDirectory, recipeManagedPrefix) }
 
   async function removeManagedFile(path) {
     if (!isManagedPath(path)) return { removed: false }
@@ -61,11 +69,11 @@ function createMediaFileService({ fileSystem, userDataPath, idFactory = () => `$
     return { removed: true }
   }
 
-  return { managedDirectory, isManagedPath, persistGlasswareImage, removeManagedFile }
+  return { managedDirectory, recipeManagedDirectory, isManagedPath, persistGlasswareImage, persistRecipeImage, removeManagedFile }
 }
 
 function createWxMediaFileService(wxApi) {
   return createMediaFileService({ fileSystem: wxApi.getFileSystemManager(), userDataPath: wxApi.env && wxApi.env.USER_DATA_PATH })
 }
 
-module.exports = { MANAGED_DIRECTORY, createMediaFileService, createWxMediaFileService }
+module.exports = { MANAGED_DIRECTORY, RECIPE_MANAGED_DIRECTORY, createMediaFileService, createWxMediaFileService }

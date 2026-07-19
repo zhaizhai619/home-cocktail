@@ -16,6 +16,7 @@ Page({
     showFreshForm: false,
     freshDraft: { trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
+    freshError: '',
     undo: null
   },
   onLoad(query) { this.materialId = decodeMaterialId(query && query.id); this.reload() },
@@ -49,17 +50,17 @@ Page({
     if (item.status !== 'ok') return
     const unit = item.remainingUnit || item.defaultUnit || 'ml'
     const index = Math.max(0, UNITS.findIndex(({ value }) => value === unit))
-    this.setData({ showFreshForm: true, freshUnitIndex: index, freshDraft: { trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' } })
+    this.setData({ showFreshForm: true, freshError: '', freshUnitIndex: index, freshDraft: { trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' } })
   },
-  onCloseFreshForm() { this.setData({ showFreshForm: false }) },
+  onCloseFreshForm() { this.setData({ showFreshForm: false, freshError: '' }) },
   noop() {},
-  onFreshAmountInput(event) { this.setData({ 'freshDraft.remainingAmount': event.detail.value }) },
+  onFreshAmountInput(event) { this.setData({ 'freshDraft.remainingAmount': event.detail.value, freshError: '' }) },
   onFreshUnitChange(event) {
     const index = Number(event.detail.value)
     const safe = Number.isInteger(index) && UNITS[index] ? index : 0
-    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value })
+    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
   },
-  onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '' }) },
+  onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '', freshError: '' }) },
   onConfirmFresh() {
     const draft = this.data.freshDraft
     const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
@@ -69,7 +70,7 @@ Page({
       if (!saved) throw new Error('not saved')
       this.setData({ showFreshForm: false })
       this.reload(); toast('已加入手头鲜材')
-    } catch (_) { toast('请检查余量和日期') }
+    } catch (_) { this.setData({ freshError: '请检查余量和日期' }); toast('请检查余量和日期') }
   },
   onUseUp() {
     const undo = orchestrateFreshUseUp({ repository: repository(), materialId: this.materialId, notify: toast })

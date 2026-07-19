@@ -262,6 +262,21 @@ test('media service copies temporary glass images to a unique managed path and n
   assert.deepEqual(await service.removeManagedFile(first.path), { removed: true })
 })
 
+test('media service persists recipe images in a separate managed directory', async () => {
+  const copied = []
+  const fileSystem = {
+    mkdir({ success }) { success() },
+    copyFile({ srcPath, destPath, success }) { copied.push([srcPath, destPath]); success() },
+    unlink({ success }) { success() }
+  }
+  const service = createMediaFileService({ fileSystem, userDataPath: '/user', idFactory: () => 'recipe-image' })
+  const result = await service.persistRecipeImage('/tmp/cocktail.png')
+
+  assert.deepEqual(result, { path: '/user/cocktail-recipes/recipe-image.png', created: true })
+  assert.deepEqual(copied, [['/tmp/cocktail.png', '/user/cocktail-recipes/recipe-image.png']])
+  assert.equal(service.isManagedPath(result.path), true)
+})
+
 test('glassware media save coordinates copy, repository commit, replacement cleanup and rollback cleanup', async () => {
   const events = []; const warnings = []; const notices = []
   const mediaFiles = {
