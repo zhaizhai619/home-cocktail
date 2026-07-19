@@ -3,6 +3,31 @@ const { getMaterialVisualState } = require('./material')
 
 const INSTANT_PREPARATION = '即调'
 const DAY_UNITS = new Set(['day', 'days', '天'])
+const PREPARATION_UNITS = new Set([
+  'hour',
+  'hours',
+  '小时',
+  ...DAY_UNITS
+])
+
+function isValidPreparation(preparation) {
+  if (
+    !preparation ||
+    typeof preparation !== 'object' ||
+    Array.isArray(preparation) ||
+    !PREP_TYPES.includes(preparation.type)
+  ) {
+    return false
+  }
+
+  if (preparation.type === INSTANT_PREPARATION) {
+    return true
+  }
+
+  return Number.isFinite(preparation.amount) &&
+    preparation.amount > 0 &&
+    PREPARATION_UNITS.has(preparation.unit)
+}
 
 function normalizePrepSelections(preparations) {
   if (!Array.isArray(preparations)) {
@@ -13,7 +38,7 @@ function normalizePrepSelections(preparations) {
   const seenTypes = new Set()
 
   for (const preparation of preparations) {
-    if (!preparation || seenTypes.has(preparation.type)) {
+    if (!isValidPreparation(preparation) || seenTypes.has(preparation.type)) {
       continue
     }
 
@@ -100,9 +125,7 @@ function filterRecipes(recipes, options = {}, materialsById = {}) {
   const materialCondition = options.materialCondition || 'all'
 
   return (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
-    const preparations = Array.isArray(recipe.preparations)
-      ? recipe.preparations
-      : []
+    const preparations = normalizePrepSelections(recipe.preparations)
     const matchesPreparation = prepType === 'all' || preparations.some(
       ({ type }) => type === prepType
     )
@@ -147,7 +170,14 @@ function compareRecipes(first, second, sortKey) {
   }
 
   if (sortKey === 'name') {
-    return String(first.name || '').localeCompare(String(second.name || ''))
+    const firstName = String(first.name || '')
+    const secondName = String(second.name || '')
+
+    if (firstName < secondName) {
+      return -1
+    }
+
+    return firstName > secondName ? 1 : 0
   }
 
   return 0

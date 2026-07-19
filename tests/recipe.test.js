@@ -68,6 +68,35 @@ test('deduplicates instant-only selections deterministically', () => {
   )
 })
 
+test('discards malformed and unknown preparation selections', () => {
+  assert.deepEqual(normalizePrepSelections([
+    null,
+    '冷冻',
+    { type: '未知方式', amount: 2, unit: 'hours' },
+    { type: '冷冻', amount: 0, unit: 'hours' },
+    { type: '冷泡/浸泡', amount: -1, unit: 'days' },
+    { type: '奶洗', amount: Number.NaN, unit: 'hours' },
+    { type: '低温慢煮', amount: 2, unit: 'weeks' },
+    { type: '即调' }
+  ]), [{ type: '即调' }])
+})
+
+test('accepts canonical preparation units and compatible hour/day aliases', () => {
+  const preparations = [
+    { type: '冷冻', amount: 2, unit: 'hours' },
+    { type: '冷泡/浸泡', amount: 3, unit: 'hour' },
+    { type: '奶洗', amount: 1, unit: 'days' },
+    { type: '低温慢煮', amount: 2, unit: 'day' },
+    { type: '其他预制', amount: 4, unit: '小时' }
+  ]
+
+  assert.deepEqual(normalizePrepSelections(preparations), preparations)
+  assert.equal(
+    getPrimaryPreparation([{ type: '奶洗', amount: 2, unit: '天' }]).leadHours,
+    48
+  )
+})
+
 test('returns null when there is no primary preparation', () => {
   assert.equal(getPrimaryPreparation([]), null)
   assert.equal(getPrimaryPreparation(), null)
@@ -105,6 +134,35 @@ test('breaks equal preparation lead times by fixed preparation type order', () =
     unit: 'hours',
     leadHours: 24
   })
+})
+
+test('invalid preparations cannot become primary or affect preparation sorting', () => {
+  assert.deepEqual(getPrimaryPreparation([
+    { type: '未知方式', amount: 100, unit: 'days' },
+    { type: '冷冻', amount: 8, unit: 'hours' },
+    { type: '奶洗', amount: 0, unit: 'days' }
+  ]), {
+    type: '冷冻',
+    amount: 8,
+    unit: 'hours',
+    leadHours: 8
+  })
+
+  const recipes = [
+    recipe({
+      id: 'valid',
+      preparations: [{ type: '冷冻', amount: 1, unit: 'hours' }]
+    }),
+    recipe({
+      id: 'invalid',
+      preparations: [{ type: '未知方式', amount: 100, unit: 'days' }]
+    })
+  ]
+
+  assert.deepEqual(
+    sortRecipes(recipes, 'prep-time').map(({ id }) => id),
+    ['invalid', 'valid']
+  )
 })
 
 test('classifies recipes whose referenced materials are all available as on-hand', () => {
@@ -208,6 +266,29 @@ test('filters recipes by any matching preparation tag without mutation', () => {
     [recipes[0]]
   )
   assert.deepEqual(recipes, snapshot)
+})
+
+test('filters only normalized preparation tags and ignores malformed entries', () => {
+  const recipes = [
+    recipe({
+      id: 'malformed',
+      preparations: [
+        null,
+        '冷冻',
+        { type: '冷冻', amount: 0, unit: 'hours' },
+        { type: '即调' }
+      ]
+    })
+  ]
+
+  assert.deepEqual(
+    filterRecipes(recipes, { prepType: '即调', materialCondition: 'all' }, {}),
+    recipes
+  )
+  assert.deepEqual(
+    filterRecipes(recipes, { prepType: '冷冻', materialCondition: 'all' }, {}),
+    []
+  )
 })
 
 test('filters recipes by on-hand and fresh-only material conditions', () => {
@@ -317,15 +398,16 @@ test('sorts ratings by fixed rank with unrated last and recent ties first', () =
   )
 })
 
-test('sorts names deterministically and preserves order for equal names', () => {
+test('sorts names by stable code-unit order and preserves order for equal names', () => {
   const recipes = [
     recipe({ id: 'b', name: 'Beta' }),
+    recipe({ id: 'lowercase', name: 'alpha' }),
     recipe({ id: 'a-first', name: 'Alpha' }),
     recipe({ id: 'a-second', name: 'Alpha' })
   ]
 
   assert.deepEqual(
     sortRecipes(recipes, 'name').map(({ id }) => id),
-    ['a-first', 'a-second', 'b']
+    ['a-first', 'a-second', 'b', 'lowercase']
   )
 })
