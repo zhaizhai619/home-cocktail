@@ -1,3 +1,23 @@
-.page-title {
-  color: #9b4f38;
-}
+.page { padding-bottom: 56rpx; }
+.topbar { display: flex; align-items: center; justify-content: space-between; }
+.page-title { color: #342f2b; font-size: 44rpx; font-weight: 700; }
+.add-button, .empty-button { margin: 0; padding: 0 22rpx; color: #fffaf3; background: #a96826; border-radius: 999rpx; font-size: 25rpx; line-height: 64rpx; }
+.add-button::after, .empty-button::after, .chip::after, .material-filter::after, .sort-button::after, .condition-option::after { border: 0; }
+.search { box-sizing: border-box; width: 100%; height: 76rpx; margin-top: 30rpx; padding: 0 24rpx; color: #342f2b; background: #fffdf8; border: 1rpx solid #e2d9ce; border-radius: 18rpx; font-size: 27rpx; }
+.prep-scroll { margin-top: 24rpx; white-space: nowrap; }
+.prep-chips, .sort-list { display: inline-flex; gap: 14rpx; }
+.chip, .sort-button, .material-filter { margin: 0; padding: 0 20rpx; color: #70675f; background: #efe9df; border-radius: 999rpx; font-size: 24rpx; line-height: 58rpx; }
+.chip.active, .sort-button.active { color: #fffaf3; background: #675647; }
+.controls { display: flex; align-items: center; gap: 16rpx; margin-top: 22rpx; }
+.material-filter { flex: none; color: #4d443c; background: #fffdf8; border: 1rpx solid #ded5ca; }
+.sort-scroll { flex: 1; white-space: nowrap; }
+.card-list { display: grid; gap: 20rpx; margin-top: 28rpx; }
+.empty { display: flex; flex-direction: column; align-items: center; padding: 144rpx 36rpx 0; text-align: center; }
+.empty-title { color: #342f2b; font-size: 34rpx; font-weight: 600; }
+.empty-copy { margin-top: 16rpx; color: #80766d; font-size: 26rpx; line-height: 1.7; }
+.empty-button { margin-top: 34rpx; }
+.sheet-mask { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; top: 0; display: flex; align-items: flex-end; background: rgba(35, 30, 26, .34); }
+.sheet { box-sizing: border-box; width: 100%; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); background: #fffdf8; border-radius: 32rpx 32rpx 0 0; }
+.sheet-title { display: block; margin-bottom: 18rpx; color: #342f2b; font-size: 32rpx; font-weight: 600; }
+.condition-option { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 4rpx; color: #5f554c; background: transparent; border-radius: 0; font-size: 28rpx; line-height: 90rpx; text-align: left; }
+.condition-option.selected { color: #9a5f20; font-weight: 600; }

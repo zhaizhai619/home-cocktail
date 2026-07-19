@@ -13,3 +13,21 @@ test('app config starts with recipes and declares the three tabs', () => {
     ['酒单', '材料', '我的']
   )
 })
+
+test('declared pages and recipe card component have complete mini-program files', () => {
+  const root = path.join(__dirname, '..', 'miniprogram')
+  const appConfig = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'))
+
+  for (const page of appConfig.pages) {
+    for (const extension of ['js', 'json', 'wxml', 'wxss']) {
+      assert.ok(fs.existsSync(path.join(root, `${page}.${extension}`)), `${page}.${extension}`)
+    }
+  }
+
+  for (const extension of ['js', 'json', 'wxml', 'wxss']) {
+    assert.ok(fs.existsSync(path.join(root, 'components', 'recipe-card', `index.${extension}`)))
+  }
+
+  const recipePage = fs.readFileSync(path.join(root, 'pages', 'recipes', 'index.json'), 'utf8')
+  assert.match(recipePage, /"recipe-card"\s*:\s*"\/components\/recipe-card\/index"/)
+})

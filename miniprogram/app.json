@@ -5,17 +5,17 @@
     "pages/settings/index"
   ],
   "window": {
-    "backgroundColor": "#f8f1e7",
+    "backgroundColor": "#f7f1e8",
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#f8f1e7",
+    "navigationBarBackgroundColor": "#f7f1e8",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "家庭调酒"
   },
   "tabBar": {
-    "backgroundColor": "#fffaf3",
+    "backgroundColor": "#fffdf8",
     "borderStyle": "black",
-    "color": "#7a6f65",
-    "selectedColor": "#9b4f38",
+    "color": "#786f66",
+    "selectedColor": "#a96826",
     "list": [
       {
         "pagePath": "pages/recipes/index",

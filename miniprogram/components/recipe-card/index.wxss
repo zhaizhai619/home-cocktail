@@ -1,0 +1,13 @@
+.recipe-card { display: flex; overflow: hidden; background: #fffdf8; border: 1rpx solid #e7ded2; border-radius: 24rpx; box-shadow: 0 8rpx 20rpx rgba(52, 47, 43, .05); }
+.recipe-image { flex: 0 0 176rpx; width: 176rpx; height: 176rpx; background: #eee7dd; }
+.recipe-body { flex: 1; min-width: 0; padding: 22rpx 24rpx; }
+.recipe-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.recipe-name { overflow: hidden; color: #342f2b; font-size: 32rpx; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rating { flex: none; color: #786d63; font-size: 22rpx; }
+.prep-label { display: inline-block; margin-top: 10rpx; padding: 4rpx 12rpx; color: #716052; background: #f0e6d8; border-radius: 999rpx; font-size: 21rpx; }
+.ingredient-list { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 16rpx; }
+.ingredient { padding: 4rpx 10rpx; color: #61584f; background: #f5f0e8; border-radius: 10rpx; font-size: 22rpx; }
+.ingredient-amount { color: #8b8177; }
+.ingredient.quick-buy { color: #81531a; background: #f8e5bd; }
+.ingredient.missing-long-term { color: #766f69; background: #e6e4e0; }
+.quick-buy-marker { margin-left: 6rpx; font-size: 19rpx; }

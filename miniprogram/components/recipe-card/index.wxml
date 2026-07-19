@@ -1,0 +1,17 @@
+<view class="recipe-card" bindtap="onSelect">
+  <image wx:if="{{recipe.image}}" class="recipe-image" src="{{recipe.image}}" mode="aspectFill" />
+  <view class="recipe-body">
+    <view class="recipe-heading">
+      <text class="recipe-name">{{recipe.name}}</text>
+      <text wx:if="{{recipe.rating}}" class="rating">{{recipe.rating}}</text>
+    </view>
+    <text wx:if="{{recipe.preparationLabel}}" class="prep-label">{{recipe.preparationLabel}}</text>
+    <view wx:if="{{recipe.ingredients.length}}" class="ingredient-list">
+      <view wx:for="{{recipe.ingredients}}" wx:key="index" class="ingredient {{item.state}}">
+        <text>{{item.name}}</text>
+        <text wx:if="{{item.amountLabel}}" class="ingredient-amount"> {{item.amountLabel}}</text>
+        <text wx:if="{{item.quickBuyMarker}}" class="quick-buy-marker">🛍 {{item.quickBuyMarker}}</text>
+      </view>
+    </view>
+  </view>
+</view>
