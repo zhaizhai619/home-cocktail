@@ -99,6 +99,25 @@ test('payload keeps a resolvable observation for a newly drafted material', () =
   assert.equal(result.materialDrafts[0].name, '君度')
 })
 
+test('editing preserves historical material observations when no new row note is entered', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '旧配方'
+  form.materialObservations = [{ materialId: 'm-lime', note: '上次的青柠很香' }]
+  form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), materialId: 'm-lime', status: 'existing', amount: 25 }]
+  assert.deepEqual(buildRecipePayload(form).recipe.materialObservations, [{ materialId: 'm-lime', note: '上次的青柠很香' }])
+})
+
+test('editing appends a new row observation without replacing historical observations', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '旧配方'
+  form.materialObservations = [{ materialId: 'm-lime', note: '上次的青柠很香' }]
+  form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '这次橙香更明显' }]
+  assert.deepEqual(buildRecipePayload(form).recipe.materialObservations, [
+    { materialId: 'm-lime', note: '上次的青柠很香' },
+    { materialId: '', draftKey: 'liqueur:君度', note: '这次橙香更明显' }
+  ])
+})
+
 test('deduplicates new material drafts and resolves every temporary reference by category and name key', () => {
   const form = createEmptyRecipeForm()
   form.name = '重复材料测试'

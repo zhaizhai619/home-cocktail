@@ -88,6 +88,9 @@ function materialDraft(row) {
 function buildRecipePayload(input) {
   const result = normalizeAndValidateForm(input); const form = result.form
   const ingredients = form.ingredients.filter(usableIngredient)
+  const historicalObservations = (Array.isArray(form.materialObservations) ? form.materialObservations : [])
+    .filter((item) => item && typeof item.materialId === 'string' && item.materialId && typeof item.note === 'string' && item.note.trim())
+    .map((item) => ({ materialId: item.materialId, note: item.note.trim() }))
   const materialDrafts = []
   const seenDraftKeys = new Set()
   for (const row of ingredients.filter((item) => !item.materialId)) {
@@ -100,7 +103,7 @@ function buildRecipePayload(input) {
       ingredients: ingredients.map((row) => ({ materialId: row.materialId || '', ...(row.materialId ? {} : { draftKey: materialDraft(row).draftKey }), amount: ingredientAmount(row), unit: row.unit || 'ml' })),
       preparations: form.preparations, glasswareId: form.glasswareId || null, toolIds: Array.isArray(form.toolIds) ? form.toolIds : [],
       steps: String(form.steps || '').split('\n').map((step) => step.trim()).filter(Boolean), rating: form.rating || null, tastingNote: form.tastingNote || '',
-      materialObservations: ingredients.filter((row) => String(row.observation || '').trim()).map((row) => ({ ...(row.materialId ? { materialId: row.materialId } : { materialId: '', draftKey: materialDraft(row).draftKey }), note: String(row.observation).trim() }))
+      materialObservations: [...historicalObservations, ...ingredients.filter((row) => String(row.observation || '').trim()).map((row) => ({ ...(row.materialId ? { materialId: row.materialId } : { materialId: '', draftKey: materialDraft(row).draftKey }), note: String(row.observation).trim() }))]
     }, materialDrafts
   }
 }
