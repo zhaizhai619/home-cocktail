@@ -323,3 +323,13 @@ test('recipe save transaction atomically updates a missing existing material ABV
   assert.equal(repository.listRecipes().length, 1)
   assert.equal(repository.getMaterial(liqueur.id).abv, 40)
 })
+
+test('recipe save transaction rejects invalid supplied ABV on new alcoholic drafts before any state change', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: () => 'new-id' })
+  repository.initialize()
+  const before = repository.getState()
+  for (const abv of [-5, 0, 101, Number.NaN]) {
+    assert.throws(() => repository.saveRecipeWithMaterials({ name: '不应保存', ingredients: [{ materialId: '', draftKey: 'liqueur:bad', amount: 20, unit: 'ml' }] }, [{ draftKey: 'liqueur:bad', category: 'liqueur', name: 'Bad', alcoholic: true, abv }]), /Invalid ABV/)
+    assert.deepEqual(repository.getState(), before)
+  }
+})

@@ -98,6 +98,8 @@ function replaceIngredientName(form, index, name) {
 function amountFor(row) { return typeof row.amount === 'string' && row.amount.trim() === '' ? null : Number(row.amount) }
 function hasName(row) { return row && String(row.name || '').trim() }
 function usableIngredient(row) { return hasName(row) && (row.unit === 'top-up' || (Number.isFinite(amountFor(row)) && amountFor(row) > 0)) }
+function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
+function hasValidAbv(value) { const abv = Number(value); return Number.isFinite(abv) && abv > 0 && abv <= 100 }
 
 function normalizeAndValidateForm(input) {
   const form = cloneForm(input); const errors = {}
@@ -110,7 +112,7 @@ function normalizeAndValidateForm(input) {
   if (form.ingredients.some((row) => row && row.orphanedMaterialId)) errors.ingredients = '有材料已删除，请重新选择或填写材料'
   if (!form.ingredients.some(usableIngredient)) errors.ingredients = '请至少填写一种有效材料和用量'
   if (form.ingredients.some((row) => hasName(row) && row.unit !== 'top-up' && (!Number.isFinite(amountFor(row)) || amountFor(row) <= 0))) errors.ingredients = '材料用量需大于 0'
-  if (form.ingredients.some((row) => row && row.materialId && row.abvNeedsPersist && row.alcoholic && row.abv !== null && row.abv !== undefined && String(row.abv).trim() !== '' && (!Number.isFinite(Number(row.abv)) || Number(row.abv) <= 0 || Number(row.abv) > 100))) errors.ingredients = '酒精度需大于 0 且不超过 100'
+  if (form.ingredients.some((row) => row && row.alcoholic && hasSuppliedAbv(row.abv) && !hasValidAbv(row.abv))) errors.ingredients = '酒精度需大于 0 且不超过 100'
   if (form.preparations.length === 0 || form.preparations.some((prep) => !PREP_TYPES.includes(prep.type) || (prep.type !== '即调' && (!Number.isFinite(prep.amount) || prep.amount <= 0)))) errors.preparations = '预制方式需填写有效时长'
   return { valid: Object.keys(errors).length === 0, errors, form }
 }
@@ -120,11 +122,12 @@ function createMaterialDraftKey(category, name) { return getMaterialIdentityKey(
 function materialDraft(row) {
   const defaults = createIngredientDraft(row.category, row.name)
   const name = String(row.name || '').trim()
-  return { ...defaults, name, category: defaults.category, defaultUnit: row.unit || defaults.unit, alcoholic: row.alcoholic === true, abv: Number.isFinite(Number(row.abv)) ? Number(row.abv) : null, draftKey: createMaterialDraftKey(defaults.category, name) }
+  return { ...defaults, name, category: defaults.category, defaultUnit: row.unit || defaults.unit, alcoholic: row.alcoholic === true, abv: hasSuppliedAbv(row.abv) ? Number(row.abv) : null, draftKey: createMaterialDraftKey(defaults.category, name) }
 }
 
 function buildRecipePayload(input) {
   const result = normalizeAndValidateForm(input); const form = result.form
+  if (!result.valid) throw new RangeError(Object.values(result.errors)[0] || 'Invalid recipe form')
   const ingredients = form.ingredients.filter(usableIngredient)
   const historicalObservations = (Array.isArray(form.materialObservations) ? form.materialObservations : [])
     .filter((item) => item && typeof item.materialId === 'string' && item.materialId && typeof item.note === 'string' && item.note.trim())

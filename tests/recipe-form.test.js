@@ -184,6 +184,21 @@ test('missing existing alcoholic ABV accepts a valid repair, emits an update, an
   assert.match(normalizeAndValidateForm(updateIngredientField(form, 0, 'abv', '101')).errors.ingredients, /酒精度/)
 })
 
+test('every alcoholic row rejects filled invalid ABV values while allowing an empty ABV', () => {
+  for (const abv of ['-5', '0', '101', 'NaN']) {
+    const form = createEmptyRecipeForm()
+    form.name = `ABV ${abv}`
+    form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, abv }]
+    assert.match(normalizeAndValidateForm(form).errors.ingredients, /酒精度/)
+    assert.throws(() => buildRecipePayload(form), /酒精度/)
+  }
+  const empty = createEmptyRecipeForm()
+  empty.name = '允许留空'
+  empty.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, abv: null }]
+  assert.equal(normalizeAndValidateForm(empty).valid, true)
+  assert.equal(buildRecipePayload(empty).materialDrafts[0].abv, null)
+})
+
 test('save orchestration toasts and does not navigate when the transaction rejects', () => {
   const messages = []; let navigations = 0
   const form = createEmptyRecipeForm(); form.name = '失败保存'; form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), amount: 25 }]

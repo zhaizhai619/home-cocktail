@@ -2,6 +2,8 @@ const { createMaterialDefaults, getMaterialIdentityKey } = require('../domain/ma
 const { STORAGE_KEY, migrateState } = require('./schema')
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
+function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
+function hasValidAbv(value) { const abv = Number(value); return Number.isFinite(abv) && abv > 0 && abv <= 100 }
 
 function createWxStorageAdapter(wxApi) {
   return {
@@ -67,6 +69,9 @@ function createRepository(adapter, options = {}) {
     const originalState = state
     state = clone(originalState)
     try {
+      for (const draft of Array.isArray(materialDrafts) ? materialDrafts : []) {
+        if (draft && draft.alcoholic === true && hasSuppliedAbv(draft.abv) && !hasValidAbv(draft.abv)) throw new RangeError('Invalid ABV draft')
+      }
       const updatesById = new Map()
       for (const update of Array.isArray(materialUpdates) ? materialUpdates : []) {
         if (update && typeof update.id === 'string') updatesById.set(update.id, update)
@@ -74,7 +79,7 @@ function createRepository(adapter, options = {}) {
       for (const [id, update] of updatesById) {
         const index = state.materials.findIndex((item) => item.id === id)
         const abv = Number(update.abv)
-        if (index === -1 || !state.materials[index].alcoholic || !Number.isFinite(abv) || abv <= 0 || abv > 100) throw new RangeError('Invalid ABV update')
+        if (index === -1 || !state.materials[index].alcoholic || !hasValidAbv(abv)) throw new RangeError('Invalid ABV update')
         state.materials[index] = material({ ...state.materials[index], abv }, state.materials[index])
       }
       const idsByDraftKey = {}
