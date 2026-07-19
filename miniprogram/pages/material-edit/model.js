@@ -39,7 +39,7 @@ function validateMaterialForm(form = {}) {
       alcoholic,
       abv: alcoholic && hasAbv ? numericAbv : null,
       trackFreshness,
-      assumedAvailable: trackFreshness ? false : form.assumedAvailable === true,
+      assumedAvailable: trackFreshness || (form.acquisition === 'long-term' && form.owned !== true) ? false : form.assumedAvailable === true,
       owned: form.acquisition === 'long-term' && form.owned === true,
       freshOnHand,
       remainingAmount: freshOnHand && trackFreshness && hasAmount ? remainingAmount : null,

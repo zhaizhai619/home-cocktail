@@ -50,6 +50,9 @@ function validateMaterialValue(value, existing) {
   normalized.assumedAvailable = normalized.trackFreshness ? false : normalized.assumedAvailable === true
   normalized.owned = normalized.owned === true
   normalized.freshOnHand = normalized.freshOnHand === true
+  if ((normalized.acquisition === 'long-term' && normalized.freshOnHand) || (normalized.acquisition === 'on-demand' && normalized.owned)) throw new RangeError('Invalid material availability')
+  if (normalized.acquisition === 'on-demand') normalized.assumedAvailable = false
+  if (normalized.acquisition === 'long-term' && normalized.owned === false) normalized.assumedAvailable = false
   return normalized
 }
 
@@ -143,6 +146,8 @@ function createRepository(adapter, options = {}) {
       if (incoming.id && index === -1) throw new RangeError('Invalid material ID')
       const existing = index === -1 ? null : nextState.materials[index]
       const validated = validateMaterialValue(incoming, existing)
+      const identity = getMaterialIdentityKey(validated.category, validated.name)
+      if (nextState.materials.some((entry, entryIndex) => entryIndex !== index && getMaterialIdentityKey(entry.category, entry.name) === identity)) throw new Error('Material already exists')
       const normalizedForSave = { ...validated }
       if (existing && validated.category !== existing.category) {
         const categoryDefaults = createMaterialDefaults(validated.category, validated.name)
@@ -259,11 +264,14 @@ function createRepository(adapter, options = {}) {
     },
     setMaterialOwned(id, owned) {
       const item = get('materials', id)
-      return item ? saveMaterial({ ...item, owned: owned === true }) : null
+      if (!item) return null
+      if (item.acquisition !== 'long-term') throw new RangeError('Invalid material availability')
+      return saveMaterial({ ...item, owned: owned === true, assumedAvailable: false })
     },
     addToFreshShelf(id, fields = {}) {
       const item = get('materials', id)
       if (!item) return null
+      if (item.acquisition !== 'on-demand') throw new RangeError('Invalid material availability')
       return saveMaterial({
         ...item, ...fields, freshOnHand: true,
         purchasedAt: item.trackFreshness ? (fields.purchasedAt || item.purchasedAt || now()) : null,
@@ -273,7 +281,9 @@ function createRepository(adapter, options = {}) {
     },
     updateFreshShelf(id, fields = {}) {
       const item = get('materials', id)
-      return item ? saveMaterial({ ...item, ...fields, freshOnHand: true, freshUndoToken: null }) : null
+      if (!item) return null
+      if (item.acquisition !== 'on-demand') throw new RangeError('Invalid material availability')
+      return saveMaterial({ ...item, ...fields, freshOnHand: true, freshUndoToken: null })
     },
     useUpFreshMaterial(id) {
       return atomicStateUpdate((nextState) => {

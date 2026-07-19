@@ -79,7 +79,7 @@ Page({
     this.setData({ 'form.trackFreshness': tracked, 'form.assumedAvailable': tracked ? false : this.data.form.assumedAvailable })
   },
   onAssumedChange(event) { this.setData({ 'form.assumedAvailable': event.detail.value === true }) },
-  onOwnedChange(event) { this.setData({ 'form.owned': event.detail.value === true }) },
+  onOwnedChange(event) { this.setData({ 'form.owned': event.detail.value === true, 'form.assumedAvailable': false }) },
   onFreshChange(event) {
     const fresh = event.detail.value === true
     this.setData({ 'form.freshOnHand': fresh })
@@ -97,7 +97,12 @@ Page({
       if (!saved) throw new Error('not saved')
       toast('材料已保存')
       wx.redirectTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(saved.id)}` })
-    } catch (_) { toast('保存失败，请重试') }
+    } catch (error) {
+      if (error && error.message === 'Material already exists') {
+        this.setData({ 'errors.name': '同一分类下已经有这个材料' })
+        toast('这个材料已经存在')
+      } else toast('保存失败，请重试')
+    }
   },
   onDelete() {
     const repo = repository()

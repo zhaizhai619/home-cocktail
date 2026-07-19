@@ -66,6 +66,10 @@ function normalizeMaterial(material, now) {
   const createdAt = validDate(source.createdAt) ? source.createdAt : now
   const normalized = { ...defaults, ...clone(userData) }
   normalized.category = defaults.category
+  normalized.alcoholic = source.alcoholic === undefined ? defaults.alcoholic : source.alcoholic === true
+  normalized.trackFreshness = source.trackFreshness === undefined ? defaults.trackFreshness : source.trackFreshness === true
+  normalized.assumedAvailable = source.assumedAvailable === undefined ? defaults.assumedAvailable : source.assumedAvailable === true
+  normalized.owned = source.owned === undefined ? defaults.owned : source.owned === true
   normalized.id = typeof source.id === 'string' ? source.id : ''
   normalized.name = typeof source.name === 'string' ? source.name : ''
   normalized.freshOnHand = source.freshOnHand === true
@@ -76,6 +80,13 @@ function normalizeMaterial(material, now) {
   normalized.preferenceNote = typeof source.preferenceNote === 'string' ? source.preferenceNote : ''
   normalized.createdAt = createdAt
   normalized.updatedAt = validDate(source.updatedAt) ? source.updatedAt : createdAt
+  if (normalized.acquisition === 'long-term') {
+    normalized.freshOnHand = false
+    if (normalized.assumedAvailable === true && normalized.trackFreshness === false) normalized.owned = true
+  } else {
+    normalized.owned = false
+    normalized.assumedAvailable = false
+  }
   if (!normalized.freshOnHand || normalized.trackFreshness !== true) {
     normalized.remainingAmount = null
     normalized.remainingUnit = null

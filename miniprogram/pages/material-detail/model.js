@@ -33,6 +33,14 @@ function formatPrep(preparations) {
 
 function buildRelatedRecipe(recipe, lookups) {
   const hydrated = hydrateRecipeSummary(recipe, lookups)
+  const glasswareLabel = hydrated.glassware
+    ? [hydrated.glassware.name, Number.isFinite(Number(hydrated.glassware.capacity || hydrated.glassware.capacityMl)) ? `${Number(hydrated.glassware.capacity || hydrated.glassware.capacityMl)}ml` : ''].filter(Boolean).join(' · ')
+    : (recipe.glasswareId ? `杯具资料缺失（${recipe.glasswareId}）` : '未选杯具')
+  const toolIds = Array.isArray(recipe.toolIds) ? recipe.toolIds : []
+  const toolLabels = toolIds.map((id) => {
+    const tool = lookups.toolsById[id]
+    return tool ? (tool.name || '未命名用具') : `用具资料缺失（${id}）`
+  })
   return {
     id: hydrated.id || '',
     name: hydrated.name || '未命名酒款',
@@ -47,10 +55,8 @@ function buildRelatedRecipe(recipe, lookups) {
         state: material ? getMaterialVisualState(material) : 'missing-long-term'
       }
     }),
-    glasswareLabel: hydrated.glassware
-      ? [hydrated.glassware.name, Number.isFinite(Number(hydrated.glassware.capacity || hydrated.glassware.capacityMl)) ? `${Number(hydrated.glassware.capacity || hydrated.glassware.capacityMl)}ml` : ''].filter(Boolean).join(' · ')
-      : '未选杯具',
-    toolsLabel: hydrated.tools.length ? hydrated.tools.map(({ name }) => name).join('、') : '无需特别用具'
+    glasswareLabel,
+    toolsLabel: toolLabels.length ? toolLabels.join('、') : '无需特别用具'
   }
 }
 

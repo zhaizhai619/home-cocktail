@@ -18,12 +18,34 @@ function formatInventory(material) {
   return '当前在手头'
 }
 
-function formatExpiry(value, nowValue) {
-  if (!value || !Number.isFinite(Date.parse(value))) return ''
-  const now = Number.isFinite(Date.parse(nowValue)) ? new Date(nowValue) : new Date()
-  const expiry = new Date(value)
-  const day = 24 * 60 * 60 * 1000
-  const days = Math.ceil((expiry.getTime() - now.getTime()) / day)
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function getLocalDateOrdinal(value, offsetMinutes) {
+  const dateOnly = typeof value === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (dateOnly) {
+    const year = Number(dateOnly[1]); const month = Number(dateOnly[2]); const day = Number(dateOnly[3])
+    const timestamp = Date.UTC(year, month - 1, day)
+    const checked = new Date(timestamp)
+    if (checked.getUTCFullYear() !== year || checked.getUTCMonth() !== month - 1 || checked.getUTCDate() !== day) return null
+    return Math.floor(timestamp / DAY_MS)
+  }
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
+  if (!Number.isFinite(date.getTime())) return null
+  let year; let month; let day
+  if (Number.isFinite(offsetMinutes)) {
+    const shifted = new Date(date.getTime() + Number(offsetMinutes) * 60 * 1000)
+    year = shifted.getUTCFullYear(); month = shifted.getUTCMonth(); day = shifted.getUTCDate()
+  } else {
+    year = date.getFullYear(); month = date.getMonth(); day = date.getDate()
+  }
+  return Math.floor(Date.UTC(year, month, day) / DAY_MS)
+}
+
+function formatExpiry(value, nowValue, offsetMinutes) {
+  const expiryOrdinal = getLocalDateOrdinal(value, offsetMinutes)
+  const nowOrdinal = getLocalDateOrdinal(nowValue || new Date(), offsetMinutes)
+  if (!Number.isFinite(expiryOrdinal) || !Number.isFinite(nowOrdinal)) return ''
+  const days = expiryOrdinal - nowOrdinal
   if (days < 0) return `已过期 ${Math.abs(days)} 天`
   if (days === 0) return '今天到期'
   return `${days} 天后到期`
@@ -33,7 +55,7 @@ function buildCard(material, recipes, materialsById, now) {
   const stats = getMaterialUsageStats(material.id, recipes, materialsById)
   const visualState = getMaterialVisualState(material)
   const inventoryLabel = formatInventory(material)
-  const expiryLabel = material.trackFreshness === true ? formatExpiry(material.expiresAt, now) : ''
+  const expiryLabel = material.trackFreshness === true ? formatExpiry(material.expiresAt, now, undefined) : ''
   return {
     ...material,
     visualState,
@@ -100,6 +122,7 @@ module.exports = {
   buildMaterialLibrary,
   formatInventory,
   formatExpiry,
+  getLocalDateOrdinal,
   orchestrateFreshUseUp,
   orchestrateFreshUndo
 }
