@@ -84,7 +84,7 @@ function buildAbv(recipe, materialsById) {
     }
     const name = material.name || '未命名材料'
     const numericAbv = Number(material.abv)
-    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv >= 0 && numericAbv <= 100
+    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv > 0 && numericAbv <= 100
     const hasMlAmount = source.unit === 'ml' && Number.isFinite(amount) && amount >= 0
     if (source.unit === 'ml' && !hasMlAmount) appendUnique(missingAmount, name)
     if (source.unit !== 'ml' && source.unit !== 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)

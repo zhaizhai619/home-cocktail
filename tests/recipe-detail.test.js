@@ -136,6 +136,19 @@ test('buildRecipeDetail distinguishes missing calculable amounts from ignored no
   })
 })
 
+test('buildRecipeDetail treats every invalid legacy alcoholic ABV as missing', () => {
+  for (const abv of [0, -1, 101, 'not-a-number']) {
+    const detail = buildRecipeDetail({
+      id: `legacy-${abv}`, name: '旧数据', ingredients: [{ materialId: 'legacy-spirit', amount: 20, unit: 'ml' }]
+    }, [{ id: 'legacy-spirit', name: '旧酒款', acquisition: 'long-term', owned: true, alcoholic: true, abv }])
+
+    assert.equal(detail.abv.status, 'missing', `abv=${abv}`)
+    assert.equal(detail.abv.valueLabel, '--', `abv=${abv}`)
+    assert.deepEqual(detail.abv.missing, ['旧酒款'], `abv=${abv}`)
+    assert.deepEqual(detail.abv.issueLines, [{ kind: 'abv', text: '缺少酒精度：旧酒款' }], `abv=${abv}`)
+  }
+})
+
 test('observation validation requires a recipe ingredient and non-empty text', () => {
   const recipe = createDetailFixture().recipe
   assert.deepEqual(validateObservation(recipe, '', '好喝'), { valid: false, message: '请选择要记录的材料' })
