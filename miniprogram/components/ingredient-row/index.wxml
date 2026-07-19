@@ -1,9 +1,11 @@
 <view class="ingredient-row">
   <input class="name" data-field="name" value="{{item.name}}" placeholder="材料名称" bindinput="onInput" />
   <button class="pick" bindtap="onNameTap">选择</button>
+  <picker range="{{categories}}" range-key="label" value="{{item.categoryIndex}}" bindchange="onCategory"><view class="category">{{item.categoryLabel}}</view></picker>
   <input class="amount" data-field="amount" value="{{item.amount}}" type="digit" placeholder="用量" bindinput="onInput" />
   <picker range="{{units}}" range-key="label" value="{{item.unitIndex}}" bindchange="onUnit"><view class="unit">{{item.unitLabel}}</view></picker>
   <button class="remove" bindtap="onRemove">删除</button>
+  <label class="alcoholic"><switch checked="{{item.alcoholic}}" bindchange="onAlcoholic" />含酒精</label>
   <input wx:if="{{item.alcoholic}}" class="abv" data-field="abv" value="{{item.abv}}" type="digit" placeholder="酒精度%（可空）" bindinput="onInput" />
   <input class="observation" data-field="observation" value="{{item.observation}}" placeholder="本杯材料备注（可选）" bindinput="onInput" />
 </view>

@@ -46,4 +46,8 @@ test('fast recipe editor route and focused form components are registered', () =
   assert.match(editorConfig, /"prep-editor"/)
   const ingredientRow = fs.readFileSync(path.join(root, 'components', 'ingredient-row', 'index.wxml'), 'utf8')
   assert.match(ingredientRow, /data-field="name"/)
+  assert.match(fs.readFileSync(path.join(root, 'components', 'ingredient-row', 'index.js'), 'utf8'), /this\.data\.units\[index\]\.value/)
+  assert.match(fs.readFileSync(path.join(root, 'components', 'prep-editor', 'index.js'), 'utf8'), /preparation\.units\[pickerIndex\]\.value/)
+  assert.match(ingredientRow, /category/)
+  assert.match(ingredientRow, /switch/)
 })

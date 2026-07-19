@@ -2,7 +2,7 @@
   <view class="chips"><button wx:for="{{types}}" wx:key="*this" data-type="{{item}}" bindtap="choose" class="chip">{{item}}</button></view>
   <view wx:for="{{preparations}}" wx:key="type" class="prep-row">
     <text>{{item.type}}</text>
-    <block wx:if="{{item.needsDuration}}"><input data-index="{{index}}" data-field="amount" type="digit" value="{{item.amount}}" placeholder="时长" bindinput="edit" /><picker range="{{item.units}}" value="{{item.unitIndex}}" data-index="{{index}}" bindchange="unit"><text>{{item.unitLabel}}</text></picker></block>
+    <block wx:if="{{item.needsDuration}}"><input data-index="{{index}}" data-field="amount" type="digit" value="{{item.amount}}" placeholder="时长" bindinput="edit" /><picker range="{{item.units}}" range-key="label" value="{{item.unitIndex}}" data-index="{{index}}" bindchange="unit"><text>{{item.unitLabel}}</text></picker></block>
     <input data-index="{{index}}" data-field="note" value="{{item.note}}" placeholder="备注（可选）" bindinput="edit" />
   </view>
 </view>

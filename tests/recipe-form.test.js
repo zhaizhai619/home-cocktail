@@ -88,6 +88,15 @@ test('payload uses ingredient material ids and preserves recipe data and materia
   assert.deepEqual(result.recipe.materialObservations, [{ materialId: 'm-lime', note: '新鲜' }])
 })
 
+test('payload keeps a resolvable observation for a newly drafted material', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '君度酸酒'
+  form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '橙香更明显' }]
+  const result = buildRecipePayload(form)
+  assert.deepEqual(result.recipe.materialObservations, [{ materialId: '', materialName: '君度', note: '橙香更明显' }])
+  assert.equal(result.materialDrafts[0].name, '君度')
+})
+
 test('preview delegates enriched material rows to existing ABV calculation', () => {
   const preview = getFormPreview({ ...createEmptyRecipeForm(), ingredients: [
     { ...createIngredientDraft('base-spirit', '金酒'), amount: 50 },

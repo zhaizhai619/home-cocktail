@@ -93,7 +93,7 @@ function buildRecipePayload(input) {
       ingredients: ingredients.map((row) => ({ materialId: row.materialId || '', amount: ingredientAmount(row), unit: row.unit || 'ml' })),
       preparations: form.preparations, glasswareId: form.glasswareId || null, toolIds: Array.isArray(form.toolIds) ? form.toolIds : [],
       steps: String(form.steps || '').split('\n').map((step) => step.trim()).filter(Boolean), rating: form.rating || null, tastingNote: form.tastingNote || '',
-      materialObservations: ingredients.filter((row) => row.materialId && String(row.observation || '').trim()).map((row) => ({ materialId: row.materialId, note: String(row.observation).trim() }))
+      materialObservations: ingredients.filter((row) => String(row.observation || '').trim()).map((row) => ({ ...(row.materialId ? { materialId: row.materialId } : { materialId: '', materialName: row.name }), note: String(row.observation).trim() }))
     }, materialDrafts
   }
 }
