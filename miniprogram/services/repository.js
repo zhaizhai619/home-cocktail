@@ -44,7 +44,8 @@ function createRepository(adapter, options = {}) {
     const source = { ...(existing || {}), ...(value || {}) }
     let defaults
     try { defaults = createMaterialDefaults(source.category || 'other-liquid', source.name || '') } catch (_) { defaults = createMaterialDefaults('other-liquid', source.name || '') }
-    return { ...defaults, ...source, id: source.id || idFactory(), freshOnHand: source.freshOnHand === true, freshAddedAt: source.freshAddedAt || null, freshExpiresAt: source.freshExpiresAt || null }
+    const timestamp = now()
+    return migrateState({ materials: [{ ...defaults, ...source, id: source.id || idFactory(), freshOnHand: source.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
   }
   function remove(key, id, predicate = () => true) {
     const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))
@@ -56,11 +57,11 @@ function createRepository(adapter, options = {}) {
     listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), deleteRecipe: (id) => remove('recipes', id),
     listMaterials: () => list('materials'), getMaterial: (id) => get('materials', id), upsertMaterial: (value) => upsert('materials', value, material),
     setMaterialOwned(id, owned) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, owned: owned === true }) : null },
-    addToFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, freshOnHand: true, freshAddedAt: fields.addedAt || item.freshAddedAt || now(), freshExpiresAt: fields.expiresAt || item.freshExpiresAt }) : null },
-    updateFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, freshOnHand: true, freshAddedAt: fields.addedAt || item.freshAddedAt, freshExpiresAt: fields.expiresAt || item.freshExpiresAt }) : null },
-    removeFromFreshShelf(id) { const item = get('materials', id); if (!item) return false; this.upsertMaterial({ ...item, freshOnHand: false, freshAddedAt: null, freshExpiresAt: null }); return true },
+    addToFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, ...fields, freshOnHand: true, purchasedAt: fields.purchasedAt || item.purchasedAt || now(), expiresAt: fields.expiresAt || item.expiresAt || null }) : null },
+    updateFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, ...fields, freshOnHand: true }) : null },
+    removeFromFreshShelf(id) { const item = get('materials', id); if (!item) return false; this.upsertMaterial({ ...item, freshOnHand: false, remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null }); return true },
     listGlassware: () => list('glassware'), getGlassware: (id) => get('glassware', id), upsertGlassware: (value) => upsert('glassware', value, named), deleteGlassware: (id) => remove('glassware', id),
-    listTools: () => list('tools'), getTool: (id) => get('tools', id), upsertTool: (value) => upsert('tools', value, (item, existing) => ({ ...named(item, existing), builtIn: existing ? existing.builtIn === true : false })), deleteTool: (id) => remove('tools', id, (tool) => tool.builtIn !== true)
+    listTools: () => list('tools'), getTool: (id) => get('tools', id), upsertTool(value) { const existing = value && value.id ? get('tools', value.id) : null; if (existing && existing.builtIn) return false; return upsert('tools', value, (item, prior) => ({ ...named(item, prior), builtIn: false })) }, deleteTool: (id) => remove('tools', id, (tool) => tool.builtIn !== true)
   }
 }
 

@@ -53,17 +53,42 @@ test('migration is idempotent and gives invalid recipe dates the supplied timest
   assert.deepEqual(migrated.recipes[0], {
     id: 'r1',
     name: 'Martini',
+    imagePath: '',
+    source: '',
+    tried: false,
     ingredients: [],
     preparations: [],
-    instructions: '',
-    rating: null,
     glasswareId: null,
     toolIds: [],
+    steps: [],
+    rating: null,
+    tastingNote: '',
+    materialObservations: [],
     createdAt: now,
     updatedAt: now
   })
   assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
   assert.deepEqual(migrateState(null, now), createInitialState())
+})
+
+test('migration preserves the full recipe shape, user fields, and uses steps canonically', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const recipe = migrateState({ recipes: [{
+    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
+    ingredients: [{ materialId: 'gin' }], preparations: [{ type: '即调' }], glasswareId: 'coupe',
+    toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
+    materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
+    createdAt: now, updatedAt: now
+  }] }, now).recipes[0]
+
+  assert.deepEqual(recipe, {
+    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
+    ingredients: [{ materialId: 'gin' }], preparations: [{ type: '即调' }], glasswareId: 'coupe',
+    toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
+    materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
+    createdAt: now, updatedAt: now
+  })
+  assert.deepEqual(migrateState({ recipes: [{ id: 'legacy', instructions: 'Build' }] }, now).recipes[0].steps, ['Build'])
 })
 
 test('recipe CRUD assigns IDs and timestamps and preserves createdAt on update', () => {
@@ -76,8 +101,9 @@ test('recipe CRUD assigns IDs and timestamps and preserves createdAt on update',
   const updated = repository.upsertRecipe({ ...created, name: 'White Negroni' })
 
   assert.deepEqual(created, {
-    id: 'id-1', name: 'Negroni', ingredients: [], preparations: [], instructions: '',
-    rating: null, glasswareId: null, toolIds: [],
+    id: 'id-1', name: 'Negroni', imagePath: '', source: '', tried: false,
+    ingredients: [], preparations: [], glasswareId: null, toolIds: [], steps: [],
+    rating: null, tastingNote: '', materialObservations: [],
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z'
   })
   assert.equal(updated.createdAt, created.createdAt)
@@ -99,15 +125,52 @@ test('materials support defaults, classification overrides, long-term ownership,
   assert.equal(material.defaultUnit, 'piece')
   assert.equal(material.trackFreshness, false)
   assert.equal(repository.setMaterialOwned(material.id, true).owned, true)
-  const stocked = repository.addToFreshShelf(material.id, { addedAt: '2026-01-03T00:00:00.000Z', expiresAt: '2026-01-07T00:00:00.000Z' })
+  const stocked = repository.addToFreshShelf(material.id, { remainingAmount: 3, remainingUnit: 'piece', purchasedAt: '2026-01-03T00:00:00.000Z', expiresAt: '2026-01-07T00:00:00.000Z' })
   assert.equal(stocked.freshOnHand, true)
-  assert.equal(stocked.freshExpiresAt, '2026-01-07T00:00:00.000Z')
-  const refreshed = repository.updateFreshShelf(material.id, { expiresAt: '2026-01-08T00:00:00.000Z' })
-  assert.equal(refreshed.freshExpiresAt, '2026-01-08T00:00:00.000Z')
+  assert.equal(stocked.remainingAmount, 3)
+  assert.equal(stocked.remainingUnit, 'piece')
+  assert.equal(stocked.purchasedAt, '2026-01-03T00:00:00.000Z')
+  assert.equal(stocked.expiresAt, '2026-01-07T00:00:00.000Z')
+  const refreshed = repository.updateFreshShelf(material.id, { remainingAmount: 2, expiresAt: '2026-01-08T00:00:00.000Z' })
+  assert.equal(refreshed.expiresAt, '2026-01-08T00:00:00.000Z')
+  assert.equal(refreshed.remainingAmount, 2)
   assert.equal(repository.removeFromFreshShelf(material.id), true)
   assert.equal(repository.getMaterial(material.id).freshOnHand, false)
+  assert.equal(repository.getMaterial(material.id).remainingAmount, null)
   assert.ok(repository.getMaterial(material.id))
   assert.equal(repository.getMaterial('missing'), null)
+})
+
+test('material, glassware, and custom tool migration retain canonical and user fields', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const migrated = migrateState({
+    materials: [{ id: 'm1', name: 'Milk', category: 'dairy', remainingAmount: 10, remainingUnit: 'ml', purchasedAt: now, expiresAt: now, preferenceNote: 'whole', createdAt: now, updatedAt: now }],
+    glassware: [{ id: 'g1', name: 'Highball', capacity: 300, imagePath: '/glass.png', note: 'cold', custom: true }],
+    tools: [{ id: 't1', name: 'Torch', voltage: '220v' }]
+  }, now)
+  assert.deepEqual(migrated.materials[0].remainingAmount, 10)
+  assert.equal(migrated.materials[0].preferenceNote, 'whole')
+  assert.equal(migrated.materials[0].createdAt, now)
+  assert.equal(migrated.glassware.find(({ id }) => id === 'g1').capacity, 300)
+  assert.equal(migrated.glassware.find(({ id }) => id === 'g1').custom, true)
+  assert.equal(migrated.tools.find(({ id }) => id === 't1').voltage, '220v')
+})
+
+test('material updates preserve createdAt and refresh updatedAt without legacy fresh fields', () => {
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: () => 'm1',
+    now: createClock('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+  })
+  repository.initialize()
+  const created = repository.upsertMaterial({ name: 'Milk', category: 'dairy' })
+  const updated = repository.upsertMaterial({ ...created, preferenceNote: 'whole' })
+  const legacy = migrateState({ materials: [{ id: 'legacy', freshAddedAt: '2026-01-01T00:00:00.000Z', freshExpiresAt: '2026-01-03T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
+
+  assert.equal(updated.createdAt, created.createdAt)
+  assert.equal(updated.updatedAt, '2026-01-02T00:00:00.000Z')
+  assert.equal(legacy.purchasedAt, '2026-01-01T00:00:00.000Z')
+  assert.equal('freshAddedAt' in legacy, false)
+  assert.equal('freshExpiresAt' in legacy, false)
 })
 
 test('glassware and custom tools persist while built-ins are retained and protected', () => {
@@ -119,6 +182,8 @@ test('glassware and custom tools persist while built-ins are retained and protec
   const custom = repository.upsertTool({ name: '喷枪' })
   assert.deepEqual(custom, { id: 'id-2', name: '喷枪', builtIn: false })
   assert.equal(repository.deleteTool(custom.id), true)
+  assert.equal(repository.upsertTool({ id: 'quick-tool-1', name: 'hacked' }), false)
+  assert.equal(repository.getTool('quick-tool-1').name, QUICK_TOOLS[0])
   assert.equal(repository.deleteTool('quick-tool-1'), false)
   assert.equal(repository.listTools().length, QUICK_TOOLS.length)
 })

@@ -34,21 +34,28 @@ function normalizeRecipe(recipe, now) {
   const source = recipe && typeof recipe === 'object' && !Array.isArray(recipe) ? recipe : {}
   const createdAt = validDate(source.createdAt) ? source.createdAt : now
   return {
+    ...clone(source),
     id: typeof source.id === 'string' ? source.id : '',
     name: typeof source.name === 'string' ? source.name : '',
+    imagePath: typeof source.imagePath === 'string' ? source.imagePath : '',
+    source: typeof source.source === 'string' ? source.source : '',
+    tried: source.tried === true,
     ingredients: Array.isArray(source.ingredients) ? clone(source.ingredients) : [],
     preparations: Array.isArray(source.preparations) ? clone(source.preparations) : [],
-    instructions: typeof source.instructions === 'string' ? source.instructions : '',
-    rating: source.rating || null,
     glasswareId: typeof source.glasswareId === 'string' ? source.glasswareId : null,
     toolIds: Array.isArray(source.toolIds) ? source.toolIds.filter((id) => typeof id === 'string') : [],
+    steps: Array.isArray(source.steps) ? clone(source.steps) : (typeof source.instructions === 'string' && source.instructions ? [source.instructions] : []),
+    rating: source.rating || null,
+    tastingNote: typeof source.tastingNote === 'string' ? source.tastingNote : '',
+    materialObservations: Array.isArray(source.materialObservations) ? clone(source.materialObservations) : [],
     createdAt,
     updatedAt: validDate(source.updatedAt) ? source.updatedAt : createdAt
   }
 }
 
-function normalizeMaterial(material) {
+function normalizeMaterial(material, now) {
   const source = material && typeof material === 'object' && !Array.isArray(material) ? material : {}
+  const { freshAddedAt, freshExpiresAt, ...userData } = source
   let defaults
   try {
     defaults = createMaterialDefaults(source.category || 'other-liquid', typeof source.name === 'string' ? source.name : '')
@@ -56,25 +63,31 @@ function normalizeMaterial(material) {
     defaults = createMaterialDefaults('other-liquid', typeof source.name === 'string' ? source.name : '')
   }
 
-  const normalized = { ...defaults, ...clone(source) }
+  const createdAt = validDate(source.createdAt) ? source.createdAt : now
+  const normalized = { ...defaults, ...clone(userData) }
   normalized.id = typeof source.id === 'string' ? source.id : ''
   normalized.name = typeof source.name === 'string' ? source.name : ''
   normalized.freshOnHand = source.freshOnHand === true
-  normalized.freshAddedAt = validDate(source.freshAddedAt) ? source.freshAddedAt : null
-  normalized.freshExpiresAt = validDate(source.freshExpiresAt) ? source.freshExpiresAt : null
+  normalized.remainingAmount = Number.isFinite(source.remainingAmount) ? source.remainingAmount : null
+  normalized.remainingUnit = typeof source.remainingUnit === 'string' ? source.remainingUnit : null
+  normalized.purchasedAt = validDate(source.purchasedAt) ? source.purchasedAt : (validDate(freshAddedAt) ? freshAddedAt : null)
+  normalized.expiresAt = validDate(source.expiresAt) ? source.expiresAt : (validDate(freshExpiresAt) ? freshExpiresAt : null)
+  normalized.preferenceNote = typeof source.preferenceNote === 'string' ? source.preferenceNote : ''
+  normalized.createdAt = createdAt
+  normalized.updatedAt = validDate(source.updatedAt) ? source.updatedAt : createdAt
   return normalized
 }
 
 function normalizeNamedItem(item) {
   const source = item && typeof item === 'object' && !Array.isArray(item) ? item : {}
-  return { id: typeof source.id === 'string' ? source.id : '', name: typeof source.name === 'string' ? source.name : '' }
+  return { ...clone(source), id: typeof source.id === 'string' ? source.id : '', name: typeof source.name === 'string' ? source.name : '' }
 }
 
 function normalizeTools(tools) {
   const supplied = Array.isArray(tools) ? tools : []
   const custom = supplied
     .filter((tool) => tool && typeof tool === 'object' && tool.builtIn !== true && typeof tool.id === 'string')
-    .map((tool) => ({ id: tool.id, name: typeof tool.name === 'string' ? tool.name : '', builtIn: false }))
+    .map((tool) => ({ ...clone(tool), id: tool.id, name: typeof tool.name === 'string' ? tool.name : '', builtIn: false }))
   const ids = new Set(builtInTools().map(({ id }) => id))
   return [...builtInTools(), ...custom.filter((tool) => !ids.has(tool.id))]
 }
@@ -84,7 +97,7 @@ function migrateState(raw, now = new Date().toISOString()) {
   return {
     version: CURRENT_SCHEMA_VERSION,
     recipes: Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [],
-    materials: Array.isArray(raw.materials) ? raw.materials.map(normalizeMaterial) : [],
+    materials: Array.isArray(raw.materials) ? raw.materials.map((material) => normalizeMaterial(material, now)) : [],
     glassware: Array.isArray(raw.glassware) ? raw.glassware.map(normalizeNamedItem) : [],
     tools: normalizeTools(raw.tools)
   }
