@@ -14,13 +14,21 @@ const {
 } = require('../miniprogram/domain/material')
 
 test('exports the approved quick base spirits in display order', () => {
-  assert.deepEqual(QUICK_BASE_SPIRITS, [
+  assert.deepEqual(QUICK_BASE_SPIRITS.map((spirit) => spirit.id), [
+    'gin',
+    'white-rum',
+    'whiskey',
+    'vodka',
+    'tequila'
+  ])
+  assert.deepEqual(QUICK_BASE_SPIRITS.map((spirit) => spirit.name), [
     '金酒',
     '白朗姆',
     '威士忌',
     '伏特加',
     '龙舌兰'
   ])
+  assert.ok(QUICK_BASE_SPIRITS.every((spirit) => spirit.abv === 40))
 })
 
 test('exports the approved preparation types and ratings in display order', () => {

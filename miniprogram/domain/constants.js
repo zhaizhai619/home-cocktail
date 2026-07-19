@@ -10,11 +10,11 @@ const PREP_TYPES = Object.freeze([
 const RATINGS = Object.freeze(['夯', '顶尖', '人上人', 'NPC', '拉完了'])
 
 const QUICK_BASE_SPIRITS = Object.freeze([
-  '金酒',
-  '白朗姆',
-  '威士忌',
-  '伏特加',
-  '龙舌兰'
+  Object.freeze({ id: 'gin', name: '金酒', abv: 40 }),
+  Object.freeze({ id: 'white-rum', name: '白朗姆', abv: 40 }),
+  Object.freeze({ id: 'whiskey', name: '威士忌', abv: 40 }),
+  Object.freeze({ id: 'vodka', name: '伏特加', abv: 40 }),
+  Object.freeze({ id: 'tequila', name: '龙舌兰', abv: 40 })
 ])
 
 const QUICK_TOOLS = Object.freeze([
