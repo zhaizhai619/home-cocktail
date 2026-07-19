@@ -66,6 +66,7 @@ function normalizeMaterial(material, now) {
   const createdAt = validDate(source.createdAt) ? source.createdAt : now
   const normalized = { ...defaults, ...clone(userData) }
   normalized.category = defaults.category
+  normalized.acquisition = ['long-term', 'on-demand'].includes(source.acquisition) ? source.acquisition : defaults.acquisition
   normalized.alcoholic = source.alcoholic === undefined ? defaults.alcoholic : source.alcoholic === true
   normalized.trackFreshness = source.trackFreshness === undefined ? defaults.trackFreshness : source.trackFreshness === true
   normalized.assumedAvailable = source.assumedAvailable === undefined ? defaults.assumedAvailable : source.assumedAvailable === true

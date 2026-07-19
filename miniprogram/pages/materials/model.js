@@ -11,7 +11,8 @@ function asLookup(items) {
 function formatInventory(material) {
   if (!material || material.freshOnHand !== true) return ''
   if (material.trackFreshness !== true) return '当前在手头'
-  if (Number.isFinite(Number(material.remainingAmount))) {
+  const hasAmount = material.remainingAmount !== null && material.remainingAmount !== undefined && String(material.remainingAmount).trim() !== ''
+  if (hasAmount && Number.isFinite(Number(material.remainingAmount))) {
     const labels = { piece: '个', slice: '片', drop: '滴', chunk: '块', 'top-up': '补满', 'to-taste': '适量' }
     return `还剩约 ${Number(material.remainingAmount)}${labels[material.remainingUnit] || material.remainingUnit || ''}`
   }

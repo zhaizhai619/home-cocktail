@@ -7,6 +7,7 @@ const { createRepository } = require('../miniprogram/services/repository')
 const { getMaterialVisualState } = require('../miniprogram/domain/material')
 const {
   buildMaterialLibrary,
+  formatInventory,
   formatExpiry,
   getLocalDateOrdinal,
   orchestrateFreshUseUp,
@@ -155,6 +156,15 @@ test('migration aligns legacy assumed staples and invalid acquisition states', (
   assert.deepEqual({ alcoholic: migrated[2].alcoholic, owned: migrated[2].owned, assumedAvailable: migrated[2].assumedAvailable, freshOnHand: migrated[2].freshOnHand, trackFreshness: migrated[2].trackFreshness }, { alcoholic: false, owned: false, assumedAvailable: false, freshOnHand: false, trackFreshness: false })
 })
 
+test('migration replaces invalid acquisition with category defaults and clears incompatible status', () => {
+  const migrated = migrateState({ materials: [
+    { id: 'fruit', name: '西瓜', category: 'fruit', acquisition: 'teleport', owned: true, freshOnHand: true, trackFreshness: true, remainingAmount: 5, remainingUnit: 'piece' },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'teleport', owned: false, freshOnHand: true, trackFreshness: true, remainingAmount: 500, remainingUnit: 'ml' }
+  ] }, '2026-07-20T00:00:00.000Z').materials
+  assert.deepEqual({ acquisition: migrated[0].acquisition, owned: migrated[0].owned, freshOnHand: migrated[0].freshOnHand, remainingAmount: migrated[0].remainingAmount }, { acquisition: 'on-demand', owned: false, freshOnHand: true, remainingAmount: 5 })
+  assert.deepEqual({ acquisition: migrated[1].acquisition, owned: migrated[1].owned, freshOnHand: migrated[1].freshOnHand, remainingAmount: migrated[1].remainingAmount }, { acquisition: 'long-term', owned: false, freshOnHand: false, remainingAmount: null })
+})
+
 test('fresh on-hand and freshness tracking remain independent through every combination', () => {
   const repository = createRepository(memoryAdapter(), repositoryOptions())
   repository.initialize()
@@ -259,6 +269,24 @@ test('library view model separates tracked fresh shelf and supports final filter
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { search: '紫罗兰' }).materials.map(({ id }) => id), ['violet'])
 })
 
+test('fresh inventory label distinguishes absent amounts from a real zero', () => {
+  for (const remainingAmount of [null, undefined, '']) {
+    assert.equal(formatInventory({ freshOnHand: true, trackFreshness: true, remainingAmount, remainingUnit: 'g' }), '当前在手头')
+  }
+  assert.equal(formatInventory({ freshOnHand: true, trackFreshness: true, remainingAmount: 0, remainingUnit: 'g' }), '还剩约 0g')
+})
+
+test('adding fresh material without amount produces a normal on-hand card', () => {
+  const repository = createRepository(memoryAdapter(), repositoryOptions())
+  repository.initialize()
+  const fruit = repository.saveMaterial({ name: '西瓜', category: 'fruit' })
+  repository.addToFreshShelf(fruit.id)
+  const view = buildMaterialLibrary(repository.listMaterials(), repository.listRecipes())
+  assert.equal(view.freshShelf.length, 1)
+  assert.equal(view.freshShelf[0].inventoryLabel, '当前在手头')
+  assert.equal(view.materials[0].inventoryLabel, '当前在手头')
+})
+
 test('expiry labels compare local calendar ordinals rather than elapsed hours', () => {
   const shanghaiNow = '2026-07-20T23:30:00+08:00'
   assert.equal(formatExpiry('2026-07-19', shanghaiNow, 480), '已过期 1 天')
@@ -339,6 +367,7 @@ test('material form validation normalizes all fields and allows missing alcoholi
   assert.equal(validateMaterialForm({ name: '利口酒', category: 'liqueur', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: true, abv: '' }).valid, true)
   assert.equal(validateMaterialForm({ name: '', category: 'fruit', acquisition: 'on-demand', form: 'solid', defaultUnit: 'g', alcoholic: false }).errors.name, '请填写材料名称')
   assert.equal(validateMaterialForm({ name: '酒', category: 'liqueur', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: true, abv: 'nope' }).errors.abv, '酒精度需大于 0 且不超过 100')
+  assert.equal(validateMaterialForm({ name: '西瓜', category: 'fruit', acquisition: 'teleport', form: 'solid', defaultUnit: 'g', alcoholic: false }).errors.acquisition, '请选择获取方式')
   const onHandUntracked = validateMaterialForm({ name: '汤力水', category: 'soda/tonic', acquisition: 'on-demand', form: 'liquid', defaultUnit: 'top-up', alcoholic: false, freshOnHand: true, trackFreshness: false, remainingAmount: '2', remainingUnit: 'piece', expiresAt: '2026-07-25' })
   assert.deepEqual({ freshOnHand: onHandUntracked.value.freshOnHand, trackFreshness: onHandUntracked.value.trackFreshness, remainingAmount: onHandUntracked.value.remainingAmount, remainingUnit: onHandUntracked.value.remainingUnit, expiresAt: onHandUntracked.value.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
   const explicitMissingStaple = validateMaterialForm({ name: '柠檬汁', category: 'citrus', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: false, owned: false, assumedAvailable: true, trackFreshness: false })
