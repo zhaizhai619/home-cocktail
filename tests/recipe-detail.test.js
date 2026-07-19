@@ -144,13 +144,17 @@ test('buildRecipeDetail distinguishes missing calculable amounts from ignored no
   ])
 
   assert.deepEqual(detail.abv, {
-    status: 'missing', valueLabel: '--', liquidVolumeLabel: '10ml',
+    status: 'missing', valueLabel: '--', liquidVolumeLabel: '--', knownLiquidVolumeText: '已知液体至少 10ml', volumeComplete: false,
     missing: ['紫罗兰利口酒', '苹果汁', '苦精'], ignored: ['柠檬皮'],
     issueLines: [
       { kind: 'abv', text: '缺少酒精度：紫罗兰利口酒' },
       { kind: 'amount', text: '缺少可计算用量：苹果汁、苦精' }
     ],
     ignoredText: '未计入非 ml 材料：柠檬皮', needsEditing: true
+  })
+  assert.deepEqual(detail.capacity, {
+    status: 'incomplete', liquidVolume: 10, capacityMl: null, differenceMl: null,
+    message: '总体积信息不完整（已知液体至少 10ml）', ignored: ['柠檬皮']
   })
 })
 

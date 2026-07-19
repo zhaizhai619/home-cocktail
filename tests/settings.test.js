@@ -117,13 +117,25 @@ test('capacity calculation shares the 100ml top-up rule and distinguishes all di
     { name: '金酒', category: 'base-spirit', amount: 40, unit: 'ml', alcoholic: true, abv: 40 },
     { name: '汤力水', category: 'soda/tonic', amount: null, unit: 'top-up', alcoholic: false }
   ]
-  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 200 }), { status: 'under', liquidVolume: 140, capacityMl: 200, differenceMl: 60, message: '预计液体体积 140ml / 杯具 200ml / 约剩 60ml' })
+  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 200 }), { status: 'under', liquidVolume: 140, capacityMl: 200, differenceMl: 60, message: '预计液体体积 140ml / 杯具 200ml / 约剩 60ml', ignored: [] })
   assert.equal(calculateGlassCapacity(base, { capacityMl: 140 }).status, 'exact')
-  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 100 }), { status: 'over', liquidVolume: 140, capacityMl: 100, differenceMl: 40, message: '预计液体体积 140ml / 杯具 100ml / 预计超出 40ml' })
+  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 100 }), { status: 'over', liquidVolume: 140, capacityMl: 100, differenceMl: 40, message: '预计液体体积 140ml / 杯具 100ml / 预计超出 40ml', ignored: [] })
   assert.equal(calculateGlassCapacity(base, null).status, 'no-glass')
-  assert.deepEqual(calculateGlassCapacity(base, { id: 'legacy', name: '旧杯具', capacityMl: null }), { status: 'invalid-glass', liquidVolume: 140, capacityMl: null, differenceMl: null, message: '杯具容量资料缺失，请先到“我的”中补充' })
+  assert.deepEqual(calculateGlassCapacity(base, { id: 'legacy', name: '旧杯具', capacityMl: null }), { status: 'invalid-glass', liquidVolume: 140, capacityMl: null, differenceMl: null, message: '杯具容量资料缺失，请先到“我的”中补充', ignored: [] })
   const incomplete = calculateGlassCapacity([{ name: '果汁', category: 'other-liquid', amount: '', unit: 'ml', alcoholic: false }], { capacityMl: 200 })
-  assert.deepEqual(incomplete, { status: 'incomplete', liquidVolume: 0, capacityMl: 200, differenceMl: null, message: '总体积信息不完整' })
+  assert.deepEqual(incomplete, { status: 'incomplete', liquidVolume: 0, capacityMl: 200, differenceMl: null, message: '总体积信息不完整', ignored: [] })
+})
+
+test('capacity ignores nonalcoholic drops and reports them without losing a precise liquid total', () => {
+  const result = calculateGlassCapacity([
+    { name: '金酒', amount: 40, unit: 'ml', alcoholic: true, abv: 40 },
+    { name: '盐水', amount: 2, unit: 'drop', alcoholic: false }
+  ], { capacityMl: 100 })
+
+  assert.deepEqual(result, {
+    status: 'under', liquidVolume: 40, capacityMl: 100, differenceMl: 60,
+    message: '预计液体体积 40ml / 杯具 100ml / 约剩 60ml', ignored: ['盐水']
+  })
 })
 
 test('settings model groups built-ins, validates forms, orchestrates writes, and explains referenced deletion', () => {

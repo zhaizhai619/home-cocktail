@@ -17,6 +17,8 @@ const {
   getFormPreview
 } = require('../miniprogram/pages/recipe-edit/model')
 
+const { hydrateEquipmentSelections } = require('../miniprogram/pages/recipe-edit/model')
+
 test('empty recipe form includes the fast-entry defaults', () => {
   const form = createEmptyRecipeForm()
   assert.deepEqual(form.ingredients.map(({ name, unit, amount }) => ({ name, unit, amount })), [
@@ -222,4 +224,17 @@ test('preview delegates enriched material rows to existing ABV calculation', () 
     { ...createIngredientDraft('soda', '苏打水') }
   ] })
   assert.deepEqual(preview, { status: 'ok', abv: 13.3, liquidVolume: 150, missing: [], ignored: [] })
+})
+
+test('capacity preview ignores untouched fast-entry rows just like recipe save and ABV preview', () => {
+  const form = applyQuickBase(createEmptyRecipeForm(), '金酒')
+  form.ingredients[0].amount = 40
+  form.glasswareId = 'small'
+
+  const hydrated = hydrateEquipmentSelections(form, [{ id: 'small', name: '小杯', capacityMl: 100 }], [])
+
+  assert.deepEqual(hydrated.capacity, {
+    status: 'under', liquidVolume: 40, capacityMl: 100, differenceMl: 60,
+    message: '预计液体体积 40ml / 杯具 100ml / 约剩 60ml', ignored: []
+  })
 })

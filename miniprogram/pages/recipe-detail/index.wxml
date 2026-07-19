@@ -18,7 +18,7 @@
       </view>
       <view class="summary-grid">
         <view class="summary-item"><text class="summary-label">预估酒精度</text><text class="summary-value">{{detail.abv.valueLabel}}</text></view>
-        <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text></view>
+        <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text><text wx:if="{{detail.abv.knownLiquidVolumeText}}" class="known-volume">{{detail.abv.knownLiquidVolumeText}}</text></view>
       </view>
       <text class="capacity-summary {{detail.capacity.status}}">{{detail.capacity.message}}</text>
       <text wx:if="{{detail.capacity.status === 'over'}}" class="capacity-warning">容量提醒：预计超出 {{detail.capacity.differenceMl}}ml</text>

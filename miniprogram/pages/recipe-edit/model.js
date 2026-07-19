@@ -196,7 +196,7 @@ function hydrateEquipmentSelections(form, glassware = [], tools = []) {
     glasswareLabel: glasswareOptions[glasswareIndex].name,
     tools: displayTools,
     hasOrphans: Boolean(orphanGlasswareId || orphanToolIds.length),
-    capacity: calculateGlassCapacity(source.ingredients, selectedGlass || null)
+    capacity: calculateGlassCapacity(source.ingredients.filter(usableIngredient), selectedGlass || null)
   }
 }
 

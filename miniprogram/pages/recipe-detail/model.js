@@ -1,5 +1,5 @@
 const { RATINGS, UNITS } = require('../../domain/constants')
-const { calculateAbv } = require('../../domain/abv')
+const { analyzeLiquidVolume, calculateAbv } = require('../../domain/abv')
 const { getMaterialVisualState } = require('../../domain/material')
 const { normalizePrepSelections } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
@@ -128,6 +128,8 @@ function buildAbv(recipe, materialsById) {
     return null
   })
   const result = calculateAbv(enriched)
+  const volume = analyzeLiquidVolume(enriched)
+  const volumeComplete = volume.missing.length === 0
   const explained = new Set([...missingMaterials, ...missingAbv, ...missingAmount])
   for (const name of result.missing || []) {
     if (!explained.has(name)) appendUnique(missingAmount, name)
@@ -139,7 +141,8 @@ function buildAbv(recipe, materialsById) {
   return {
     status: result.status,
     valueLabel: result.status === 'ok' ? `${result.abv}%` : '--',
-    liquidVolumeLabel: `${result.liquidVolume}ml`,
+    liquidVolumeLabel: volumeComplete ? `${result.liquidVolume}ml` : '--',
+    ...(volumeComplete ? {} : { knownLiquidVolumeText: result.liquidVolume > 0 ? `已知液体至少 ${result.liquidVolume}ml` : '', volumeComplete: false }),
     missing: [...(result.missing || [])],
     ignored: [...(result.ignored || [])],
     issueLines,
