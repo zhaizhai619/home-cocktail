@@ -35,13 +35,9 @@ function recipeIsAvailableAfterBuying(recipe, targetId, materialsById) {
       return false
     }
 
-    if (material.acquisition === 'on-demand' ||
-      (material.assumedAvailable && !material.trackFreshness) ||
-      material.owned) {
-      continue
+    if (getMaterialVisualState(material) === 'missing-long-term') {
+      return false
     }
-
-    return false
   }
 
   return true

@@ -98,6 +98,25 @@ test('unknown references block unlock while untracked staples do not', () => {
   )
 })
 
+test('blocks an unlock when an assumed long-term secondary material is tracked', () => {
+  const recipes = [{
+    ingredients: [{ materialId: 'target' }, { materialId: 'tracked-staple' }]
+  }]
+  const materialsById = {
+    target: material({ owned: false }),
+    'tracked-staple': material({
+      owned: false,
+      assumedAvailable: true,
+      trackFreshness: undefined
+    })
+  }
+
+  assert.deepEqual(
+    getMaterialUsageStats('target', recipes, materialsById),
+    { usageCount: 1, immediateUnlockCount: 0 }
+  )
+})
+
 test('does not claim unlocks for an owned, unknown, or on-demand target', () => {
   const recipes = [{ ingredients: [{ materialId: 'target' }] }]
 
