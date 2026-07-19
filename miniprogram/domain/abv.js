@@ -8,6 +8,10 @@ function calculateAbv(ingredients) {
   const ignored = []
 
   for (const ingredient of Array.isArray(ingredients) ? ingredients : []) {
+    if (!ingredient || typeof ingredient !== 'object') {
+      continue
+    }
+
     const name = ingredient.name || '未命名材料'
 
     if (ingredient.unit === 'top-up') {
@@ -30,11 +34,7 @@ function calculateAbv(ingredients) {
 
     const validAmount = Number.isFinite(ingredient.amount) && ingredient.amount >= 0
     if (!validAmount) {
-      if (ingredient.alcoholic) {
-        missing.push(name)
-      } else {
-        ignored.push(name)
-      }
+      missing.push(name)
       continue
     }
 

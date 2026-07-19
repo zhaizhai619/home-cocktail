@@ -99,7 +99,32 @@ test('returns a safe missing result when there is no calculable liquid', () => {
   }
 })
 
-test('handles invalid amounts deterministically by alcohol status', () => {
+test('marks a nonalcoholic ml ingredient with an invalid amount as missing', () => {
+  for (const amount of [undefined, NaN, -1]) {
+    assert.deepEqual(calculateAbv([
+      { name: '金酒', amount: 40, unit: 'ml', alcoholic: true, abv: 40 },
+      { name: '果汁', amount, unit: 'ml', alcoholic: false }
+    ]), {
+      status: 'missing',
+      abv: null,
+      liquidVolume: 40,
+      missing: ['果汁'],
+      ignored: []
+    })
+  }
+})
+
+test('skips null and sparse ingredient entries safely', () => {
+  const ingredients = [null, , {
+    name: '金酒', amount: 40, unit: 'ml', alcoholic: true, abv: 40
+  }]
+
+  assert.deepEqual(calculateAbv(ingredients), {
+    status: 'ok', abv: 40, liquidVolume: 40, missing: [], ignored: []
+  })
+})
+
+test('handles invalid ml amounts deterministically', () => {
   const result = calculateAbv([
     { name: '金酒', amount: -10, unit: 'ml', alcoholic: true, abv: 40 },
     { name: '伏特加', amount: Infinity, unit: 'ml', alcoholic: true, abv: 40 },
@@ -111,7 +136,7 @@ test('handles invalid amounts deterministically by alcohol status', () => {
     status: 'missing',
     abv: null,
     liquidVolume: 20,
-    missing: ['金酒', '伏特加'],
-    ignored: ['果汁']
+    missing: ['金酒', '伏特加', '果汁'],
+    ignored: []
   })
 })
