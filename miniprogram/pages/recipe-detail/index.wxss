@@ -4,7 +4,7 @@
 .hero-card { margin-top: 0; }.hero-image + .hero-card { margin-top: 20rpx; }
 .hero-heading, .ingredient-row, .ingredient-main, .equipment-line, .observation-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
 .recipe-name { color: #342f2b; font-size: 42rpx; font-weight: 700; line-height: 1.25; }
-.rating-badge, .prep-badge, .tool-chip, .rating-option, .state-label { display: inline-flex; align-items: center; min-height: 48rpx; padding: 0 18rpx; border-radius: 999rpx; font-size: 23rpx; }
+.rating-badge, .prep-badge, .tool-chip, .rating-option { display: inline-flex; align-items: center; min-height: 48rpx; padding: 0 18rpx; border-radius: 999rpx; font-size: 23rpx; }
 .rating-badge { flex: none; color: #8a4e18; background: #f4dfc7; font-weight: 600; }
 .muted { color: #887e74; font-size: 25rpx; line-height: 1.6; }
 .hero-card > .muted { display: block; margin-top: 12rpx; }
@@ -15,12 +15,12 @@
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14rpx; margin-top: 24rpx; }
 .summary-item { padding: 20rpx; background: #f5ede3; border-radius: 16rpx; }
 .summary-label, .summary-value { display: block; }.summary-label { color: #81766c; font-size: 23rpx; }.summary-value { margin-top: 8rpx; color: #9a581f; font-size: 34rpx; font-weight: 700; }
-.warning { display: block; margin-top: 16rpx; color: #a54d36; font-size: 24rpx; }
+.calculation-notice { margin-top: 16rpx; padding: 18rpx; background: #fff7eb; border: 1rpx solid #edd5b8; border-radius: 14rpx; }.calculation-line { display: block; color: #8e4e31; font-size: 24rpx; line-height: 1.6; }.calculation-line + .calculation-line { margin-top: 6rpx; }.calculation-line.ignored { color: #776c62; }.inline-edit-button { min-height: 72rpx; margin: 14rpx 0 0; color: #8e5725; background: #f3dfc4; border-radius: 14rpx; font-size: 25rpx; }
 .section-title { display: block; margin-bottom: 20rpx; color: #493d32; font-size: 31rpx; font-weight: 650; }
-.ingredient-row { min-height: 82rpx; border-bottom: 1rpx solid #eee6dc; }.ingredient-row:last-child { border-bottom: 0; }
-.ingredient-row.unavailable { color: #a9a29b; }.ingredient-name { font-size: 27rpx; }.ingredient-amount { flex: none; font-size: 26rpx; }
-.ingredient-main { justify-content: flex-start; }.state-label { min-height: 36rpx; padding: 0 12rpx; color: #5f6a52; background: #e7eddf; font-size: 20rpx; }
-.state-label.quick-buy { color: #866227; background: #f2e8cc; }.state-label.missing-long-term { color: #827a73; background: #e9e6e2; }
+.ingredient-row { min-height: 82rpx; padding: 0 12rpx; border-bottom: 1rpx solid #eee6dc; border-radius: 12rpx; }.ingredient-row:last-child { border-bottom: 0; }
+.ingredient-row.quick-buy { margin: 4rpx 0; color: #604b37; background: #fff6e9; }.ingredient-row.missing-long-term { color: #aaa39c; background: #f1efec; }
+.ingredient-name { font-size: 27rpx; }.ingredient-amount { flex: none; font-size: 26rpx; }
+.ingredient-main { justify-content: flex-start; }.availability-dot { width: 14rpx; height: 14rpx; flex: none; background: #789060; border-radius: 50%; }.quick-buy .availability-dot { background: #d99a43; }.missing-long-term .availability-dot { background: #aaa39c; }
 .equipment-line { min-height: 64rpx; color: #5d534a; font-size: 26rpx; }
 .tool-list, .ratings { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 14rpx; }.tool-chip { color: #5d534a; background: #f0e9df; }
 .steps { display: grid; gap: 20rpx; }.step { display: flex; align-items: flex-start; gap: 18rpx; }.step-index { display: flex; flex: none; align-items: center; justify-content: center; width: 42rpx; height: 42rpx; color: #fffaf3; background: #a96826; border-radius: 50%; font-size: 22rpx; }.step-copy { padding-top: 3rpx; color: #544a42; font-size: 27rpx; line-height: 1.6; }

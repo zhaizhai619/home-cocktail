@@ -20,14 +20,18 @@
         <view class="summary-item"><text class="summary-label">预估酒精度</text><text class="summary-value">{{detail.abv.valueLabel}}</text></view>
         <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text></view>
       </view>
-      <text wx:if="{{detail.abv.status === 'missing'}}" class="warning">待补充计算信息：{{detail.abv.missingText}}</text>
+      <view wx:if="{{detail.abv.issueLines.length || detail.abv.ignoredText}}" class="calculation-notice">
+        <text wx:for="{{detail.abv.issueLines}}" wx:key="kind" class="calculation-line {{item.kind}}">{{item.text}}</text>
+        <text wx:if="{{detail.abv.ignoredText}}" class="calculation-line ignored">{{detail.abv.ignoredText}}</text>
+        <button wx:if="{{detail.abv.needsEditing}}" class="inline-edit-button" bindtap="onEdit">去编辑补全</button>
+      </view>
     </view>
 
     <view class="section">
       <text class="section-title">材料</text>
       <view class="ingredient-list">
-        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.unavailable ? 'unavailable' : ''}}">
-          <view class="ingredient-main"><text class="ingredient-name">{{item.name}}</text><text class="state-label {{item.state}}">{{item.stateLabel}}</text></view>
+        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" aria-label="{{item.accessibilityLabel}}">
+          <view class="ingredient-main"><text class="availability-dot" aria-hidden="true"></text><text class="ingredient-name">{{item.name}}</text></view>
           <text class="ingredient-amount">{{item.amountLabel}}</text>
         </view>
       </view>

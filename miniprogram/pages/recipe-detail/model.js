@@ -16,6 +16,7 @@ function asLookup(items) {
 }
 
 function formatNumber(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return ''
   const numeric = Number(value)
   return Number.isFinite(numeric) ? String(numeric) : ''
 }
@@ -40,39 +41,79 @@ function formatDate(value) {
 function buildIngredient(ingredient, materialsById) {
   const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
   const material = materialsById[source.materialId]
+  const amountLabel = formatAmount(source)
   if (!material) {
+    const name = `缺失材料（${source.materialId || '未知'}）`
     return {
-      materialId: source.materialId || '', name: '缺失材料', amountLabel: formatAmount(source),
-      state: 'missing-long-term', stateLabel: '资料缺失', unavailable: true, orphaned: true
+      materialId: source.materialId || '', name, amount: source.amount, unit: source.unit || '', amountLabel,
+      state: 'missing-long-term', accessibilityLabel: [name, '材料资料缺失', amountLabel].filter(Boolean).join('，'), orphaned: true
     }
   }
   const state = getMaterialVisualState(material)
-  const stateLabels = { owned: '手头有', 'quick-buy': '随买随用', 'missing-long-term': '暂时没有' }
+  const accessibilityStates = { owned: '材料已在手头', 'quick-buy': '材料可随买随用', 'missing-long-term': '材料暂时没有' }
+  const name = material.name || '未命名材料'
   return {
-    materialId: material.id, name: material.name || '未命名材料', amountLabel: formatAmount(source),
-    state, stateLabel: stateLabels[state] || '', unavailable: state !== 'owned', orphaned: false
+    materialId: material.id, name, amount: source.amount, unit: source.unit || '', amountLabel,
+    state, accessibilityLabel: [name, accessibilityStates[state], amountLabel].filter(Boolean).join('，'), orphaned: false
   }
 }
 
+function appendUnique(items, value) {
+  if (value && !items.includes(value)) items.push(value)
+}
+
+function normalizedAmount(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return value
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : value
+}
+
 function buildAbv(recipe, materialsById) {
+  const missingMaterials = []
+  const missingAbv = []
+  const missingAmount = []
   const enriched = (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => {
+    if (!ingredient || typeof ingredient !== 'object') return null
     const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
     const material = materialsById[source.materialId]
-    if (!material) return { name: '缺失材料', unit: 'unknown', alcoholic: true }
+    const amount = normalizedAmount(source.amount)
+    if (!material) {
+      const name = `缺失材料（${source.materialId || '未知'}）`
+      appendUnique(missingMaterials, name)
+      return { name, amount, unit: source.unit, alcoholic: true, abv: null }
+    }
+    const name = material.name || '未命名材料'
     const numericAbv = Number(material.abv)
-    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv)
+    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv >= 0 && numericAbv <= 100
+    const hasMlAmount = source.unit === 'ml' && Number.isFinite(amount) && amount >= 0
+    if (source.unit === 'ml' && !hasMlAmount) appendUnique(missingAmount, name)
+    if (source.unit !== 'ml' && source.unit !== 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
+    if (source.unit === 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
+    if (hasMlAmount && material.alcoholic === true && !hasAbv) appendUnique(missingAbv, name)
     return {
-      name: material.name || '未命名材料', amount: source.amount, unit: source.unit,
+      name, amount, unit: source.unit,
       alcoholic: material.alcoholic === true, abv: hasAbv ? numericAbv : null,
       form: material.form
     }
   })
   const result = calculateAbv(enriched)
+  const explained = new Set([...missingMaterials, ...missingAbv, ...missingAmount])
+  for (const name of result.missing || []) {
+    if (!explained.has(name)) appendUnique(missingAmount, name)
+  }
+  const issueLines = []
+  if (missingMaterials.length) issueLines.push({ kind: 'material', text: `材料资料缺失：${missingMaterials.join('、')}` })
+  if (missingAbv.length) issueLines.push({ kind: 'abv', text: `缺少酒精度：${missingAbv.join('、')}` })
+  if (missingAmount.length) issueLines.push({ kind: 'amount', text: `缺少可计算用量：${missingAmount.join('、')}` })
   return {
     status: result.status,
     valueLabel: result.status === 'ok' ? `${result.abv}%` : '--',
     liquidVolumeLabel: `${result.liquidVolume}ml`,
-    missingText: (result.missing || []).join('、')
+    missing: [...(result.missing || [])],
+    ignored: [...(result.ignored || [])],
+    issueLines,
+    ignoredText: result.ignored && result.ignored.length ? `未计入非 ml 材料：${result.ignored.join('、')}` : '',
+    needsEditing: result.status === 'missing'
   }
 }
 

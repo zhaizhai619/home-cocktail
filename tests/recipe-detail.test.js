@@ -73,13 +73,13 @@ test('buildRecipeDetail composes complete display data without mutating its inpu
     { label: '冷冻 · 提前1天', note: '西瓜提前冻硬' },
     { label: '冷泡/浸泡 · 提前8小时', note: '冷泡茶叶' }
   ])
-  assert.deepEqual(detail.ingredients.map(({ name, amountLabel, state, unavailable }) => ({ name, amountLabel, state, unavailable })), [
-    { name: '金酒', amountLabel: '40ml', state: 'owned', unavailable: false },
-    { name: '西瓜', amountLabel: '100ml', state: 'quick-buy', unavailable: true },
-    { name: '接骨木花利口酒', amountLabel: '10ml', state: 'missing-long-term', unavailable: true },
-    { name: '汤力水', amountLabel: '补满', state: 'owned', unavailable: false }
+  assert.deepEqual(detail.ingredients.map(({ name, amountLabel, state, accessibilityLabel, stateLabel }) => ({ name, amountLabel, state, accessibilityLabel, stateLabel })), [
+    { name: '金酒', amountLabel: '40ml', state: 'owned', accessibilityLabel: '金酒，材料已在手头，40ml', stateLabel: undefined },
+    { name: '西瓜', amountLabel: '100ml', state: 'quick-buy', accessibilityLabel: '西瓜，材料可随买随用，100ml', stateLabel: undefined },
+    { name: '接骨木花利口酒', amountLabel: '10ml', state: 'missing-long-term', accessibilityLabel: '接骨木花利口酒，材料暂时没有，10ml', stateLabel: undefined },
+    { name: '汤力水', amountLabel: '补满', state: 'owned', accessibilityLabel: '汤力水，材料已在手头，补满', stateLabel: undefined }
   ])
-  assert.deepEqual(detail.abv, { status: 'ok', valueLabel: '7.2%', liquidVolumeLabel: '250ml', missingText: '' })
+  assert.deepEqual(detail.abv, { status: 'ok', valueLabel: '7.2%', liquidVolumeLabel: '250ml', missing: [], ignored: [], issueLines: [], ignoredText: '', needsEditing: false })
   assert.deepEqual(detail.glassware, { id: 'highball', name: '海波杯', capacityLabel: '300ml' })
   assert.deepEqual(detail.tools.map(({ name }) => name), ['摇酒壶', '滤冰器'])
   assert.deepEqual(detail.steps, ['摇和除汤力水外的材料', '滤入杯中并补满汤力水'])
@@ -88,15 +88,52 @@ test('buildRecipeDetail composes complete display data without mutating its inpu
   assert.deepEqual(fixture, snapshot)
 })
 
-test('buildRecipeDetail reports orphan references and missing ABV instead of showing a partial result', () => {
+test('buildRecipeDetail counts orphan ml amounts but blocks ABV with distinct material and ABV reasons', () => {
   const detail = buildRecipeDetail({
     id: 'broken', name: '待补资料',
     ingredients: [{ materialId: 'unknown', amount: 20, unit: 'ml' }, { materialId: 'amaro', amount: 20, unit: 'ml' }]
   }, [{ id: 'amaro', name: '阿玛罗', acquisition: 'long-term', owned: true, alcoholic: true, abv: null }])
 
   assert.equal(detail.ingredients[0].orphaned, true)
-  assert.equal(detail.ingredients[0].name, '缺失材料')
-  assert.deepEqual(detail.abv, { status: 'missing', valueLabel: '--', liquidVolumeLabel: '20ml', missingText: '缺失材料、阿玛罗' })
+  assert.equal(detail.ingredients[0].name, '缺失材料（unknown）')
+  assert.equal(detail.ingredients[0].amount, 20)
+  assert.equal(detail.ingredients[0].unit, 'ml')
+  assert.equal(detail.ingredients[0].amountLabel, '20ml')
+  assert.deepEqual(detail.abv, {
+    status: 'missing', valueLabel: '--', liquidVolumeLabel: '40ml',
+    missing: ['缺失材料（unknown）', '阿玛罗'], ignored: [],
+    issueLines: [
+      { kind: 'material', text: '材料资料缺失：缺失材料（unknown）' },
+      { kind: 'abv', text: '缺少酒精度：阿玛罗' }
+    ],
+    ignoredText: '', needsEditing: true
+  })
+})
+
+test('buildRecipeDetail distinguishes missing calculable amounts from ignored non-ml garnishes', () => {
+  const detail = buildRecipeDetail({
+    id: 'reasons', name: '待补计算信息', ingredients: [
+      { materialId: 'liqueur', amount: 10, unit: 'ml' },
+      { materialId: 'juice', amount: null, unit: 'ml' },
+      { materialId: 'peel', amount: 1, unit: 'slice' },
+      { materialId: 'bitters', amount: 2, unit: 'drop' }
+    ]
+  }, [
+    { id: 'liqueur', name: '紫罗兰利口酒', acquisition: 'long-term', owned: true, alcoholic: true, abv: 120 },
+    { id: 'juice', name: '苹果汁', acquisition: 'on-demand', freshOnHand: true, alcoholic: false },
+    { id: 'peel', name: '柠檬皮', acquisition: 'on-demand', freshOnHand: true, alcoholic: false },
+    { id: 'bitters', name: '苦精', acquisition: 'long-term', owned: true, alcoholic: true, abv: 45 }
+  ])
+
+  assert.deepEqual(detail.abv, {
+    status: 'missing', valueLabel: '--', liquidVolumeLabel: '10ml',
+    missing: ['紫罗兰利口酒', '苹果汁', '苦精'], ignored: ['柠檬皮'],
+    issueLines: [
+      { kind: 'abv', text: '缺少酒精度：紫罗兰利口酒' },
+      { kind: 'amount', text: '缺少可计算用量：苹果汁、苦精' }
+    ],
+    ignoredText: '未计入非 ml 材料：柠檬皮', needsEditing: true
+  })
 })
 
 test('observation validation requires a recipe ingredient and non-empty text', () => {
@@ -189,4 +226,9 @@ test('mini program registers the detail route and wires recipe selection to a st
     assert.match(detailTemplate, new RegExp(`bind(?:tap|change)="${handler}"`))
     assert.match(detailController, new RegExp(`${handler}\\(`))
   }
+  assert.doesNotMatch(detailTemplate, /stateLabel|手头有|随买随用|暂时没有/)
+  assert.match(detailTemplate, /aria-label="\{\{item\.accessibilityLabel\}\}"/)
+  assert.match(detailTemplate, /detail\.abv\.issueLines/)
+  assert.match(detailTemplate, /detail\.abv\.ignoredText/)
+  assert.match(detailTemplate, /去编辑补全/)
 })
