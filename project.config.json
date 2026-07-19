@@ -1,0 +1,9 @@
+{
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "miniprogram/",
+  "projectname": "home-cocktail-mini-program",
+  "setting": {
+    "es6": true
+  }
+}

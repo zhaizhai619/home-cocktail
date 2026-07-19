@@ -1,0 +1,36 @@
+{
+  "pages": [
+    "pages/recipes/index",
+    "pages/materials/index",
+    "pages/settings/index"
+  ],
+  "window": {
+    "backgroundColor": "#f8f1e7",
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#f8f1e7",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "家庭调酒"
+  },
+  "tabBar": {
+    "backgroundColor": "#fffaf3",
+    "borderStyle": "black",
+    "color": "#7a6f65",
+    "selectedColor": "#9b4f38",
+    "list": [
+      {
+        "pagePath": "pages/recipes/index",
+        "text": "酒单"
+      },
+      {
+        "pagePath": "pages/materials/index",
+        "text": "材料"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
