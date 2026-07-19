@@ -4,6 +4,8 @@
     "pages/recipe-edit/index",
     "pages/recipe-detail/index",
     "pages/materials/index",
+    "pages/material-detail/index",
+    "pages/material-edit/index",
     "pages/settings/index"
   ],
   "window": {

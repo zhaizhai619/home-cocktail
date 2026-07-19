@@ -1,0 +1,38 @@
+<view class="edit-page">
+  <view wx:if="{{missing}}" class="missing"><text>没有找到这个材料，它可能已被删除</text><button bindtap="onBack">返回</button></view>
+  <block wx:else>
+    <view class="heading"><text class="eyebrow">MATERIAL</text><text class="title">{{mode === 'edit' ? '编辑材料' : '新增材料'}}</text><text class="intro">分类会帮你填好默认值，但每一项都可以调整。</text></view>
+
+    <view class="form-card">
+      <text class="label">材料名称 *</text><input class="input {{errors.name ? 'error' : ''}}" value="{{form.name}}" bindinput="onNameInput" placeholder="例如：西瓜"/><text wx:if="{{errors.name}}" class="error-text">{{errors.name}}</text>
+      <text class="label">系统分类 *</text><picker range="{{categoryLabels}}" value="{{categoryIndex}}" bindchange="onCategoryChange"><view class="picker">{{categoryLabels[categoryIndex]}}<text>⌄</text></view></picker><text wx:if="{{errors.category}}" class="error-text">{{errors.category}}</text>
+      <view class="two-columns">
+        <view><text class="label">获取方式 *</text><picker range="{{acquisitionLabels}}" value="{{acquisitionIndex}}" bindchange="onAcquisitionChange"><view class="picker">{{acquisitionLabels[acquisitionIndex]}}<text>⌄</text></view></picker></view>
+        <view><text class="label">材料形态 *</text><picker range="{{formLabels}}" value="{{formIndex}}" bindchange="onFormChange"><view class="picker">{{formLabels[formIndex]}}<text>⌄</text></view></picker></view>
+      </view>
+      <text class="label">默认用量单位 *</text><picker range="{{unitLabels}}" value="{{unitIndex}}" bindchange="onUnitChange"><view class="picker">{{unitLabels[unitIndex]}}<text>⌄</text></view></picker>
+    </view>
+
+    <view class="form-card">
+      <view class="switch-row"><view><text class="switch-title">含酒精</text><text class="switch-note">用于预估酒精度</text></view><switch checked="{{form.alcoholic}}" bindchange="onAlcoholicChange" color="#a96826"/></view>
+      <block wx:if="{{form.alcoholic}}"><text class="label">酒精度 ABV（可稍后补）</text><view class="suffix-input"><input type="digit" value="{{form.abv}}" bindinput="onAbvInput" placeholder="例如 20"/><text>%</text></view><text wx:if="{{errors.abv}}" class="error-text">{{errors.abv}}</text></block>
+      <view class="switch-row"><view><text class="switch-title">追踪数量与保质期</text><text class="switch-note">开启后按实际手头状态判断</text></view><switch checked="{{form.trackFreshness}}" bindchange="onTrackChange" color="#a96826"/></view>
+      <view wx:if="{{!form.trackFreshness}}" class="switch-row"><view><text class="switch-title">默认视为常备</text><text class="switch-note">适合常用柠檬、糖和糖浆</text></view><switch checked="{{form.assumedAvailable}}" bindchange="onAssumedChange" color="#a96826"/></view>
+    </view>
+
+    <view class="form-card">
+      <view wx:if="{{form.acquisition === 'long-term'}}" class="switch-row"><view><text class="switch-title">当前我有</text><text class="switch-note">关闭后，酒款里的材料会变灰</text></view><switch checked="{{form.owned}}" bindchange="onOwnedChange" color="#6d8666"/></view>
+      <block wx:else>
+        <view class="switch-row"><view><text class="switch-title">当前在手头</text><text class="switch-note">开启后加入“手头鲜材”</text></view><switch checked="{{form.freshOnHand}}" bindchange="onFreshChange" color="#a96826"/></view>
+        <block wx:if="{{form.freshOnHand}}">
+          <text class="label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{form.remainingAmount}}" bindinput="onAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{remainingUnitIndex}}" bindchange="onRemainingUnitChange"><view class="unit-picker">{{unitLabels[remainingUnitIndex]}}⌄</view></picker></view><text wx:if="{{errors.remainingAmount}}" class="error-text">{{errors.remainingAmount}}</text>
+          <view class="two-columns"><view><text class="label">购买日期</text><picker mode="date" value="{{form.purchasedAt}}" bindchange="onPurchasedChange"><view class="picker">{{form.purchasedAt || '选填'}}</view></picker></view><view><text class="label">预计过期日</text><picker mode="date" value="{{form.expiresAt}}" bindchange="onExpiryChange"><view class="picker">{{form.expiresAt || '选填'}}</view></picker></view></view><text wx:if="{{errors.date}}" class="error-text">{{errors.date}}</text>
+        </block>
+      </block>
+    </view>
+
+    <button class="save" bindtap="onSave">保存材料</button>
+    <button wx:if="{{mode === 'edit'}}" class="delete" bindtap="onDelete">删除材料</button>
+    <text wx:if="{{mode === 'edit'}}" class="delete-note">“用完”只移出手头鲜材；这里才会真正删除材料。</text>
+  </block>
+</view>

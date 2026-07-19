@@ -1,0 +1,50 @@
+<view class="detail-page">
+  <view wx:if="{{detail.status === 'missing'}}" class="missing"><text>{{detail.message}}</text><button bindtap="onBack">返回</button></view>
+  <block wx:else>
+    <view class="hero">
+      <view class="hero-top"><view><text class="eyebrow">MATERIAL</text><text class="title">{{detail.name}}</text></view><button class="edit" bindtap="onEdit">编辑</button></view>
+      <view class="status-actions">
+        <button wx:if="{{detail.canToggleOwned}}" class="status {{detail.owned ? 'active' : ''}}" bindtap="onToggleOwned">{{detail.owned ? '我有' : '我没有'}}</button>
+        <button wx:if="{{detail.canAddFresh}}" class="status warm" bindtap="onOpenFreshForm">加入手头鲜材</button>
+        <button wx:if="{{detail.canUseUp}}" class="status danger" bindtap="onUseUp">用完</button>
+      </view>
+      <view wx:if="{{detail.inventoryLabel || detail.expiryLabel}}" class="inventory"><text>{{detail.inventoryLabel}}</text><text wx:if="{{detail.expiryLabel}}">{{detail.expiryLabel}}</text></view>
+    </view>
+
+    <view class="numbers">
+      <view><text class="number">{{detail.usageCount}}</text><text class="number-label">款酒使用</text></view>
+      <view><text class="number">{{detail.immediateUnlockCount}}</text><text class="number-label">买后立即解锁</text></view>
+    </view>
+
+    <view class="section">
+      <text class="section-title">还能做什么</text>
+      <text class="section-note">直接查看每款酒还需要什么</text>
+      <view wx:if="{{detail.relatedRecipes.length}}" class="recipes">
+        <view wx:for="{{detail.relatedRecipes}}" wx:key="id" class="recipe-card" bindtap="onOpenRecipe" data-id="{{item.id}}">
+          <view class="recipe-title-row"><text class="recipe-title">{{item.name}}</text><text class="prep">{{item.preparationLabel}}</text></view>
+          <view class="ingredients"><text wx:for="{{item.ingredients}}" wx:for-item="ingredient" wx:key="materialId" class="ingredient state-{{ingredient.state}}">{{ingredient.name}} {{ingredient.amountLabel}}{{index < item.ingredients.length - 1 ? ' · ' : ''}}</text></view>
+          <view class="recipe-meta"><text>杯具：{{item.glasswareLabel}}</text><text>用具：{{item.toolsLabel}}</text></view>
+        </view>
+      </view>
+      <view wx:else class="empty">酒单里还没有用到它的酒</view>
+    </view>
+
+    <view class="section observations">
+      <text class="section-title">我的材料观察</text>
+      <view wx:if="{{detail.observations.length}}">
+        <view wx:for="{{detail.observations}}" wx:key="index" class="note-card">
+          <text class="note">“{{item.note}}”</text><text class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAt || '未记录日期'}}</text>
+        </view>
+      </view>
+      <view wx:else class="empty">还没有关于这个材料的品尝记录</view>
+    </view>
+  </block>
+
+  <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm"><view class="sheet" catchtap="noop">
+    <view class="sheet-handle"></view><text class="sheet-title">加入手头鲜材</text>
+    <text class="field-label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
+    <text class="field-label">预计过期日（选填）</text><picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="picker full">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
+    <button class="primary" bindtap="onConfirmFresh">确认加入</button>
+  </view></view>
+  <view wx:if="{{undo}}" class="undo-bar"><text>已从手头鲜材移出</text><button bindtap="onUndoUseUp">撤销</button></view>
+</view>

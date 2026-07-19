@@ -1,3 +1,70 @@
-<view class="page">
-  <text class="page-title">材料</text>
+<view class="materials-page">
+  <view class="hero-row">
+    <view><text class="eyebrow">HOME BAR</text><text class="page-title">我的材料</text></view>
+    <button class="add-button" bindtap="onAddMaterial" aria-label="新增材料">＋ 新增</button>
+  </view>
+
+  <view class="search-box">
+    <text class="search-icon">⌕</text>
+    <input value="{{search}}" bindinput="onSearchInput" placeholder="搜索材料" confirm-type="search" />
+  </view>
+
+  <view class="section fresh-section">
+    <view class="section-head"><view><text class="section-title">手头鲜材</text><text class="section-note">优先用掉，少一点浪费</text></view><text class="count">{{freshShelf.length}}</text></view>
+    <scroll-view wx:if="{{freshShelf.length}}" scroll-x class="fresh-scroll" enable-flex>
+      <view class="fresh-track">
+        <view wx:for="{{freshShelf}}" wx:key="id" class="fresh-card">
+          <view class="fresh-name-row" bindtap="onOpenMaterial" data-id="{{item.id}}"><text class="fresh-name">{{item.name}}</text><text class="arrow">›</text></view>
+          <text class="inventory">{{item.inventoryLabel}}</text>
+          <text wx:if="{{item.expiryLabel}}" class="expiry">{{item.expiryLabel}}</text>
+          <view class="fresh-actions">
+            <button class="text-action" bindtap="onOpenMaterial" data-id="{{item.id}}">看能做什么</button>
+            <button class="use-up" bindtap="onUseUp" data-id="{{item.id}}">用完</button>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+    <view wx:else class="empty-fresh"><text>暂时没有要优先用掉的鲜材</text><text class="empty-sub">从下方随买随用材料一键加入</text></view>
+  </view>
+
+  <view class="section library-section">
+    <view class="section-head"><view><text class="section-title">完整材料库</text><text class="section-note">状态会同步到所有酒款</text></view></view>
+    <scroll-view scroll-x class="chip-scroll" enable-flex>
+      <view class="chip-row">
+        <button wx:for="{{filters}}" wx:key="key" class="chip {{filter === item.key ? 'selected' : ''}}" bindtap="onSelectFilter" data-key="{{item.key}}">{{item.label}}</button>
+      </view>
+    </scroll-view>
+    <view class="acquisition-row">
+      <button wx:for="{{acquisitions}}" wx:key="key" class="mini-chip {{acquisition === item.key ? 'selected' : ''}}" bindtap="onSelectAcquisition" data-key="{{item.key}}">{{item.label}}</button>
+    </view>
+
+    <view wx:if="{{materials.length}}" class="material-list">
+      <view wx:for="{{materials}}" wx:key="id" class="material-card state-{{item.visualState}}">
+        <view class="card-main" bindtap="onOpenMaterial" data-id="{{item.id}}">
+          <view class="material-name-row"><text class="material-name">{{item.name}}</text><text wx:if="{{item.visualState === 'quick-buy'}}" class="quick-marker">随时可买</text></view>
+          <text wx:if="{{item.inventoryMeta}}" class="material-meta">{{item.inventoryMeta}}</text>
+          <text class="stats">{{item.usageCount}} 款酒使用 · 买后立即解锁 {{item.immediateUnlockCount}} 款</text>
+        </view>
+        <view class="card-actions">
+          <button wx:if="{{item.canToggleOwned}}" class="state-button {{item.owned ? 'owned' : ''}}" bindtap="onToggleOwned" data-id="{{item.id}}" data-owned="{{item.owned}}">{{item.owned ? '我有' : '我没有'}}</button>
+          <button wx:if="{{item.canAddFresh}}" class="state-button warm" bindtap="onOpenFreshForm" data-id="{{item.id}}">加入鲜材</button>
+          <button class="edit-button" bindtap="onEditMaterial" data-id="{{item.id}}" aria-label="编辑{{item.name}}">编辑</button>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty-list"><text>没有符合条件的材料</text><button bindtap="onAddMaterial">新增一种材料</button></view>
+  </view>
+
+  <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-handle"></view><text class="sheet-title">加入手头鲜材 · {{freshDraft.name}}</text>
+      <text class="field-label">还剩多少（选填）</text>
+      <view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker-value">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
+      <text class="field-label">预计过期日（选填）</text>
+      <picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="date-value">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
+      <button class="primary" bindtap="onConfirmFresh">确认加入</button>
+    </view>
+  </view>
+
+  <view wx:if="{{undo}}" class="undo-bar"><text>已从手头鲜材移出</text><button bindtap="onUndoUseUp">撤销</button></view>
 </view>
