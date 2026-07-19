@@ -6,13 +6,16 @@ const { QUICK_TOOLS } = require('../miniprogram/domain/constants')
 const { calculateGlassCapacity } = require('../miniprogram/domain/equipment')
 const { createRepository } = require('../miniprogram/services/repository')
 const { STORAGE_KEY, migrateState } = require('../miniprogram/services/schema')
+const { createMediaFileService } = require('../miniprogram/services/media-files')
 const {
   buildSettingsView,
   validateGlasswareForm,
   validateToolForm,
   orchestrateGlasswareSave,
   orchestrateToolSave,
-  orchestrateEquipmentDelete
+  orchestrateEquipmentDelete,
+  orchestrateGlasswareMediaSave,
+  orchestrateGlasswareMediaDelete
 } = require('../miniprogram/pages/settings/model')
 const { buildRecipeDetail } = require('../miniprogram/pages/recipe-detail/model')
 const { createEmptyRecipeForm, hydrateEquipmentSelections, getFormPreview } = require('../miniprogram/pages/recipe-edit/model')
@@ -189,4 +192,81 @@ test('settings and recipe pages expose the expected route events and non-color s
   assert.match(editor, /preview\.capacity\.message/)
   assert.match(editor, /资料缺失/)
   assert.match(detail, /detail\.capacity\.message/)
+})
+
+test('media service copies temporary glass images to a unique managed path and never deletes external files', async () => {
+  const calls = []
+  const fileSystem = {
+    mkdir({ success }) { calls.push(['mkdir']); success() },
+    copyFile({ srcPath, destPath, success }) { calls.push(['copy', srcPath, destPath]); success() },
+    unlink({ filePath, success }) { calls.push(['unlink', filePath]); success() }
+  }
+  const service = createMediaFileService({ fileSystem, userDataPath: '/user', idFactory: (() => { let id = 0; return () => `image-${++id}` })() })
+
+  const first = await service.persistGlasswareImage('/tmp/photo.jpg')
+  const second = await service.persistGlasswareImage('/tmp/photo.jpg')
+  assert.equal(first.path, '/user/cocktail-glassware/image-1.jpg')
+  assert.equal(second.path, '/user/cocktail-glassware/image-2.jpg')
+  assert.equal(first.created, true)
+  assert.equal((await service.persistGlasswareImage(first.path)).created, false)
+  assert.equal(calls.filter(([kind]) => kind === 'copy').length, 2)
+  assert.deepEqual(await service.removeManagedFile('/tmp/not-ours.jpg'), { removed: false })
+  assert.deepEqual(await service.removeManagedFile('/user/cocktail-glassware/../not-ours.jpg'), { removed: false })
+  assert.equal(calls.filter(([kind]) => kind === 'unlink').length, 0)
+  assert.deepEqual(await service.removeManagedFile(first.path), { removed: true })
+})
+
+test('glassware media save coordinates copy, repository commit, replacement cleanup and rollback cleanup', async () => {
+  const events = []; const warnings = []; const notices = []
+  const mediaFiles = {
+    isManagedPath: (path) => String(path).startsWith('/managed/'),
+    async persistGlasswareImage(path) { events.push(['copy', path]); if (path === '/tmp/fail.jpg') throw new Error('copy failed'); return { path: '/managed/new.jpg', created: true } },
+    async removeManagedFile(path) { events.push(['remove', path]); if (path === '/managed/cleanup-fails.jpg') throw new Error('cleanup failed'); return { removed: true } }
+  }
+  let stored = { id: 'g1', name: '杯', capacityMl: 100, imagePath: '/managed/old.jpg', notes: '' }
+  const repository = {
+    getGlassware: () => structuredClone(stored),
+    upsertGlassware(value) { events.push(['save', value.imagePath]); stored = { ...value, id: 'g1' }; return stored }
+  }
+
+  const replaced = await orchestrateGlasswareMediaSave({ repository, mediaFiles, form: stored, selectedImagePath: '/tmp/new.jpg', notify: (m) => notices.push(m), warn: (m) => warnings.push(m) })
+  assert.equal(replaced.saved, true)
+  assert.equal(stored.imagePath, '/managed/new.jpg')
+  assert.deepEqual(events, [['copy', '/tmp/new.jpg'], ['save', '/managed/new.jpg'], ['remove', '/managed/old.jpg']])
+
+  events.length = 0
+  const copyFailure = await orchestrateGlasswareMediaSave({ repository, mediaFiles, form: stored, selectedImagePath: '/tmp/fail.jpg', notify: (m) => notices.push(m) })
+  assert.equal(copyFailure.saved, false)
+  assert.deepEqual(events, [['copy', '/tmp/fail.jpg']])
+
+  events.length = 0
+  const failingRepository = { getGlassware: () => stored, upsertGlassware() { events.push(['save-failed']); throw new Error('storage') } }
+  const rollback = await orchestrateGlasswareMediaSave({ repository: failingRepository, mediaFiles, form: stored, selectedImagePath: '/tmp/new.jpg', notify: (m) => notices.push(m), warn: (m) => warnings.push(m) })
+  assert.equal(rollback.saved, false)
+  assert.deepEqual(events, [['copy', '/tmp/new.jpg'], ['save-failed'], ['remove', '/managed/new.jpg']])
+
+  events.length = 0
+  stored.imagePath = '/managed/cleanup-fails.jpg'
+  const cleanupWarning = await orchestrateGlasswareMediaSave({ repository, mediaFiles, form: stored, selectedImagePath: '', notify: (m) => notices.push(m), warn: (m) => warnings.push(m) })
+  assert.equal(cleanupWarning.saved, true)
+  assert.deepEqual(events, [['save', ''], ['remove', '/managed/cleanup-fails.jpg']])
+  assert.match(warnings.at(-1), /旧图片清理失败/)
+})
+
+test('glassware deletion cleans its managed image only after repository deletion succeeds', async () => {
+  const removed = []
+  const mediaFiles = { async removeManagedFile(path) { removed.push(path); return { removed: true } } }
+  const repository = {
+    getGlassware: () => ({ id: 'g1', imagePath: '/managed/old.jpg' }),
+    getGlasswareUsageCount: () => 0,
+    deleteGlassware: () => true
+  }
+  const result = await orchestrateGlasswareMediaDelete({ repository, mediaFiles, id: 'g1', confirmed: true })
+  assert.equal(result.deleted, true)
+  assert.deepEqual(removed, ['/managed/old.jpg'])
+
+  removed.length = 0
+  const failed = await orchestrateGlasswareMediaDelete({ repository: { ...repository, deleteGlassware: () => false }, mediaFiles, id: 'g1', confirmed: true })
+  assert.equal(failed.deleted, false)
+  assert.deepEqual(removed, [])
 })

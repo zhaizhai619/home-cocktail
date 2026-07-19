@@ -1,13 +1,19 @@
 const {
   buildSettingsView,
-  orchestrateGlasswareSave,
+  orchestrateGlasswareMediaSave,
   orchestrateToolSave,
-  orchestrateEquipmentDelete
+  orchestrateEquipmentDelete,
+  orchestrateGlasswareMediaDelete
 } = require('./model')
 
 function getRepository() {
   const app = typeof getApp === 'function' ? getApp() : null
   return app && app.globalData && app.globalData.repository
+}
+
+function getMediaFiles() {
+  const app = typeof getApp === 'function' ? getApp() : null
+  return app && app.globalData && app.globalData.mediaFiles
 }
 
 function toast(title) {
@@ -20,7 +26,9 @@ Page({
     editorOpen: false,
     editorType: '',
     editorTitle: '',
-    form: {}
+    form: {},
+    selectedImagePath: '',
+    imagePreviewPath: ''
   },
   onShow() { this.loadData() },
   loadData() {
@@ -39,6 +47,8 @@ Page({
       editorOpen: true,
       editorType: type,
       editorTitle: `${item ? '编辑' : '新增'}${isGlassware ? '杯具' : '自定义用具'}`,
+      selectedImagePath: isGlassware && item && item.imagePath || '',
+      imagePreviewPath: isGlassware && item && item.imagePath || '',
       form: isGlassware
         ? { id: item && item.id || '', name: item && item.name || '', capacityMl: item && item.capacityMl || '', imagePath: item && item.imagePath || '', notes: item && item.notes || '' }
         : { id: item && item.id || '', name: item && item.name || '' }
@@ -59,15 +69,17 @@ Page({
     if (typeof wx === 'undefined' || !wx.chooseMedia) return
     wx.chooseMedia({ count: 1, mediaType: ['image'], success: (result) => {
       const file = result.tempFiles && result.tempFiles[0]
-      if (file) this.setData({ 'form.imagePath': file.tempFilePath })
+      if (file) this.setData({ selectedImagePath: file.tempFilePath, imagePreviewPath: file.tempFilePath })
     } })
   },
-  onRemoveGlassImage() { this.setData({ 'form.imagePath': '' }) },
+  onRemoveGlassImage() { this.setData({ selectedImagePath: '', imagePreviewPath: '' }) },
   closeEditor() { this.setData({ editorOpen: false }) },
   noop() {},
-  onSaveEditor() {
+  async onSaveEditor() {
     const options = { repository: getRepository(), form: this.data.form, notify: toast }
-    const result = this.data.editorType === 'glassware' ? orchestrateGlasswareSave(options) : orchestrateToolSave(options)
+    const result = this.data.editorType === 'glassware'
+      ? await orchestrateGlasswareMediaSave({ ...options, mediaFiles: getMediaFiles(), selectedImagePath: this.data.selectedImagePath, warn: toast })
+      : orchestrateToolSave(options)
     if (result.saved) { this.closeEditor(); this.loadData() }
   },
   requestDelete(type, id) {
@@ -78,9 +90,11 @@ Page({
       title: `删除${type === 'glassware' ? '杯具' : '用具'}？`,
       content: '删除后无法恢复。未被酒款使用时才可删除。',
       confirmText: '删除', confirmColor: '#a54d36',
-      success: ({ confirm }) => {
+      success: async ({ confirm }) => {
         if (!confirm) return
-        const result = orchestrateEquipmentDelete({ repository, type, id, confirmed: true, notify: toast })
+        const result = type === 'glassware'
+          ? await orchestrateGlasswareMediaDelete({ repository, mediaFiles: getMediaFiles(), id, confirmed: true, notify: toast, warn: toast })
+          : orchestrateEquipmentDelete({ repository, type, id, confirmed: true, notify: toast })
         if (result.deleted) this.loadData()
       }
     })

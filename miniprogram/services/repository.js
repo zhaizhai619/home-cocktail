@@ -1,6 +1,7 @@
 const { createMaterialDefaults, getMaterialIdentityKey } = require('../domain/material')
 const { UNITS } = require('../domain/constants')
 const { STORAGE_KEY, migrateState } = require('./schema')
+const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, equipmentNameIdentity } = require('../domain/equipment-invariants')
 
 const MAX_UNIQUE_ID_ATTEMPTS = 20
 const MATERIAL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur', 'bitters', 'citrus', 'syrup/staple', 'fruit', 'dairy/juice', 'soda/tonic', 'other-liquid', 'other-solid'])
@@ -8,7 +9,6 @@ const CATEGORY_ALIASES = { tonic: 'soda/tonic', soda: 'soda/tonic', dairy: 'dair
 const ACQUISITIONS = new Set(['long-term', 'on-demand'])
 const FORMS = new Set(['liquid', 'solid'])
 const UNIT_VALUES = new Set(UNITS.map(({ value }) => value))
-const MAX_GLASS_CAPACITY_ML = 5000
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
 function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
@@ -118,8 +118,6 @@ function createRepository(adapter, options = {}) {
     if (index === -1) data[key].push(saved); else data[key][index] = saved
     save(); return clone(saved)
   }
-  function equipmentName(value) { return String(value || '').trim().replace(/\s+/g, ' ') }
-  function equipmentIdentity(value) { return equipmentName(value).toLocaleLowerCase('zh-CN') }
   function saveGlassware(value) {
     return atomicStateUpdate((nextState) => {
       const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -127,11 +125,11 @@ function createRepository(adapter, options = {}) {
       if (incoming.id && index === -1) throw new RangeError('杯具不存在')
       const existing = index === -1 ? null : nextState.glassware[index]
       const source = { ...(existing || {}), ...incoming }
-      const name = equipmentName(source.name)
+      const name = normalizeEquipmentName(source.name)
       const capacityMl = Number(source.capacityMl)
       if (!name) throw new RangeError('请填写杯具名称')
       if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) throw new RangeError('杯具容量需大于 0 且不超过 5000ml')
-      if (nextState.glassware.some((item, itemIndex) => itemIndex !== index && equipmentIdentity(item.name) === equipmentIdentity(name))) throw new Error('同名杯具已存在')
+      if (nextState.glassware.some((item, itemIndex) => itemIndex !== index && equipmentNameIdentity(item.name) === equipmentNameIdentity(name))) throw new Error('同名杯具已存在')
       const saved = {
         id: existing ? existing.id : createUniqueEquipmentId(nextState.glassware),
         name,
@@ -150,9 +148,9 @@ function createRepository(adapter, options = {}) {
       if (incoming.id && index === -1) throw new RangeError('用具不存在')
       const existing = index === -1 ? null : nextState.tools[index]
       if (existing && existing.builtIn === true) throw new RangeError('固定用具不可编辑')
-      const name = equipmentName(incoming.name !== undefined ? incoming.name : existing && existing.name)
+      const name = normalizeEquipmentName(incoming.name !== undefined ? incoming.name : existing && existing.name)
       if (!name) throw new RangeError('请填写用具名称')
-      if (nextState.tools.some((item, itemIndex) => itemIndex !== index && equipmentIdentity(item.name) === equipmentIdentity(name))) throw new Error('同名用具已存在')
+      if (nextState.tools.some((item, itemIndex) => itemIndex !== index && equipmentNameIdentity(item.name) === equipmentNameIdentity(name))) throw new Error('同名用具已存在')
       const saved = { id: existing ? existing.id : createUniqueEquipmentId(nextState.tools), name, builtIn: false }
       if (index === -1) nextState.tools.push(saved); else nextState.tools[index] = saved
       return { changed: true, value: saved }

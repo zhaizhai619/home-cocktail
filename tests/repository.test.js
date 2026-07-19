@@ -192,6 +192,58 @@ test('migration repairs missing and duplicate IDs deterministically in every col
   assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
 })
 
+test('migration canonicalizes legacy equipment names and capacities without losing IDs or references', () => {
+  const raw = {
+    glassware: [
+      { id: 'g-empty', name: '  ', capacityMl: 0 },
+      { id: 'g-coupe', name: ' Coupe ', capacityMl: 6001 },
+      { id: 'g-coupe-2', name: 'coupe', capacityMl: 'bad' }
+    ],
+    tools: [
+      { id: 't-empty', name: '' },
+      { id: 't-smoke', name: ' Smoke Gun ' },
+      { id: 't-smoke-2', name: 'smoke  gun' },
+      { id: 't-fixed-name', name: QUICK_TOOLS[0] }
+    ],
+    recipes: [{ id: 'r1', glasswareId: 'g-empty', toolIds: ['t-empty', 't-fixed-name'] }]
+  }
+  const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
+
+  assert.deepEqual(migrated.glassware.map(({ id, name, capacityMl }) => ({ id, name, capacityMl })), [
+    { id: 'g-empty', name: '未命名杯具', capacityMl: 300 },
+    { id: 'g-coupe', name: 'Coupe', capacityMl: 5000 },
+    { id: 'g-coupe-2', name: 'coupe (2)', capacityMl: 300 }
+  ])
+  assert.deepEqual(migrated.tools.slice(QUICK_TOOLS.length).map(({ id, name }) => ({ id, name })), [
+    { id: 't-empty', name: '未命名用具' },
+    { id: 't-smoke', name: 'Smoke Gun' },
+    { id: 't-smoke-2', name: 'smoke gun (2)' },
+    { id: 't-fixed-name', name: `${QUICK_TOOLS[0]} (2)` }
+  ])
+  assert.equal(migrated.recipes[0].glasswareId, 'g-empty')
+  assert.deepEqual(migrated.recipes[0].toolIds, ['t-empty', 't-fixed-name'])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('migration remaps custom tool IDs that collide with built-ins and updates recipe references', () => {
+  const raw = {
+    tools: [
+      { id: 'quick-tool-1', name: '我的喷枪' },
+      { id: 'quick-tool-2', name: '我的冰锤' },
+      { id: 'legacy-tool-1', name: '保留原 ID' }
+    ],
+    recipes: [{ id: 'r1', toolIds: ['quick-tool-1', 'quick-tool-2', 'quick-tool-1', 'legacy-tool-1'] }]
+  }
+  const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
+  const custom = migrated.tools.slice(QUICK_TOOLS.length)
+
+  assert.deepEqual(custom.map(({ id }) => id), ['legacy-tool-2', 'legacy-tool-3', 'legacy-tool-1'])
+  assert.deepEqual(migrated.recipes[0].toolIds, ['legacy-tool-2', 'legacy-tool-3', 'legacy-tool-1'])
+  assert.equal(migrated.tools.find(({ id }) => id === migrated.recipes[0].toolIds[0]).name, '我的喷枪')
+  assert.notEqual(migrated.recipes[0].toolIds[0], 'quick-tool-1')
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
 test('category transitions reset stale defaults while retaining inventory and explicit same-call overrides', () => {
   const adapter = createMemoryAdapter()
   const repository = createRepository(adapter, {

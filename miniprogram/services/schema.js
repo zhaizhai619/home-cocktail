@@ -1,5 +1,6 @@
 const { QUICK_TOOLS } = require('../domain/constants')
 const { createMaterialDefaults } = require('../domain/material')
+const { normalizeEquipmentName, normalizeGlassCapacity, equipmentNameIdentity, makeUniqueEquipmentName } = require('../domain/equipment-invariants')
 
 const CURRENT_SCHEMA_VERSION = 1
 const STORAGE_KEY = 'home-cocktail-state'
@@ -97,10 +98,6 @@ function normalizeMaterial(material, now) {
   return normalized
 }
 
-function normalizeEquipmentName(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ')
-}
-
 function normalizeGlassware(item) {
   const source = item && typeof item === 'object' && !Array.isArray(item) ? item : {}
   const { capacity, note, ...userData } = source
@@ -109,7 +106,7 @@ function normalizeGlassware(item) {
     ...clone(userData),
     id: typeof source.id === 'string' ? source.id : '',
     name: normalizeEquipmentName(source.name),
-    capacityMl: Number.isFinite(capacityMl) && capacityMl > 0 ? capacityMl : null,
+    capacityMl: normalizeGlassCapacity(capacityMl),
     imagePath: typeof source.imagePath === 'string' ? source.imagePath.trim() : '',
     notes: typeof source.notes === 'string' ? source.notes.trim() : (typeof note === 'string' ? note.trim() : '')
   }
@@ -130,23 +127,62 @@ function repairIds(items, prefix, reservedIds = new Set()) {
   })
 }
 
+function normalizeGlasswareCollection(glassware) {
+  const withIds = repairIds(Array.isArray(glassware) ? glassware.map(normalizeGlassware) : [], 'glassware')
+  const usedNames = new Set()
+  return withIds.map((item) => ({ ...item, name: makeUniqueEquipmentName(item.name, '未命名杯具', usedNames) }))
+}
+
+function uniqueLegacyToolId(used, reserved) {
+  let index = 1
+  let id
+  do { id = `legacy-tool-${index++}` } while (used.has(id) || reserved.has(id))
+  return id
+}
+
 function normalizeTools(tools) {
   const supplied = Array.isArray(tools) ? tools : []
   const custom = supplied
     .filter((tool) => tool && typeof tool === 'object' && tool.builtIn !== true)
     .map((tool) => ({ ...clone(tool), id: typeof tool.id === 'string' ? tool.id : '', name: normalizeEquipmentName(tool.name), builtIn: false }))
-  const ids = new Set(builtInTools().map(({ id }) => id))
-  return [...builtInTools(), ...repairIds(custom, 'tool', ids)]
+  const fixed = builtInTools()
+  const fixedIds = new Set(fixed.map(({ id }) => id))
+  const reservedCustomIds = new Set(custom.map(({ id }) => id).filter((id) => id && !fixedIds.has(id)))
+  const usedIds = new Set(fixedIds)
+  const remap = {}
+  const repaired = custom.map((tool) => {
+    const oldId = tool.id
+    let id = oldId
+    if (!id || usedIds.has(id)) {
+      id = uniqueLegacyToolId(usedIds, reservedCustomIds)
+      if (fixedIds.has(oldId) && !remap[oldId]) remap[oldId] = id
+    }
+    usedIds.add(id)
+    return { ...tool, id }
+  })
+  const usedNames = new Set(fixed.map(({ name }) => equipmentNameIdentity(name)))
+  const named = repaired.map((tool) => ({ ...tool, name: makeUniqueEquipmentName(tool.name, '未命名用具', usedNames) }))
+  return { tools: [...fixed, ...named], remap }
 }
 
 function migrateState(raw, now = new Date().toISOString()) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createInitialState()
+  const recipes = repairIds(Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [], 'recipe')
+  const normalizedTools = normalizeTools(raw.tools)
+  for (const recipe of recipes) {
+    const seen = new Set()
+    recipe.toolIds = recipe.toolIds.map((id) => normalizedTools.remap[id] || id).filter((id) => {
+      if (seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }
   return {
     version: CURRENT_SCHEMA_VERSION,
-    recipes: repairIds(Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [], 'recipe'),
+    recipes,
     materials: repairIds(Array.isArray(raw.materials) ? raw.materials.map((material) => normalizeMaterial(material, now)) : [], 'material'),
-    glassware: repairIds(Array.isArray(raw.glassware) ? raw.glassware.map(normalizeGlassware) : [], 'glassware'),
-    tools: normalizeTools(raw.tools)
+    glassware: normalizeGlasswareCollection(raw.glassware),
+    tools: normalizedTools.tools
   }
 }
 
