@@ -80,7 +80,7 @@ test('quick base spirits default to owned 40 percent liquids', () => {
     form: 'liquid',
     alcoholic: true,
     abv: 40,
-    unit: 'ml',
+    defaultUnit: 'ml',
     trackFreshness: false,
     assumedAvailable: false,
     owned: true,
@@ -93,7 +93,7 @@ test('fruit defaults to an unprepared freshness-tracked solid', () => {
 
   assert.equal(fruit.acquisition, 'on-demand')
   assert.equal(fruit.form, 'solid')
-  assert.equal(fruit.unit, 'ml')
+  assert.equal(fruit.defaultUnit, 'ml')
   assert.equal(fruit.trackFreshness, true)
   assert.equal(fruit.freshOnHand, false)
 })
@@ -103,29 +103,84 @@ test('tonic defaults to an unprepared on-demand top-up liquid', () => {
 
   assert.equal(tonic.acquisition, 'on-demand')
   assert.equal(tonic.form, 'liquid')
-  assert.equal(tonic.unit, 'top-up')
+  assert.equal(tonic.defaultUnit, 'top-up')
   assert.equal(tonic.freshOnHand, false)
+  assert.equal(tonic.category, 'soda/tonic')
 })
 
 test('all plan material categories have stable defaults', () => {
   const expectations = {
-    'other-base-spirit': ['long-term', 'liquid', 'ml'],
-    liqueur: ['long-term', 'liquid', 'ml'],
-    bitters: ['long-term', 'liquid', 'drop'],
-    citrus: ['long-term', 'liquid', 'ml'],
-    'syrup/staple': ['long-term', 'liquid', 'ml'],
-    'dairy/juice': ['on-demand', 'liquid', 'ml'],
-    'soda/tonic': ['on-demand', 'liquid', 'top-up'],
-    'other-liquid': ['on-demand', 'liquid', 'ml'],
-    'other-solid': ['on-demand', 'solid', 'g']
+    'other-base-spirit': {
+      acquisition: 'long-term', form: 'liquid', alcoholic: true, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    liqueur: {
+      acquisition: 'long-term', form: 'liquid', alcoholic: true, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    bitters: {
+      acquisition: 'long-term', form: 'liquid', alcoholic: true, abv: null,
+      defaultUnit: 'drop', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    citrus: {
+      acquisition: 'long-term', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: true,
+      owned: true, freshOnHand: false
+    },
+    'syrup/staple': {
+      acquisition: 'long-term', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: true,
+      owned: true, freshOnHand: false
+    },
+    'dairy/juice': {
+      acquisition: 'on-demand', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'ml', trackFreshness: true, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    'soda/tonic': {
+      acquisition: 'on-demand', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'top-up', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    'other-liquid': {
+      acquisition: 'on-demand', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    'other-solid': {
+      acquisition: 'on-demand', form: 'solid', alcoholic: false, abv: null,
+      defaultUnit: 'g', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    }
   }
 
-  for (const [category, [acquisition, form, unit]] of Object.entries(expectations)) {
-    const material = createMaterialDefaults(category, category)
+  for (const [category, defaults] of Object.entries(expectations)) {
     assert.deepEqual(
-      [material.acquisition, material.form, material.unit],
-      [acquisition, form, unit],
+      createMaterialDefaults(category, category),
+      { category, name: category, ...defaults },
       category
+    )
+  }
+})
+
+test('normalizes material category aliases for persisted defaults', () => {
+  const aliases = {
+    tonic: 'soda/tonic',
+    soda: 'soda/tonic',
+    dairy: 'dairy/juice',
+    juice: 'dairy/juice',
+    syrup: 'syrup/staple',
+    staple: 'syrup/staple'
+  }
+
+  for (const [alias, canonicalCategory] of Object.entries(aliases)) {
+    assert.equal(
+      createMaterialDefaults(alias, alias).category,
+      canonicalCategory,
+      alias
     )
   }
 })
