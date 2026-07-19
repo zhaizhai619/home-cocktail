@@ -50,4 +50,5 @@ test('fast recipe editor route and focused form components are registered', () =
   assert.match(fs.readFileSync(path.join(root, 'components', 'prep-editor', 'index.js'), 'utf8'), /preparation\.units\[pickerIndex\]\.value/)
   assert.match(ingredientRow, /category/)
   assert.match(ingredientRow, /switch/)
+  assert.match(ingredientRow, /item\.isExisting/)
 })

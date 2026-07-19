@@ -23,6 +23,13 @@ function createIngredientDraft(category, name, material) {
   }
 }
 
+function hydrateRecipeIngredient(ingredient, material) {
+  const row = ingredient && typeof ingredient === 'object' ? ingredient : {}
+  if (material) return { ...createIngredientDraft(null, null, material), amount: row.amount === null ? '' : row.amount, unit: row.unit || material.defaultUnit }
+  const orphanedMaterialId = String(row.materialId || '')
+  return { ...createIngredientDraft('other-liquid', `缺失材料（${orphanedMaterialId || '未知'}）`), amount: row.amount === null ? '' : row.amount, unit: row.unit || 'ml', materialId: orphanedMaterialId, orphanedMaterialId, status: 'orphaned' }
+}
+
 function createEmptyRecipeForm() {
   return {
     id: '', name: '', imagePath: '', source: '', tried: true,
@@ -33,6 +40,27 @@ function createEmptyRecipeForm() {
 }
 
 function cloneForm(form) { return JSON.parse(JSON.stringify(form || createEmptyRecipeForm())) }
+
+function updateIngredientField(form, index, field, value) {
+  const next = cloneForm(form); const row = next.ingredients[index]
+  if (!row) return next
+  const locked = row.materialId && !row.orphanedMaterialId && ['name', 'category', 'alcoholic', 'abv'].includes(field)
+  if (locked) return next
+  next.ingredients[index] = { ...row, [field]: value }
+  if (field === 'name' && (!row.materialId || row.orphanedMaterialId)) {
+    next.ingredients[index].materialId = ''
+    next.ingredients[index].orphanedMaterialId = ''
+    next.ingredients[index].status = 'new'
+  }
+  return next
+}
+
+function selectExistingIngredient(form, index, material) {
+  const next = cloneForm(form); const previous = next.ingredients[index]
+  if (!previous || !material) return next
+  next.ingredients[index] = { ...createIngredientDraft(null, null, material), amount: previous.amount, observation: previous.observation || '' }
+  return next
+}
 
 function findSpirit(spirit) {
   const name = typeof spirit === 'string' ? spirit : spirit && spirit.name
@@ -71,6 +99,7 @@ function normalizeAndValidateForm(input) {
   const normalizedPreps = normalizePrepSelections(form.preparations)
   form.preparations = normalizedPreps
   if (!form.name) errors.name = '请填写酒名'
+  if (form.ingredients.some((row) => row && row.orphanedMaterialId)) errors.ingredients = '有材料已删除，请重新选择或填写材料'
   if (!form.ingredients.some(usableIngredient)) errors.ingredients = '请至少填写一种有效材料和用量'
   if (form.ingredients.some((row) => hasName(row) && row.unit !== 'top-up' && (!Number.isFinite(amountFor(row)) || amountFor(row) <= 0))) errors.ingredients = '材料用量需大于 0'
   if (form.preparations.length === 0 || form.preparations.some((prep) => !PREP_TYPES.includes(prep.type) || (prep.type !== '即调' && (!Number.isFinite(prep.amount) || prep.amount <= 0)))) errors.preparations = '预制方式需填写有效时长'
@@ -129,4 +158,4 @@ function getFormPreview(form) {
   return calculateAbv(rows.filter(usableIngredient).map((row) => ({ ...row, amount: ingredientAmount(row) })))
 }
 
-module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview }
+module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview }

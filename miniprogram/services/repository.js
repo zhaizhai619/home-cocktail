@@ -58,6 +58,54 @@ function createRepository(adapter, options = {}) {
     }
     return migrateState({ materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
   }
+  function materialKey(value) {
+    const source = value && typeof value === 'object' ? value : {}
+    let defaults
+    try { defaults = createMaterialDefaults(source.category || 'other-liquid', String(source.name || '').trim()) } catch (_) { defaults = createMaterialDefaults('other-liquid', String(source.name || '').trim()) }
+    return `${defaults.category}:${defaults.name}`
+  }
+  function saveRecipeWithMaterials(recipeValue, materialDrafts = []) {
+    current()
+    const originalState = state
+    state = clone(originalState)
+    try {
+      const idsByDraftKey = {}
+      const idsByMaterialKey = {}
+      for (const existingMaterial of state.materials) {
+        const key = materialKey(existingMaterial)
+        if (!idsByMaterialKey[key]) idsByMaterialKey[key] = existingMaterial.id
+      }
+      for (const draft of Array.isArray(materialDrafts) ? materialDrafts : []) {
+        if (!draft || typeof draft !== 'object') continue
+        const key = materialKey(draft)
+        let id = idsByMaterialKey[key]
+        if (!id) {
+          const { draftKey, ...materialValue } = draft
+          const savedMaterial = material(materialValue, null)
+          state.materials.push(savedMaterial)
+          id = savedMaterial.id
+          idsByMaterialKey[key] = id
+        }
+        if (typeof draft.draftKey === 'string' && draft.draftKey) idsByDraftKey[draft.draftKey] = id
+        idsByDraftKey[key] = id
+      }
+      const inputRecipe = recipeValue && typeof recipeValue === 'object' ? recipeValue : {}
+      const resolveId = (item) => item && (item.materialId || idsByDraftKey[item.draftKey] || '')
+      const resolvedRecipe = {
+        ...inputRecipe,
+        ingredients: (Array.isArray(inputRecipe.ingredients) ? inputRecipe.ingredients : []).map((item) => ({ materialId: resolveId(item), amount: item.amount, unit: item.unit })),
+        materialObservations: (Array.isArray(inputRecipe.materialObservations) ? inputRecipe.materialObservations : []).map((item) => ({ materialId: resolveId(item), note: item.note })).filter((item) => item.materialId)
+      }
+      const index = resolvedRecipe.id ? state.recipes.findIndex((item) => item.id === resolvedRecipe.id) : -1
+      const savedRecipe = recipe(resolvedRecipe, index === -1 ? null : state.recipes[index])
+      if (index === -1) state.recipes.push(savedRecipe); else state.recipes[index] = savedRecipe
+      adapter.set(STORAGE_KEY, clone(state))
+      return clone(savedRecipe)
+    } catch (error) {
+      state = originalState
+      throw error
+    }
+  }
   function remove(key, id, predicate = () => true) {
     const data = current(); const index = data[key].findIndex((entry) => entry.id === id && predicate(entry))
     if (index === -1) return false
@@ -65,7 +113,7 @@ function createRepository(adapter, options = {}) {
   }
   return {
     initialize, getState: () => clone(current()),
-    listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), deleteRecipe: (id) => remove('recipes', id),
+    listRecipes: () => list('recipes'), getRecipe: (id) => get('recipes', id), upsertRecipe: (value) => upsert('recipes', value, recipe), saveRecipeWithMaterials, deleteRecipe: (id) => remove('recipes', id),
     listMaterials: () => list('materials'), getMaterial: (id) => get('materials', id), upsertMaterial: (value) => upsert('materials', value, material),
     setMaterialOwned(id, owned) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, owned: owned === true }) : null },
     addToFreshShelf(id, fields = {}) { const item = get('materials', id); return item ? this.upsertMaterial({ ...item, ...fields, freshOnHand: true, purchasedAt: fields.purchasedAt || item.purchasedAt || now(), expiresAt: fields.expiresAt || item.expiresAt || null }) : null },

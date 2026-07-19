@@ -1,6 +1,7 @@
 .ingredient-row { display:flex; flex-wrap:wrap; gap:12rpx; padding:18rpx 0; border-bottom:1rpx solid #eee4d8; }
 .name,.pick,.category,.amount,.unit,.remove,.abv,.observation { box-sizing:border-box; min-height:62rpx; border-radius:12rpx; font-size:25rpx; }
 .name { width:210rpx; padding:0 14rpx; color:#453b31; background:#f8f0e5; border:1rpx solid #ded2c3; }
+.readonly { display:inline-block; padding:16rpx; color:#685a4e; background:#f3ece4; }
 .pick { margin:0; padding:0 12rpx; color:#685a4e; background:#f3ece4; }
 .category { padding:16rpx; color:#685a4e; background:#f3ece4; }
 .alcoholic { display:flex; align-items:center; gap:8rpx; color:#685a4e; font-size:23rpx; }

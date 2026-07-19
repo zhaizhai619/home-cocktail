@@ -269,3 +269,35 @@ test('writes survive a new instance and returned values cannot mutate stored sta
   const second = createRepository(adapter)
   assert.equal(second.getMaterial('persisted').name, 'Gin')
 })
+
+test('recipe save transaction reuses normalized materials and commits recipe plus drafts once', () => {
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: (() => { let id = 0; return () => `id-${++id}` })(), now: () => '2026-01-01T00:00:00.000Z'
+  })
+  repository.initialize()
+  const limeDraft = { draftKey: 'citrus:青柠汁', category: 'citrus', name: ' 青柠汁 ', defaultUnit: 'ml' }
+  const makeRecipe = (name, draftKey = limeDraft.draftKey) => ({ name, ingredients: [{ materialId: '', draftKey, amount: 25, unit: 'ml' }], materialObservations: [{ materialId: '', draftKey, note: '新鲜' }] })
+  const first = repository.saveRecipeWithMaterials(makeRecipe('第一杯'), [limeDraft])
+  const second = repository.saveRecipeWithMaterials(makeRecipe('第二杯'), [limeDraft])
+  const other = repository.saveRecipeWithMaterials(makeRecipe('第三杯', 'other-liquid:青柠汁'), [{ draftKey: 'other-liquid:青柠汁', category: 'other-liquid', name: '青柠汁', defaultUnit: 'ml' }])
+
+  assert.equal(repository.listMaterials().length, 2)
+  assert.equal(first.ingredients[0].materialId, second.ingredients[0].materialId)
+  assert.notEqual(second.ingredients[0].materialId, other.ingredients[0].materialId)
+  assert.deepEqual(first.materialObservations, [{ materialId: first.ingredients[0].materialId, note: '新鲜' }])
+  assert.equal('draftKey' in first.ingredients[0], false)
+})
+
+test('recipe save transaction rolls back all in-memory and storage changes when its final write fails', () => {
+  const adapter = createMemoryAdapter()
+  const originalSet = adapter.set
+  let fail = false
+  adapter.set = (key, value) => { if (fail) throw new Error('storage unavailable'); originalSet(key, value) }
+  const repository = createRepository(adapter, { idFactory: () => 'new-id', now: () => '2026-01-01T00:00:00.000Z' })
+  repository.initialize()
+  const before = repository.getState()
+  fail = true
+  assert.throws(() => repository.saveRecipeWithMaterials({ name: '失败', ingredients: [{ materialId: '', draftKey: 'liqueur:君度', amount: 20, unit: 'ml' }] }, [{ draftKey: 'liqueur:君度', category: 'liqueur', name: '君度' }]), /storage unavailable/)
+  assert.deepEqual(repository.getState(), before)
+  assert.deepEqual(adapter.read(STORAGE_KEY), before)
+})

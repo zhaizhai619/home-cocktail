@@ -10,6 +10,9 @@ const {
   buildRecipePayload,
   resolveRecipeMaterialIds,
   getGlasswareSelection,
+  updateIngredientField,
+  hydrateRecipeIngredient,
+  selectExistingIngredient,
   getFormPreview
 } = require('../miniprogram/pages/recipe-edit/model')
 
@@ -143,6 +146,31 @@ test('glassware selection returns a stable picker index and selected label', () 
   const glassware = [{ id: 'highball', name: '高球杯' }, { id: 'coupe', name: '碟形杯' }]
   assert.deepEqual(getGlasswareSelection(glassware, 'coupe'), { glasswareIndex: 1, glasswareLabel: '碟形杯' })
   assert.deepEqual(getGlasswareSelection(glassware, 'gone'), { glasswareIndex: 0, glasswareLabel: '选择杯具' })
+})
+
+test('existing material metadata is locked while editable recipe values remain changeable', () => {
+  const form = createEmptyRecipeForm()
+  form.ingredients = [{ ...createIngredientDraft(null, null, { id: 'm-gin', name: '金酒', category: 'base-spirit', defaultUnit: 'ml', alcoholic: true, abv: 40 }), amount: 30 }]
+  const attempted = updateIngredientField(form, 0, 'abv', 55)
+  const edited = updateIngredientField(attempted, 0, 'amount', 45)
+  assert.equal(attempted.ingredients[0].abv, 40)
+  assert.equal(edited.ingredients[0].amount, 45)
+  assert.equal(edited.ingredients[0].materialId, 'm-gin')
+})
+
+test('orphan recipe material has an identifiable fallback and blocks saving until repaired', () => {
+  const orphan = hydrateRecipeIngredient({ materialId: 'gone-material', amount: 20, unit: 'ml' }, null)
+  assert.equal(orphan.name, '缺失材料（gone-material）')
+  const form = createEmptyRecipeForm()
+  form.name = '孤儿配方'; form.ingredients = [orphan]
+  assert.match(normalizeAndValidateForm(form).errors.ingredients, /已删除/)
+})
+
+test('selecting an existing material retains the typed row observation', () => {
+  const form = createEmptyRecipeForm()
+  form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '手写备注' }]
+  const selected = selectExistingIngredient(form, 0, { id: 'm-cointreau', name: '君度', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 40 })
+  assert.deepEqual(selected.ingredients[0], { ...createIngredientDraft(null, null, { id: 'm-cointreau', name: '君度', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 40 }), amount: 20, observation: '手写备注' })
 })
 
 test('preview delegates enriched material rows to existing ABV calculation', () => {

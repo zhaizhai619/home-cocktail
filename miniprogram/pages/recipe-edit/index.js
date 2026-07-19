@@ -1,5 +1,5 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
-const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview } = require('./model')
+const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, getGlasswareSelection, getFormPreview } = require('./model')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
@@ -9,7 +9,7 @@ const NEW_CATEGORIES = [
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
-function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, ...unitView(row.unit) } }
+function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', showAbvInput: !isExisting && row.alcoholic === true, showAbvReadonly: isExisting && row.alcoholic === true, ...unitView(row.unit) } }
 function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]; const index = units.findIndex((item) => item.value === row.unit); return { ...row, needsDuration: row.type !== '即调', units, unitIndex: index < 0 ? 0 : index, unitLabel: units[index < 0 ? 0 : index].label } }
 function emptyData(form, glassware) {
   const preview = getFormPreview(form)
@@ -28,9 +28,7 @@ Page({
     let form = createEmptyRecipeForm()
     if (recipe) {
       const lookup = this.materials.reduce((all, item) => { all[item.id] = item; return all }, {})
-      form = { ...form, ...recipe, steps: Array.isArray(recipe.steps) ? recipe.steps.join('\n') : '', ingredients: (recipe.ingredients || []).map((row) => {
-        const material = lookup[row.materialId]; return material ? { ...createIngredientDraft(null, null, material), amount: row.amount === null ? '' : row.amount, unit: row.unit || material.defaultUnit } : createIngredientDraft('other-liquid', '')
-      }) }
+      form = { ...form, ...recipe, steps: Array.isArray(recipe.steps) ? recipe.steps.join('\n') : '', ingredients: (recipe.ingredients || []).map((row) => hydrateRecipeIngredient(row, lookup[row.materialId])) }
     }
     this.setData({ materials: this.materials, glassware: this.glassware, tools: this.tools.map((tool) => ({ ...tool, selected: form.toolIds.includes(tool.id) })), ...emptyData(form, this.glassware) })
   },
@@ -39,9 +37,9 @@ Page({
   onTried(event) { this.sync({ ...this.data.form, tried: event.detail.value }) },
   onQuickBase(event) { this.sync(applyQuickBase(this.data.form, event.currentTarget.dataset.name)) },
   onAddIngredient(event) { const category = event.currentTarget.dataset.category || 'other-liquid'; const name = category === 'citrus' ? '青柠汁' : category === 'syrup/staple' ? '蜂蜜糖浆' : ''; this.sync({ ...this.data.form, ingredients: [...this.data.form.ingredients, createIngredientDraft(category, name)] }) },
-  onIngredientChange(event) { const { index, field, value } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value, ...(field === 'name' ? { materialId: '', status: 'new' } : {}) } : item); this.sync({ ...this.data.form, ingredients }) },
-  onCategoryChange(event) { const { index, category } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index ? { ...createIngredientDraft(category, item.name), amount: item.amount, observation: item.observation || '' } : item); this.sync({ ...this.data.form, ingredients }) },
-  onAlcoholicChange(event) { const { index, value } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index ? { ...item, alcoholic: value, abv: value ? item.abv : null } : item); this.sync({ ...this.data.form, ingredients }) },
+  onIngredientChange(event) { const { index, field, value } = event.detail; const next = updateIngredientField(this.data.form, index, field, value); this.sync(next) },
+  onCategoryChange(event) { const { index, category } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index && !(item.materialId && !item.orphanedMaterialId) ? { ...createIngredientDraft(category, item.name), amount: item.amount, observation: item.observation || '' } : item); this.sync({ ...this.data.form, ingredients }) },
+  onAlcoholicChange(event) { const { index, value } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index && !(item.materialId && !item.orphanedMaterialId) ? { ...item, alcoholic: value, abv: value ? item.abv : null } : item); this.sync({ ...this.data.form, ingredients }) },
   onRemoveIngredient(event) { const index = event.detail.index; const ingredients = this.data.form.ingredients.filter((_, itemIndex) => itemIndex !== index); this.sync({ ...this.data.form, ingredients }) },
   onPickName(event) {
     const index = event.detail.index
@@ -56,8 +54,8 @@ Page({
   closeSuggestions() { this.setData({ suggestionOpen: false }) },
   onChooseSuggestion(event) {
     const option = this.data.suggestions[event.currentTarget.dataset.index]; const index = this.data.suggestionIndex; if (!option || index < 0) return this.closeSuggestions()
-    const ingredients = this.data.form.ingredients.slice(); ingredients[index] = option.kind === 'existing' ? { ...createIngredientDraft(null, null, option), amount: ingredients[index].amount } : replaceIngredientName({ ...this.data.form, ingredients }, index, option.name).ingredients[index]
-    this.sync({ ...this.data.form, ingredients }); this.closeSuggestions()
+    const ingredients = this.data.form.ingredients.slice(); const next = option.kind === 'existing' ? selectExistingIngredient(this.data.form, index, option) : { ...this.data.form, ingredients: replaceIngredientName({ ...this.data.form, ingredients }, index, option.name).ingredients }
+    this.sync(next); this.closeSuggestions()
   },
   onTogglePrep(event) {
     const type = event.detail.type; const existing = this.data.form.preparations || []; let preparations
@@ -74,9 +72,12 @@ Page({
   onSave() {
     const checked = normalizeAndValidateForm(this.data.form); if (!checked.valid) { this.sync(checked.form, checked.errors); if (typeof wx !== 'undefined') wx.showToast({ title: Object.values(checked.errors)[0], icon: 'none' }); return }
     const repo = repository(); if (!repo) return
-    const built = buildRecipePayload(checked.form); const idsByDraftKey = {}
-    built.materialDrafts.forEach((draft) => { const { draftKey, ...material } = draft; const saved = repo.upsertMaterial(material); idsByDraftKey[draftKey] = saved.id })
-    const recipe = resolveRecipeMaterialIds(built.recipe, idsByDraftKey)
-    repo.upsertRecipe(recipe); if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack()
+    try {
+      const built = buildRecipePayload(checked.form)
+      repo.saveRecipeWithMaterials(built.recipe, built.materialDrafts)
+      if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack()
+    } catch (error) {
+      if (typeof wx !== 'undefined') wx.showToast({ title: '保存失败，请重试', icon: 'none' })
+    }
   }
 })
