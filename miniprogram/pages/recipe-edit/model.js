@@ -78,24 +78,47 @@ function normalizeAndValidateForm(input) {
 }
 
 function ingredientAmount(row) { return row.unit === 'top-up' ? null : amountFor(row) }
+function createMaterialDraftKey(category, name) { return `${category}:${String(name || '').trim()}` }
 function materialDraft(row) {
   const defaults = createIngredientDraft(row.category, row.name)
-  return { ...defaults, name: row.name, category: row.category || defaults.category, defaultUnit: row.unit || defaults.unit, alcoholic: row.alcoholic === true, abv: Number.isFinite(Number(row.abv)) ? Number(row.abv) : null }
+  const name = String(row.name || '').trim()
+  return { ...defaults, name, category: defaults.category, defaultUnit: row.unit || defaults.unit, alcoholic: row.alcoholic === true, abv: Number.isFinite(Number(row.abv)) ? Number(row.abv) : null, draftKey: createMaterialDraftKey(defaults.category, name) }
 }
 
 function buildRecipePayload(input) {
   const result = normalizeAndValidateForm(input); const form = result.form
   const ingredients = form.ingredients.filter(usableIngredient)
-  const materialDrafts = ingredients.filter((row) => !row.materialId).map(materialDraft)
+  const materialDrafts = []
+  const seenDraftKeys = new Set()
+  for (const row of ingredients.filter((item) => !item.materialId)) {
+    const draft = materialDraft(row)
+    if (!seenDraftKeys.has(draft.draftKey)) { seenDraftKeys.add(draft.draftKey); materialDrafts.push(draft) }
+  }
   return {
     recipe: {
       ...(form.id ? { id: form.id } : {}), name: form.name, imagePath: form.imagePath || '', source: form.source || '', tried: form.tried === true,
-      ingredients: ingredients.map((row) => ({ materialId: row.materialId || '', amount: ingredientAmount(row), unit: row.unit || 'ml' })),
+      ingredients: ingredients.map((row) => ({ materialId: row.materialId || '', ...(row.materialId ? {} : { draftKey: materialDraft(row).draftKey }), amount: ingredientAmount(row), unit: row.unit || 'ml' })),
       preparations: form.preparations, glasswareId: form.glasswareId || null, toolIds: Array.isArray(form.toolIds) ? form.toolIds : [],
       steps: String(form.steps || '').split('\n').map((step) => step.trim()).filter(Boolean), rating: form.rating || null, tastingNote: form.tastingNote || '',
-      materialObservations: ingredients.filter((row) => String(row.observation || '').trim()).map((row) => ({ ...(row.materialId ? { materialId: row.materialId } : { materialId: '', materialName: row.name }), note: String(row.observation).trim() }))
+      materialObservations: ingredients.filter((row) => String(row.observation || '').trim()).map((row) => ({ ...(row.materialId ? { materialId: row.materialId } : { materialId: '', draftKey: materialDraft(row).draftKey }), note: String(row.observation).trim() }))
     }, materialDrafts
   }
+}
+
+function resolveRecipeMaterialIds(recipe, idsByDraftKey = {}) {
+  const source = recipe && typeof recipe === 'object' ? recipe : {}
+  const resolve = (item) => item && (item.materialId || idsByDraftKey[item.draftKey] || '')
+  return {
+    ...source,
+    ingredients: (Array.isArray(source.ingredients) ? source.ingredients : []).map((item) => ({ materialId: resolve(item), amount: item.amount, unit: item.unit })),
+    materialObservations: (Array.isArray(source.materialObservations) ? source.materialObservations : []).map((item) => ({ materialId: resolve(item), note: item.note })).filter((item) => item.materialId)
+  }
+}
+
+function getGlasswareSelection(glassware, glasswareId) {
+  const list = Array.isArray(glassware) ? glassware : []
+  const glasswareIndex = list.findIndex((item) => item && item.id === glasswareId)
+  return glasswareIndex === -1 ? { glasswareIndex: 0, glasswareLabel: '选择杯具' } : { glasswareIndex, glasswareLabel: list[glasswareIndex].name || '选择杯具' }
 }
 
 function getFormPreview(form) {
@@ -103,4 +126,4 @@ function getFormPreview(form) {
   return calculateAbv(rows.filter(usableIngredient).map((row) => ({ ...row, amount: ingredientAmount(row) })))
 }
 
-module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, getFormPreview }
+module.exports = { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview }

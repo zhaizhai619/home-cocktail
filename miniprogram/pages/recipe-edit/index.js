@@ -1,5 +1,5 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
-const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, getFormPreview } = require('./model')
+const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview } = require('./model')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
@@ -14,9 +14,10 @@ function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, {
 function emptyData(form, glassware) {
   const preview = getFormPreview(form)
   const glass = (glassware || []).find((item) => item.id === form.glasswareId)
+  const glasswareSelection = getGlasswareSelection(glassware, form.glasswareId)
   const capacity = glass && Number.isFinite(Number(glass.capacityMl)) ? Number(glass.capacityMl) : null
   const remaining = capacity === null ? null : capacity - preview.liquidVolume
-  return { form, formIngredients: form.ingredients.map(displayIngredient), formPreparations: form.preparations.map(displayPrep), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', missingText: (preview.missing || []).join('、'), capacityKnown: capacity !== null, capacity, remaining, overCapacity: remaining !== null && remaining < 0 }, errors: {} }
+  return { form, ...glasswareSelection, formIngredients: form.ingredients.map(displayIngredient), formPreparations: form.preparations.map(displayPrep), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', missingText: (preview.missing || []).join('、'), capacityKnown: capacity !== null, capacity, remaining, overCapacity: remaining !== null && remaining < 0 }, errors: {} }
 }
 
 Page({
@@ -73,13 +74,9 @@ Page({
   onSave() {
     const checked = normalizeAndValidateForm(this.data.form); if (!checked.valid) { this.sync(checked.form, checked.errors); if (typeof wx !== 'undefined') wx.showToast({ title: Object.values(checked.errors)[0], icon: 'none' }); return }
     const repo = repository(); if (!repo) return
-    const built = buildRecipePayload(checked.form); const idsByName = {}
-    built.materialDrafts.forEach((draft) => { const saved = repo.upsertMaterial(draft); idsByName[draft.name] = saved.id })
-    const usedRows = checked.form.ingredients.filter((row) => row.name && (row.unit === 'top-up' || Number(row.amount) > 0))
-    const recipe = { ...built.recipe,
-      ingredients: built.recipe.ingredients.map((item, index) => ({ ...item, materialId: item.materialId || idsByName[usedRows[index].name] || '' })),
-      materialObservations: built.recipe.materialObservations.map((observation) => ({ materialId: observation.materialId || idsByName[observation.materialName] || '', note: observation.note })).filter((observation) => observation.materialId)
-    }
+    const built = buildRecipePayload(checked.form); const idsByDraftKey = {}
+    built.materialDrafts.forEach((draft) => { const { draftKey, ...material } = draft; const saved = repo.upsertMaterial(material); idsByDraftKey[draftKey] = saved.id })
+    const recipe = resolveRecipeMaterialIds(built.recipe, idsByDraftKey)
     repo.upsertRecipe(recipe); if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack()
   }
 })

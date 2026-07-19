@@ -8,6 +8,8 @@ const {
   createIngredientDraft,
   normalizeAndValidateForm,
   buildRecipePayload,
+  resolveRecipeMaterialIds,
+  getGlasswareSelection,
   getFormPreview
 } = require('../miniprogram/pages/recipe-edit/model')
 
@@ -81,7 +83,7 @@ test('payload uses ingredient material ids and preserves recipe data and materia
   form.name = '蜂蜜酸酒'; form.source = '书'; form.imagePath = '/tmp/x'; form.steps = '摇匀'; form.rating = '顶尖'; form.tastingNote = '酸甜'; form.tried = false
   form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), materialId: 'm-lime', status: 'existing', amount: '25', observation: '新鲜' }, { ...createIngredientDraft('liqueur', '君度'), amount: 20 }]
   const result = buildRecipePayload(form)
-  assert.deepEqual(result.recipe.ingredients, [{ materialId: 'm-lime', amount: 25, unit: 'ml' }, { materialId: '', amount: 20, unit: 'ml' }])
+  assert.deepEqual(result.recipe.ingredients, [{ materialId: 'm-lime', amount: 25, unit: 'ml' }, { materialId: '', draftKey: 'liqueur:君度', amount: 20, unit: 'ml' }])
   assert.equal(result.recipe.tastingNote, '酸甜')
   assert.equal(result.recipe.tried, false)
   assert.deepEqual(result.materialDrafts.map((item) => item.name), ['君度'])
@@ -93,8 +95,35 @@ test('payload keeps a resolvable observation for a newly drafted material', () =
   form.name = '君度酸酒'
   form.ingredients = [{ ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '橙香更明显' }]
   const result = buildRecipePayload(form)
-  assert.deepEqual(result.recipe.materialObservations, [{ materialId: '', materialName: '君度', note: '橙香更明显' }])
+  assert.deepEqual(result.recipe.materialObservations, [{ materialId: '', draftKey: 'liqueur:君度', note: '橙香更明显' }])
   assert.equal(result.materialDrafts[0].name, '君度')
+})
+
+test('deduplicates new material drafts and resolves every temporary reference by category and name key', () => {
+  const form = createEmptyRecipeForm()
+  form.name = '重复材料测试'
+  form.ingredients = [
+    { ...createIngredientDraft('liqueur', '君度'), amount: 20, observation: '第一杯' },
+    { ...createIngredientDraft('liqueur', ' 君度 '), amount: 10, observation: '第二杯' },
+    { ...createIngredientDraft('other-liquid', '君度'), amount: 5, observation: '不同分类' }
+  ]
+  const payload = buildRecipePayload(form)
+  assert.deepEqual(payload.materialDrafts.map((draft) => draft.draftKey), ['liqueur:君度', 'other-liquid:君度'])
+  const recipe = resolveRecipeMaterialIds(payload.recipe, { 'liqueur:君度': 'm-cointreau', 'other-liquid:君度': 'm-other' })
+  assert.deepEqual(recipe.ingredients, [
+    { materialId: 'm-cointreau', amount: 20, unit: 'ml' },
+    { materialId: 'm-cointreau', amount: 10, unit: 'ml' },
+    { materialId: 'm-other', amount: 5, unit: 'ml' }
+  ])
+  assert.deepEqual(recipe.materialObservations, [
+    { materialId: 'm-cointreau', note: '第一杯' }, { materialId: 'm-cointreau', note: '第二杯' }, { materialId: 'm-other', note: '不同分类' }
+  ])
+})
+
+test('glassware selection returns a stable picker index and selected label', () => {
+  const glassware = [{ id: 'highball', name: '高球杯' }, { id: 'coupe', name: '碟形杯' }]
+  assert.deepEqual(getGlasswareSelection(glassware, 'coupe'), { glasswareIndex: 1, glasswareLabel: '碟形杯' })
+  assert.deepEqual(getGlasswareSelection(glassware, 'gone'), { glasswareIndex: 0, glasswareLabel: '选择杯具' })
 })
 
 test('preview delegates enriched material rows to existing ABV calculation', () => {
