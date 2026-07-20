@@ -6,7 +6,7 @@
 
 1. 安装并打开微信开发者工具，选择“导入项目”。
 2. 项目目录选择本仓库根目录（包含 `project.config.json` 的目录），不要只选择 `miniprogram/`。
-3. 本地体验可保留 `project.config.json` 中的 `touristappid`。真机预览、上传或使用正式能力时，在开发者工具中换成自己小程序的正式 AppID。
+3. 当前 `project.config.json` 已保存开发者工具生成的测试号 AppID，可直接用于本地体验。如果开发者工具提示重新选择，请点击“测试号”；真机预览、上传或使用正式能力时，再换成自己小程序的正式 AppID。
 4. 导入后编译即可。项目没有 npm 运行时依赖，不需要在开发者工具中“构建 npm”。
 
 当前 `project.config.json` 已将 `miniprogramRoot` 指向 `miniprogram/`，入口页是“酒单”，底部导航为“酒单 / 材料 / 我的”。
