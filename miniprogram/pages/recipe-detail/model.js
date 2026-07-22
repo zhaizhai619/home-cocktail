@@ -1,7 +1,7 @@
 const { RATINGS, UNITS } = require('../../domain/constants')
-const { analyzeLiquidVolume, calculateAbv } = require('../../domain/abv')
-const { getMaterialVisualState } = require('../../domain/material')
-const { normalizePrepSelections } = require('../../domain/recipe')
+const { analyzeLiquidVolume, calculateAbv, recipeIngredientsForAbv } = require('../../domain/abv')
+const { getMaterialDisplayName, getMaterialVisualState } = require('../../domain/material')
+const { getPreparationDurationText, normalizePrepSelections } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
 const { isValidGlassCapacity } = require('../../domain/equipment-invariants')
 
@@ -14,13 +14,14 @@ function asLookup(items) {
   return (Array.isArray(items) ? items : []).reduce((lookup, item) => {
     if (item && typeof item.id === 'string' && item.id) lookup[item.id] = item
     return lookup
-  }, {})
+  }, Object.create(null))
 }
 
 function formatNumber(value) {
   if (value === null || value === undefined || String(value).trim() === '') return ''
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? String(numeric) : ''
+  const text = String(value).trim()
+  const numeric = Number(text)
+  return Number.isFinite(numeric) ? String(numeric) : text
 }
 
 function formatAmount(ingredient) {
@@ -31,8 +32,8 @@ function formatAmount(ingredient) {
 
 function formatPreparation(preparation) {
   if (preparation.type === '即调') return '即调'
-  const unit = ['day', 'days', '天'].includes(preparation.unit) ? '天' : '小时'
-  return `${preparation.type} · 提前${formatNumber(preparation.amount)}${unit}`
+  const duration = getPreparationDurationText(preparation)
+  return `${preparation.type} · ${duration.startsWith('提前') ? duration : `提前${duration}`}`
 }
 
 function formatDate(value, offsetMinutes) {
@@ -60,8 +61,14 @@ function decodeRecipeId(value) {
   try { return decodeURIComponent(value) } catch (_) { return '' }
 }
 
-function buildIngredient(ingredient, materialsById) {
+function buildIngredient(ingredient, materialsById, preparationsById = {}) {
   const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
+  if (source.kind === 'prepared-output') {
+    const preparation = preparationsById[source.preparationId]
+    const name = String(preparation && preparation.outputName || '预调成品').trim() || '预调成品'
+    const amountLabel = formatAmount(source)
+    return { materialId: '', preparationId: source.preparationId || '', name, amount: source.amount, unit: source.unit || '', amountLabel, state: 'prepared', accessibilityLabel: [name, amountLabel].filter(Boolean).join('，'), prepared: true }
+  }
   const material = materialsById[source.materialId]
   const amountLabel = formatAmount(source)
   if (!material) {
@@ -73,7 +80,7 @@ function buildIngredient(ingredient, materialsById) {
   }
   const state = getMaterialVisualState(material)
   const accessibilityStates = { owned: '材料已在手头', 'quick-buy': '材料可随买随用', 'missing-long-term': '材料暂时没有' }
-  const name = material.name || '未命名材料'
+  const name = getMaterialDisplayName(material.category, material.name) || '未命名材料'
   return {
     materialId: material.id, name, amount: source.amount, unit: source.unit || '', amountLabel,
     state, accessibilityLabel: [name, accessibilityStates[state], amountLabel].filter(Boolean).join('，'), orphaned: false
@@ -90,24 +97,20 @@ function normalizedAmount(value) {
   return Number.isFinite(numeric) ? numeric : value
 }
 
-function calculationIngredients(recipe, materialsById) {
-  return (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => {
-    if (!ingredient || typeof ingredient !== 'object') return null
-    const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
-    const material = materialsById[source.materialId]
-    const amount = normalizedAmount(source.amount)
-    if (!material) return { name: `缺失材料（${source.materialId || '未知'}）`, amount, unit: source.unit, alcoholic: true, abv: null, form: source.unit === 'ml' ? 'liquid' : undefined }
-    const numericAbv = Number(material.abv)
-    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv > 0 && numericAbv <= 100
-    return { name: material.name || '未命名材料', amount, unit: source.unit, alcoholic: material.alcoholic === true, abv: hasAbv ? numericAbv : null, form: material.form, category: material.category }
-  })
-}
-
 function buildAbv(recipe, materialsById) {
+  if (recipe && Array.isArray(recipe.advancePreparations) && recipe.advancePreparations.length) return {
+    status: 'prepared', valueLabel: '--', liquidVolumeLabel: '--', missing: [], ignored: [],
+    issueLines: [{ kind: 'prepared', text: '含本配方预调成品，暂不计算酒精度' }], ignoredText: '', needsEditing: false
+  }
   const missingMaterials = []
   const missingAbv = []
+  const missingAbvMaterialIds = []
   const missingAmount = []
-  const enriched = calculationIngredients(recipe, materialsById)
+  const enriched = recipeIngredientsForAbv(recipe, materialsById).map((row) => (
+    row && typeof row === 'object'
+      ? { ...row, name: getMaterialDisplayName(row.category, row.name) || row.name }
+      : row
+  ))
   ;(Array.isArray(recipe.ingredients) ? recipe.ingredients : []).forEach((ingredient) => {
     if (!ingredient || typeof ingredient !== 'object') return null
     const source = ingredient && typeof ingredient === 'object' ? ingredient : {}
@@ -118,21 +121,26 @@ function buildAbv(recipe, materialsById) {
       appendUnique(missingMaterials, name)
       return null
     }
-    const name = material.name || '未命名材料'
+    const name = getMaterialDisplayName(material.category, material.name) || '未命名材料'
     const numericAbv = Number(material.abv)
     const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv > 0 && numericAbv <= 100
     const hasMlAmount = source.unit === 'ml' && Number.isFinite(amount) && amount >= 0
     if (source.unit === 'ml' && !hasMlAmount) appendUnique(missingAmount, name)
     if (source.unit !== 'ml' && source.unit !== 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
     if (source.unit === 'top-up' && material.alcoholic === true) appendUnique(missingAmount, name)
-    if (hasMlAmount && material.alcoholic === true && !hasAbv) appendUnique(missingAbv, name)
+    if (hasMlAmount && material.alcoholic === true && !hasAbv) {
+      appendUnique(missingAbv, name)
+      appendUnique(missingAbvMaterialIds, source.materialId)
+    }
     return null
   })
   const result = calculateAbv(enriched)
   const volume = analyzeLiquidVolume(enriched)
   const volumeComplete = volume.missing.length === 0
+  const resultMissing = result.missing || []
+  const resultIgnored = result.ignored || []
   const explained = new Set([...missingMaterials, ...missingAbv, ...missingAmount])
-  for (const name of result.missing || []) {
+  for (const name of resultMissing) {
     if (!explained.has(name)) appendUnique(missingAmount, name)
   }
   const issueLines = []
@@ -144,11 +152,14 @@ function buildAbv(recipe, materialsById) {
     valueLabel: result.status === 'ok' ? `${result.abv}%` : '--',
     liquidVolumeLabel: volumeComplete ? `${result.liquidVolume}ml` : '--',
     ...(volumeComplete ? {} : { knownLiquidVolumeText: result.liquidVolume > 0 ? `已知液体至少 ${result.liquidVolume}ml` : '', volumeComplete: false }),
-    missing: [...(result.missing || [])],
-    ignored: [...(result.ignored || [])],
+    missing: resultMissing,
+    ignored: resultIgnored,
     issueLines,
-    ignoredText: result.ignored && result.ignored.length ? `未计入非 ml 材料：${result.ignored.join('、')}` : '',
-    needsEditing: result.status === 'missing'
+    ignoredText: resultIgnored.length ? `未计入非 ml 材料：${resultIgnored.join('、')}` : '',
+    needsEditing: result.status === 'missing',
+    ...(missingAbvMaterialIds.length === 1 && missingMaterials.length === 0 && missingAmount.length === 0
+      ? { editMaterialId: missingAbvMaterialIds[0] }
+      : {})
   }
 }
 
@@ -167,38 +178,52 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     if (!observation || typeof observation.note !== 'string' || !observation.note.trim()) return items
     const material = materialsById[observation.materialId]
     items.push({
-      materialId: observation.materialId || '', materialName: material && material.name || '缺失材料',
+      materialId: observation.materialId || '', materialName: material ? getMaterialDisplayName(material.category, material.name) : '缺失材料',
       note: observation.note.trim(), createdAtLabel: formatDate(observation.createdAt)
     })
     return items
   }, [])
   const ingredientOptions = (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).reduce((items, ingredient) => {
     const material = ingredient && materialsById[ingredient.materialId]
-    if (material && !items.some((item) => item.id === material.id)) items.push({ id: material.id, name: material.name })
+    if (material && !items.some((item) => item.id === material.id)) items.push({ id: material.id, name: getMaterialDisplayName(material.category, material.name) })
     return items
   }, [])
+  const advanceSources = Array.isArray(recipe.advancePreparations) ? recipe.advancePreparations : []
+  const preparationsById = advanceSources.reduce((lookup, preparation) => {
+    if (preparation && preparation.id) lookup[preparation.id] = preparation
+    return lookup
+  }, Object.create(null))
+  const advancePreparations = advanceSources.map((advanceSource) => ({
+    id: advanceSource.id,
+    outputName: String(advanceSource.outputName || '').trim(),
+    ingredients: (Array.isArray(advanceSource.ingredients) ? advanceSource.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById)),
+    steps: (Array.isArray(advanceSource.steps) ? advanceSource.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim())
+  }))
+  const steps = (Array.isArray(recipe.steps) ? recipe.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim())
+  const legacyTastingNote = typeof recipe.tastingNote === 'string' ? recipe.tastingNote.trim() : ''
+  if (legacyTastingNote && !steps.includes(legacyTastingNote)) steps.push(legacyTastingNote)
 
   return {
     status: 'ok', id: recipe.id, name: typeof recipe.name === 'string' ? recipe.name : '',
     imagePath: typeof recipe.imagePath === 'string' ? recipe.imagePath : '', source: typeof recipe.source === 'string' ? recipe.source : '',
     tried: recipe.tried === true, preparations,
-    ingredients: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById)),
+    ingredients: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById, preparationsById)),
+    advancePreparations,
     ingredientOptions,
     glassware: selectedGlass ? {
       id: selectedGlass.id,
-      name: selectedGlass.name || '未命名杯具',
+      name: selectedGlass.name || '未命名酒杯',
       capacityLabel: isValidGlassCapacity(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity) ? `${Number(selectedGlass.capacityMl !== undefined ? selectedGlass.capacityMl : selectedGlass.capacity)}ml` : '容量待补充',
       ...(selectedGlass.imagePath ? { imagePath: selectedGlass.imagePath } : {}),
       ...(selectedGlass.notes || selectedGlass.note ? { notes: selectedGlass.notes || selectedGlass.note } : {})
-    } : (recipe.glasswareId ? { id: recipe.glasswareId, name: `杯具资料缺失（${recipe.glasswareId}）`, capacityLabel: '', orphaned: true } : null),
+    } : (recipe.glasswareId ? { id: recipe.glasswareId, name: `酒杯资料缺失（${recipe.glasswareId}）`, capacityLabel: '', orphaned: true } : null),
     tools: (Array.isArray(recipe.toolIds) ? recipe.toolIds : []).map((id) => {
       const tool = toolsById[id]
       return tool ? { id: tool.id, name: tool.name || '未命名用具' } : { id, name: `用具资料缺失（${id}）`, orphaned: true }
     }),
-    steps: (Array.isArray(recipe.steps) ? recipe.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim()),
+    steps,
     rating: RATINGS.includes(recipe.rating) ? recipe.rating : '', ratings: RATINGS.map((label) => ({ label, selected: label === recipe.rating })),
-    tastingNote: typeof recipe.tastingNote === 'string' ? recipe.tastingNote : '',
-    observations, abv: buildAbv(recipe, materialsById), capacity: calculateGlassCapacity(calculationIngredients(recipe, materialsById), selectedGlass || null)
+    observations, abv: buildAbv(recipe, materialsById), capacity: calculateGlassCapacity(recipeIngredientsForAbv(recipe, materialsById), selectedGlass || null)
   }
 }
 
@@ -222,6 +247,29 @@ function orchestrateObservationSave({ repository, recipe, materialId, note, noti
   } catch (_) {
     notify('保存失败，请重试')
     return { saved: false, recipe: null }
+  }
+}
+
+function orchestrateRatingToggle({ repository, recipe, rating, promotedFromUntried = false, notify = () => {} }) {
+  const previousPromotionState = promotedFromUntried === true
+  if (!recipe || !recipe.id || !RATINGS.includes(rating)) {
+    notify('评价选项无效')
+    return { saved: false, recipe: null, promotedFromUntried: previousPromotionState }
+  }
+  const isCancelling = recipe.rating === rating
+  const nextPromotionState = isCancelling ? false : (previousPromotionState || recipe.tried !== true)
+  const nextRecipe = {
+    ...recipe,
+    tried: isCancelling ? (previousPromotionState ? false : recipe.tried === true) : true,
+    rating: isCancelling ? null : rating
+  }
+  try {
+    const saved = repository && repository.upsertRecipe(nextRecipe)
+    if (!saved) throw new Error('Rating not saved')
+    return { saved: true, recipe: saved, promotedFromUntried: nextPromotionState }
+  } catch (_) {
+    notify('评价保存失败，请重试')
+    return { saved: false, recipe: null, promotedFromUntried: previousPromotionState }
   }
 }
 
@@ -254,6 +302,7 @@ module.exports = {
   formatDate,
   validateObservation,
   orchestrateObservationSave,
+  orchestrateRatingToggle,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 }

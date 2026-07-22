@@ -1,0 +1,23 @@
+<view class="material-select-page">
+  <view class="search-box"><text class="search-icon">⌕</text><input value="{{query}}" bindinput="onSearchInput" placeholder="搜索材料" confirm-type="search" /></view>
+  <scroll-view class="category-tabs" scroll-x="true" enhanced="true" show-scrollbar="false">
+    <view class="category-track">
+      <button wx:for="{{categoryTabs}}" wx:key="key" size="mini" class="category-tab {{categoryFilter === item.key ? 'selected' : ''}}" data-key="{{item.key}}" bindtap="onSelectCategory">{{item.label}}</button>
+    </view>
+  </scroll-view>
+  <view wx:if="{{materials.length}}" class="material-grid">
+    <button wx:for="{{materials}}" wx:key="renderKey" class="material-card state-{{item.visualState}}" data-key="{{item.renderKey}}" bindtap="onSelectMaterial">
+      <text class="material-name">{{item.name}}</text>
+      <text class="material-category">{{item.categoryLabel}}</text>
+    </button>
+  </view>
+  <view wx:else class="empty-state">没有匹配的材料</view>
+  <button wx:if="{{canCreateMaterial && !creatingMaterial}}" class="create-material" bindtap="onCreateMaterial">＋ 添加「{{newMaterialName}}」</button>
+  <view wx:if="{{creatingMaterial}}" class="create-category-panel">
+    <text class="create-category-title">请选择“{{newMaterialName}}”的分类</text>
+    <view class="create-category-grid">
+      <button wx:for="{{creationCategories}}" wx:key="category" size="mini" class="create-category" data-category="{{item.category}}" bindtap="onSelectCreateCategory">{{item.label}}</button>
+    </view>
+  </view>
+  <text wx:if="{{canCreateMaterial}}" class="create-hint">保存配方后会加入材料库</text>
+</view>

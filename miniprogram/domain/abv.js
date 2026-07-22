@@ -70,4 +70,22 @@ function calculateAbv(ingredients) {
   }
 }
 
-module.exports = { TOP_UP_VOLUME, analyzeLiquidVolume, calculateAbv }
+function recipeIngredientsForAbv(recipe, materialsById) {
+  const source = recipe && typeof recipe === 'object' ? recipe : {}
+  const lookup = materialsById && typeof materialsById === 'object' ? materialsById : {}
+  return (Array.isArray(source.ingredients) ? source.ingredients : []).map((ingredient) => {
+    if (!ingredient || typeof ingredient !== 'object') return null
+    const material = Object.prototype.hasOwnProperty.call(lookup, ingredient.materialId) && lookup[ingredient.materialId] && typeof lookup[ingredient.materialId] === 'object'
+      ? lookup[ingredient.materialId]
+      : null
+    const rawAmount = ingredient.amount
+    const numericAmount = rawAmount === null || rawAmount === undefined || String(rawAmount).trim() === '' ? rawAmount : Number(rawAmount)
+    const amount = Number.isFinite(numericAmount) ? numericAmount : rawAmount
+    if (!material) return { name: `缺失材料（${ingredient.materialId || '未知'}）`, amount, unit: ingredient.unit, alcoholic: true, abv: null, form: ingredient.unit === 'ml' ? 'liquid' : undefined }
+    const numericAbv = Number(material.abv)
+    const hasAbv = material.abv !== null && material.abv !== undefined && String(material.abv).trim() !== '' && Number.isFinite(numericAbv) && numericAbv > 0 && numericAbv <= 100
+    return { name: material.name || '未命名材料', amount, unit: ingredient.unit, alcoholic: material.alcoholic === true, abv: hasAbv ? numericAbv : null, form: material.form, category: material.category }
+  })
+}
+
+module.exports = { TOP_UP_VOLUME, analyzeLiquidVolume, calculateAbv, recipeIngredientsForAbv }

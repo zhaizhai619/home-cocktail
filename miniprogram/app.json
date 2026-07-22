@@ -2,6 +2,8 @@
   "pages": [
     "pages/recipes/index",
     "pages/recipe-edit/index",
+    "pages/material-select/index",
+    "pages/glass-select/index",
     "pages/recipe-detail/index",
     "pages/materials/index",
     "pages/material-detail/index",
@@ -23,15 +25,21 @@
     "list": [
       {
         "pagePath": "pages/recipes/index",
-        "text": "酒单"
+        "text": "酒单",
+        "iconPath": "assets/tabbar/menu.png",
+        "selectedIconPath": "assets/tabbar/menu-active.png"
       },
       {
         "pagePath": "pages/materials/index",
-        "text": "材料"
+        "text": "吧台",
+        "iconPath": "assets/tabbar/materials.png",
+        "selectedIconPath": "assets/tabbar/materials-active.png"
       },
       {
         "pagePath": "pages/settings/index",
-        "text": "我的"
+        "text": "我的",
+        "iconPath": "assets/tabbar/profile.png",
+        "selectedIconPath": "assets/tabbar/profile-active.png"
       }
     ]
   },

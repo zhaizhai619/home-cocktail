@@ -1,9 +1,51 @@
-<view class="page">
-  <view class="topbar"><text class="page-title">我的酒单</text><button class="add-button" bindtap="onAddRecipe" aria-label="添加一款酒">＋ 添加</button></view>
-  <input class="search" placeholder="搜索酒名或材料" value="{{search}}" bindinput="onSearchInput" aria-label="搜索酒名或材料" />
-  <scroll-view class="prep-scroll" scroll-x="true"><view class="prep-chips"><button wx:for="{{prepChips}}" wx:key="key" data-key="{{item.key}}" bindtap="onSelectPrep" class="chip {{prepType === item.key ? 'active' : ''}}" aria-label="{{item.label}}{{prepType === item.key ? '，已选择' : ''}}">{{prepType === item.key ? '✓' : ''}} {{item.label}}</button></view></scroll-view>
-  <view class="controls"><button class="material-filter" bindtap="openMaterialSheet" aria-label="材料条件，当前{{materialConditionLabel}}">材料：{{materialConditionLabel}} ▾</button><scroll-view class="sort-scroll" scroll-x="true"><view class="sort-list"><button wx:for="{{sortOptions}}" wx:key="key" data-key="{{item.key}}" bindtap="onSelectSort" class="sort-button {{sortKey === item.key ? 'active' : ''}}" aria-label="{{item.label}}{{sortKey === item.key ? '，已选择' : ''}}"><text wx:if="{{sortKey === item.key}}" class="selected-mark">✓</text>{{item.label}}</button></view></scroll-view></view>
-  <view wx:if="{{recipes.length}}" class="card-list"><recipe-card wx:for="{{recipes}}" wx:key="id" recipe="{{item}}" bind:select="onSelectRecipe" /></view>
-  <view wx:else class="empty"><text class="empty-title">还没有收藏的酒</text><text class="empty-copy">从第一款常喝的酒开始，慢慢搭建自己的酒单。</text><button class="empty-button" bindtap="onAddRecipe">录入我的第一款酒</button></view>
-  <view wx:if="{{showMaterialSheet}}" class="sheet-mask" bindtap="closeMaterialSheet"><view class="sheet" catchtap="noop"><text class="sheet-title">材料条件</text><button wx:for="{{materialOptions}}" wx:key="key" data-key="{{item.key}}" bindtap="onSelectMaterial" class="condition-option {{materialCondition === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{materialCondition === item.key ? '，已选择' : ''}}"><text>{{item.label}}</text><text wx:if="{{materialCondition === item.key}}">✓</text></button></view></view>
+<view class="page recipes-page">
+  <view class="topbar">
+    <text class="page-title">我的酒单</text>
+    <button class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒"><view class="add-button">＋</view></button>
+  </view>
+
+  <view class="search-box">
+    <text class="search-icon" aria-hidden="true">⌕</text>
+    <input class="search-input" placeholder="搜索酒名或材料" value="{{search}}" bindinput="onSearchInput" aria-label="搜索酒名或材料" />
+  </view>
+
+  <view class="filter-heading">
+    <text class="filter-heading-title">筛选酒单</text>
+    <view class="sort-hit" aria-role="button" aria-label="排序，当前{{sortLabel}}" hover-class="sort-hit--pressed" bindtap="openSortSheet"><text>排序：{{sortLabel}}</text><text class="sort-icon">⇅</text></view>
+  </view>
+  <view class="filter-grid">
+    <button class="filter-card filter-hit {{prepType !== 'all' ? 'active' : ''}}" data-filter="preparation" bindtap="openFilter" aria-label="制作方式，当前{{prepTypeLabel}}"><text class="filter-name">制作方式</text><view class="filter-value"><text class="filter-value-text">{{prepTypeLabel}}</text><text class="chevron">⌄</text></view></button>
+    <button class="filter-card filter-hit {{materialCondition !== 'all' ? 'active' : ''}}" data-filter="material" bindtap="openFilter" aria-label="材料条件，当前{{materialConditionLabel}}"><text class="filter-name">材料条件</text><view class="filter-value"><text class="filter-value-text {{materialCondition !== 'all' ? 'long' : ''}}">{{materialConditionLabel}}</text><text class="chevron">⌄</text></view></button>
+    <button class="filter-card filter-hit {{rating !== 'all' ? 'active' : ''}}" data-filter="rating" bindtap="openFilter" aria-label="评价，当前{{ratingLabel}}"><text class="filter-name">评价</text><view class="filter-value"><text class="filter-value-text">{{ratingLabel}}</text><text class="chevron">⌄</text></view></button>
+  </view>
+  <view class="untried-filter-row">
+    <button size="mini" class="untried-toggle {{untriedOnly ? 'active' : ''}}" bindtap="onToggleUntried" aria-role="switch" aria-checked="{{untriedOnly}}" aria-label="仅看未调过，当前{{untriedOnly ? '已开启' : '已关闭'}}">
+      <text>仅看未调过</text>
+      <view class="toggle-track"><view class="toggle-thumb"></view></view>
+    </button>
+  </view>
+
+  <view wx:if="{{recipes.length}}" class="card-list">
+    <recipe-card wx:for="{{recipes}}" wx:key="id" recipe="{{item}}" bind:select="onSelectRecipe" />
+  </view>
+  <view wx:elif="{{hasRecipes}}" class="empty no-results">
+    <text class="empty-title">没有符合条件的酒</text>
+    <text class="empty-copy">换个制作方式、材料条件或评价再看看。</text>
+    <button class="empty-button secondary" bindtap="clearFilters">清除筛选</button>
+  </view>
+  <view wx:else class="empty">
+    <text class="empty-title">还没有收藏的酒</text>
+    <text class="empty-copy">从第一款常喝的酒开始，慢慢搭建自己的酒单。</text>
+    <button class="empty-button" bindtap="onAddRecipe">录入我的第一款酒</button>
+  </view>
+
+  <view wx:if="{{sheetOpen}}" class="sheet-mask" bindtap="closeSheet">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+      <text class="sheet-title">{{sheetTitle}}</text>
+      <button wx:for="{{sheetOptions}}" wx:key="key" data-key="{{item.key}}" bindtap="onSelectSheet" class="sheet-option {{sheetValue === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{sheetValue === item.key ? '，已选择' : ''}}">
+        <text>{{item.label}}</text><text wx:if="{{sheetValue === item.key}}" class="check">✓</text>
+      </button>
+    </view>
+  </view>
 </view>

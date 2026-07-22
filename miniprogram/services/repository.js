@@ -1,19 +1,26 @@
-const { createMaterialDefaults, getMaterialIdentityKey } = require('../domain/material')
+const { createMaterialDefaults, getMaterialIdentityKey, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
 const { UNITS } = require('../domain/constants')
 const { STORAGE_KEY, migrateState } = require('./schema')
 const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, equipmentNameIdentity } = require('../domain/equipment-invariants')
+const { isValidDateString, toLocalDateValue } = require('../domain/date')
 
 const MAX_UNIQUE_ID_ATTEMPTS = 20
-const MATERIAL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur', 'bitters', 'citrus', 'syrup/staple', 'fruit', 'dairy/juice', 'soda/tonic', 'other-liquid', 'other-solid'])
+const MATERIAL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur', 'bitters', 'citrus', 'syrup/staple', 'fruit', 'dairy/juice', 'soda/tonic', 'other-liquid', 'other-solid', 'other'])
 const CATEGORY_ALIASES = { tonic: 'soda/tonic', soda: 'soda/tonic', dairy: 'dairy/juice', juice: 'dairy/juice', syrup: 'syrup/staple', staple: 'syrup/staple' }
 const ACQUISITIONS = new Set(['long-term', 'on-demand'])
 const FORMS = new Set(['liquid', 'solid'])
 const UNIT_VALUES = new Set(UNITS.map(({ value }) => value))
 
 function clone(value) { return JSON.parse(JSON.stringify(value)) }
+function recipeMaterialIngredients(value) {
+  const serving = (Array.isArray(value && value.ingredients) ? value.ingredients : []).filter((item) => item && item.kind !== 'prepared-output')
+  const advance = (Array.isArray(value && value.advancePreparations) ? value.advancePreparations : [])
+    .flatMap((preparation) => Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
+  return [...serving, ...advance]
+}
 function hasSuppliedAbv(value) { return value !== null && value !== undefined && String(value).trim() !== '' }
 function hasValidAbv(value) { const abv = Number(value); return Number.isFinite(abv) && abv > 0 && abv <= 100 }
-function isValidOptionalDate(value) { return value === null || value === undefined || value === '' || (typeof value === 'string' && Number.isFinite(Date.parse(value))) }
+function isValidOptionalDate(value) { return value === null || value === undefined || value === '' || isValidDateString(value) }
 
 function validateMaterialValue(value, existing) {
   const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
@@ -24,13 +31,16 @@ function validateMaterialValue(value, existing) {
   const category = CATEGORY_ALIASES[source.category] || source.category
   if (!String(source.name || '').trim()) throw new RangeError('Invalid material name')
   if (!MATERIAL_CATEGORIES.has(category)) throw new RangeError('Invalid material category')
-  const defaults = createMaterialDefaults(category, String(source.name).trim())
-  const normalized = { ...defaults, ...source, category, name: String(source.name).trim() }
+  const name = normalizeMaterialName(category, source.name)
+  const defaults = createMaterialDefaults(category, name)
+  const normalized = { ...defaults, ...source, category, name }
   if (!ACQUISITIONS.has(normalized.acquisition)) throw new RangeError('Invalid material acquisition')
   if (!FORMS.has(normalized.form)) throw new RangeError('Invalid material form')
   if (!UNIT_VALUES.has(normalized.defaultUnit)) throw new RangeError('Invalid material unit')
   if (normalized.alcoholic === true && hasSuppliedAbv(normalized.abv) && !hasValidAbv(normalized.abv)) throw new RangeError('Invalid material ABV')
   if (normalized.alcoholic !== true) normalized.abv = null
+  if (!isValidOptionalDate(normalized.purchasedAt)) throw new RangeError('Invalid material date')
+  normalized.purchasedAt = normalized.purchasedAt || null
   if (normalized.freshOnHand === true && normalized.trackFreshness === true) {
     if (hasSuppliedAbv(normalized.remainingAmount)) {
       const amount = Number(normalized.remainingAmount)
@@ -39,11 +49,10 @@ function validateMaterialValue(value, existing) {
     } else normalized.remainingAmount = null
     if (normalized.remainingUnit !== null && normalized.remainingUnit !== undefined && normalized.remainingUnit !== '' && !UNIT_VALUES.has(normalized.remainingUnit)) throw new RangeError('Invalid material remaining unit')
     normalized.remainingUnit = normalized.remainingUnit || null
-    if (!isValidOptionalDate(normalized.purchasedAt) || !isValidOptionalDate(normalized.expiresAt)) throw new RangeError('Invalid material date')
+    if (!isValidOptionalDate(normalized.expiresAt)) throw new RangeError('Invalid material date')
   } else {
     normalized.remainingAmount = null
     normalized.remainingUnit = null
-    normalized.purchasedAt = null
     normalized.expiresAt = null
   }
   normalized.alcoholic = normalized.alcoholic === true
@@ -51,6 +60,8 @@ function validateMaterialValue(value, existing) {
   normalized.assumedAvailable = normalized.trackFreshness ? false : normalized.assumedAvailable === true
   normalized.owned = normalized.owned === true
   normalized.freshOnHand = normalized.freshOnHand === true
+  if (Array.isArray(source.observations)) normalized.observations = normalizeMaterialObservations(source.observations)
+  else delete normalized.observations
   if ((normalized.acquisition === 'long-term' && normalized.freshOnHand) || (normalized.acquisition === 'on-demand' && normalized.owned)) throw new RangeError('Invalid material availability')
   if (normalized.acquisition === 'on-demand') normalized.assumedAvailable = false
   if (normalized.acquisition === 'long-term' && normalized.owned === false) normalized.assumedAvailable = false
@@ -122,14 +133,13 @@ function createRepository(adapter, options = {}) {
     return atomicStateUpdate((nextState) => {
       const incoming = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
       const index = incoming.id ? nextState.glassware.findIndex((item) => item.id === incoming.id) : -1
-      if (incoming.id && index === -1) throw new RangeError('杯具不存在')
+      if (incoming.id && index === -1) throw new RangeError('酒杯不存在')
       const existing = index === -1 ? null : nextState.glassware[index]
       const source = { ...(existing || {}), ...incoming }
       const name = normalizeEquipmentName(source.name)
       const capacityMl = Number(source.capacityMl)
-      if (!name) throw new RangeError('请填写杯具名称')
-      if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) throw new RangeError('杯具容量需大于 0 且不超过 5000ml')
-      if (nextState.glassware.some((item, itemIndex) => itemIndex !== index && equipmentNameIdentity(item.name) === equipmentNameIdentity(name))) throw new Error('同名杯具已存在')
+      if (!name) throw new RangeError('请填写酒杯名称')
+      if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) throw new RangeError('酒杯容量需大于 0 且不超过 5000ml')
       const saved = {
         id: existing ? existing.id : createUniqueEquipmentId(nextState.glassware),
         name,
@@ -169,7 +179,7 @@ function createRepository(adapter, options = {}) {
     const timestamp = now()
     const derivedFields = ['acquisition', 'form', 'defaultUnit', 'alcoholic', 'abv', 'owned', 'freshOnHand', 'trackFreshness', 'assumedAvailable']
     const categoryChanged = existing && defaults.category !== existing.category
-    const normalizedSource = { ...defaults, ...source, category: defaults.category }
+    const normalizedSource = { ...defaults, ...source, category: defaults.category, name: defaults.name }
     if (categoryChanged) {
       for (const field of derivedFields) {
         if (!Object.prototype.hasOwnProperty.call(incoming, field) || (!preserveExplicitDefaults && incoming[field] === existing[field])) {
@@ -191,8 +201,17 @@ function createRepository(adapter, options = {}) {
       const existing = index === -1 ? null : nextState.materials[index]
       const validated = validateMaterialValue(incoming, existing)
       const identity = getMaterialIdentityKey(validated.category, validated.name)
-      if (nextState.materials.some((entry, entryIndex) => entryIndex !== index && getMaterialIdentityKey(entry.category, entry.name) === identity)) throw new Error('Material already exists')
+      const duplicateIndex = nextState.materials.findIndex((entry, entryIndex) => entryIndex !== index && getMaterialIdentityKey(entry.category, entry.name) === identity)
+      if (duplicateIndex !== -1) {
+        const suppliedName = String(incoming.name || '').trim()
+        const reusesCanonicalMaterial = index === -1 && suppliedName && normalizeMaterialName(validated.category, suppliedName) !== suppliedName
+        if (reusesCanonicalMaterial) return { changed: false, value: clone(nextState.materials[duplicateIndex]) }
+        throw new Error('Material already exists')
+      }
       const normalizedForSave = { ...validated }
+      const startsTrackedBatch = validated.freshOnHand === true && validated.trackFreshness === true && (!existing || existing.freshOnHand !== true)
+      const explicitlyChangedPurchaseDate = Boolean(incoming.purchasedAt) && (!existing || incoming.purchasedAt !== existing.purchasedAt)
+      if (startsTrackedBatch && !explicitlyChangedPurchaseDate) normalizedForSave.purchasedAt = toLocalDateValue(now())
       if (existing && validated.category !== existing.category) {
         const categoryDefaults = createMaterialDefaults(validated.category, validated.name)
         for (const field of ['acquisition', 'form', 'defaultUnit', 'alcoholic', 'abv', 'owned', 'freshOnHand', 'trackFreshness', 'assumedAvailable']) {
@@ -246,7 +265,13 @@ function createRepository(adapter, options = {}) {
       const resolveId = (item) => item && (item.materialId || idsByDraftKey[item.draftKey] || '')
       const resolvedRecipe = {
         ...inputRecipe,
-        ingredients: (Array.isArray(inputRecipe.ingredients) ? inputRecipe.ingredients : []).map((item) => ({ materialId: resolveId(item), amount: item.amount, unit: item.unit })),
+        ingredients: (Array.isArray(inputRecipe.ingredients) ? inputRecipe.ingredients : []).map((item) => item && item.kind === 'prepared-output'
+          ? { kind: 'prepared-output', preparationId: item.preparationId, amount: item.amount, unit: item.unit }
+          : { materialId: resolveId(item), amount: item.amount, unit: item.unit }),
+        advancePreparations: (Array.isArray(inputRecipe.advancePreparations) ? inputRecipe.advancePreparations : []).map((preparation) => ({
+          ...preparation,
+          ingredients: (Array.isArray(preparation.ingredients) ? preparation.ingredients : []).map((item) => ({ materialId: resolveId(item), amount: item.amount, unit: item.unit }))
+        })),
         materialObservations: (Array.isArray(inputRecipe.materialObservations) ? inputRecipe.materialObservations : []).map((item) => ({ materialId: resolveId(item), note: item.note, ...(typeof item.createdAt === 'string' && item.createdAt ? { createdAt: item.createdAt } : {}) })).filter((item) => item.materialId)
       }
       const index = resolvedRecipe.id ? state.recipes.findIndex((item) => item.id === resolvedRecipe.id) : -1
@@ -296,6 +321,20 @@ function createRepository(adapter, options = {}) {
       return { changed: true, value: true }
     }),
     listMaterials: () => list('materials'), getMaterial: (id) => get('materials', id), saveMaterial,
+    appendMaterialObservation(id, value) {
+      const note = String(value && value.note || '').trim()
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.materials.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.materials[index]
+        if (!existing || !note) return { changed: false, value: null }
+        const savedMaterial = material({
+          ...existing,
+          observations: [...normalizeMaterialObservations(existing.observations), { note, createdAt: now() }]
+        }, existing)
+        nextState.materials[index] = savedMaterial
+        return { changed: true, value: savedMaterial }
+      })
+    },
     upsertMaterial(value) {
       const source = value && typeof value === 'object' ? { ...value } : {}
       if (!MATERIAL_CATEGORIES.has(CATEGORY_ALIASES[source.category] || source.category)) source.category = 'other-liquid'
@@ -307,13 +346,18 @@ function createRepository(adapter, options = {}) {
       if (item.acquisition !== 'long-term') throw new RangeError('Invalid material availability')
       return saveMaterial({ ...item, owned: owned === true, assumedAvailable: false })
     },
+    setMaterialPurchasedAt(id, purchasedAt) {
+      const item = get('materials', id)
+      if (!item) return null
+      return saveMaterial({ ...item, purchasedAt: purchasedAt || null })
+    },
     addToFreshShelf(id, fields = {}) {
       const item = get('materials', id)
       if (!item) return null
       if (item.acquisition !== 'on-demand') throw new RangeError('Invalid material availability')
       return saveMaterial({
         ...item, ...fields, freshOnHand: true,
-        purchasedAt: item.trackFreshness ? (fields.purchasedAt || item.purchasedAt || now()) : null,
+        purchasedAt: item.trackFreshness ? (fields.purchasedAt || toLocalDateValue(now())) : (fields.purchasedAt || item.purchasedAt || null),
         expiresAt: item.trackFreshness ? (fields.expiresAt || item.expiresAt || null) : null,
         freshUndoToken: null
       })
@@ -330,7 +374,7 @@ function createRepository(adapter, options = {}) {
         const existing = index === -1 ? null : nextState.materials[index]
         if (!existing || existing.freshOnHand !== true) return { changed: false, value: { removed: false, undoToken: '' } }
         const undoToken = createUniqueMaterialId(nextState.materials)
-        const saved = material({ ...existing, freshOnHand: false, remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null, freshUndoToken: undoToken, freshUndoSnapshot: clone(existing) }, existing)
+        const saved = material({ ...existing, freshOnHand: false, remainingAmount: null, remainingUnit: null, purchasedAt: existing.trackFreshness ? null : existing.purchasedAt, expiresAt: null, freshUndoToken: undoToken, freshUndoSnapshot: clone(existing) }, existing)
         nextState.materials[index] = saved
         return { changed: true, value: { removed: true, undoToken } }
       })
@@ -348,13 +392,13 @@ function createRepository(adapter, options = {}) {
     },
     removeFromFreshShelf(id) { return this.useUpFreshMaterial(id).removed },
     getMaterialUsageCount(id) {
-      return current().recipes.filter((recipe) => Array.isArray(recipe.ingredients) && recipe.ingredients.some((ingredient) => ingredient && ingredient.materialId === id)).length
+      return current().recipes.filter((recipe) => recipeMaterialIngredients(recipe).some((ingredient) => ingredient && ingredient.materialId === id)).length
     },
     deleteMaterial(id) {
       return atomicStateUpdate((nextState) => {
         const index = nextState.materials.findIndex((entry) => entry.id === id)
         if (index === -1) return { changed: false, value: { deleted: false, reason: 'not-found', usageCount: 0 } }
-        const usageCount = nextState.recipes.filter((recipe) => Array.isArray(recipe.ingredients) && recipe.ingredients.some((ingredient) => ingredient && ingredient.materialId === id)).length
+        const usageCount = nextState.recipes.filter((recipe) => recipeMaterialIngredients(recipe).some((ingredient) => ingredient && ingredient.materialId === id)).length
         if (usageCount) return { changed: false, value: { deleted: false, reason: 'referenced', usageCount } }
         nextState.materials.splice(index, 1)
         return { changed: true, value: { deleted: true, reason: '', usageCount: 0 } }

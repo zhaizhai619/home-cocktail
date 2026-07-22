@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 
 const { QUICK_TOOLS } = require('../miniprogram/domain/constants')
-const { calculateGlassCapacity } = require('../miniprogram/domain/equipment')
+const { calculateGlassCapacity, formatGlasswareLabel } = require('../miniprogram/domain/equipment')
 const { createRepository } = require('../miniprogram/services/repository')
 const { STORAGE_KEY, migrateState } = require('../miniprogram/services/schema')
 const { createMediaFileService } = require('../miniprogram/services/media-files')
@@ -43,17 +43,26 @@ function repositoryFixture() {
   return { repository, adapter }
 }
 
-test('glassware CRUD normalizes fields, validates capacity, and prevents duplicate names', () => {
+test('glassware CRUD normalizes fields, validates capacity, and allows duplicate names', () => {
   const { repository } = repositoryFixture()
   const created = repository.upsertGlassware({ name: '  海波  杯 ', capacityMl: '320.5', imagePath: ' /glass.png ', notes: '  冰镇 ' })
   assert.deepEqual(created, { id: 'id-1', name: '海波 杯', capacityMl: 320.5, imagePath: '/glass.png', notes: '冰镇' })
   const updated = repository.upsertGlassware({ id: created.id, name: '柯林杯', capacityMl: 350, imagePath: '', notes: '' })
   assert.equal(updated.id, created.id)
   assert.deepEqual(repository.getGlassware(created.id), updated)
-  assert.throws(() => repository.upsertGlassware({ name: '  柯林杯 ', capacityMl: 300 }), /已存在/)
+  const duplicateName = repository.upsertGlassware({ name: '  柯林杯 ', capacityMl: 300 })
+  assert.notEqual(duplicateName.id, updated.id)
+  assert.equal(duplicateName.name, '柯林杯')
+  assert.equal(repository.listGlassware().filter(({ name }) => name === '柯林杯').length, 2)
   for (const capacityMl of ['', 0, -1, 'abc', 5000.1]) {
     assert.throws(() => repository.upsertGlassware({ name: `坏杯${capacityMl}`, capacityMl }), /容量/)
   }
+})
+
+test('glassware labels use one shared name and capacity format', () => {
+  assert.equal(formatGlasswareLabel({ name: '柯林杯', capacityMl: 420 }), '柯林杯-420ml')
+  assert.equal(formatGlasswareLabel({ name: '  高球杯  ', capacityMl: '300.5' }), '高球杯-300.5ml')
+  assert.equal(formatGlasswareLabel({ name: '旧杯', capacityMl: null }), '旧杯-容量待补充')
 })
 
 test('custom tool CRUD protects built-ins and duplicate names while retaining stable IDs on rename', () => {
@@ -121,11 +130,11 @@ test('capacity calculation shares the 100ml top-up rule and distinguishes all di
     { name: '金酒', category: 'base-spirit', amount: 40, unit: 'ml', alcoholic: true, abv: 40 },
     { name: '汤力水', category: 'soda/tonic', amount: null, unit: 'top-up', alcoholic: false }
   ]
-  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 200 }), { status: 'under', liquidVolume: 140, capacityMl: 200, differenceMl: 60, message: '预计液体体积 140ml / 杯具 200ml / 约剩 60ml', ignored: [] })
+  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 200 }), { status: 'under', liquidVolume: 140, capacityMl: 200, differenceMl: 60, message: '预计液体体积 140ml / 酒杯 200ml / 约剩 60ml', ignored: [] })
   assert.equal(calculateGlassCapacity(base, { capacityMl: 140 }).status, 'exact')
-  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 100 }), { status: 'over', liquidVolume: 140, capacityMl: 100, differenceMl: 40, message: '预计液体体积 140ml / 杯具 100ml / 预计超出 40ml', ignored: [] })
+  assert.deepEqual(calculateGlassCapacity(base, { capacityMl: 100 }), { status: 'over', liquidVolume: 140, capacityMl: 100, differenceMl: 40, message: '预计液体体积 140ml / 酒杯 100ml / 预计超出 40ml', ignored: [] })
   assert.equal(calculateGlassCapacity(base, null).status, 'no-glass')
-  assert.deepEqual(calculateGlassCapacity(base, { id: 'legacy', name: '旧杯具', capacityMl: null }), { status: 'invalid-glass', liquidVolume: 140, capacityMl: null, differenceMl: null, message: '杯具容量资料缺失，请先到“我的”中补充', ignored: [] })
+  assert.deepEqual(calculateGlassCapacity(base, { id: 'legacy', name: '旧杯具', capacityMl: null }), { status: 'invalid-glass', liquidVolume: 140, capacityMl: null, differenceMl: null, message: '酒杯容量资料缺失，请先到“吧台-酒杯”中补充', ignored: [] })
   const incomplete = calculateGlassCapacity([{ name: '果汁', category: 'other-liquid', amount: '', unit: 'ml', alcoholic: false }], { capacityMl: 200 })
   assert.deepEqual(incomplete, { status: 'incomplete', liquidVolume: 0, capacityMl: 200, differenceMl: null, message: '总体积信息不完整', ignored: [] })
 })
@@ -138,7 +147,7 @@ test('capacity ignores nonalcoholic drops and reports them without losing a prec
 
   assert.deepEqual(result, {
     status: 'under', liquidVolume: 40, capacityMl: 100, differenceMl: 60,
-    message: '预计液体体积 40ml / 杯具 100ml / 约剩 60ml', ignored: ['盐水']
+    message: '预计液体体积 40ml / 酒杯 100ml / 约剩 60ml', ignored: ['盐水']
   })
 })
 
@@ -170,10 +179,10 @@ test('recipe editor and detail hydrate latest equipment, retain orphans, and use
     { name: '苏打水', category: 'soda/tonic', amount: null, unit: 'top-up', alcoholic: false }
   ] }
   const hydrated = hydrateEquipmentSelections(form, [{ id: 'g1', name: '新名字', capacityMl: 160 }], [{ id: 'quick-tool-1', name: '摇酒壶', builtIn: true }])
-  assert.equal(hydrated.glasswareLabel, '新名字')
+  assert.equal(hydrated.glasswareLabel, '新名字-160ml')
   assert.equal(hydrated.tools.find(({ id }) => id === 'gone-tool').orphaned, true)
   assert.equal(hydrated.tools.find(({ id }) => id === 'gone-tool').selected, true)
-  assert.equal(hydrated.capacity.message, '预计液体体积 150ml / 杯具 160ml / 约剩 10ml')
+  assert.equal(hydrated.capacity.message, '预计液体体积 150ml / 酒杯 160ml / 约剩 10ml')
   assert.equal(getFormPreview(form).liquidVolume, 150)
 
   const detail = buildRecipeDetail({ id: 'r1', name: '酒', glasswareId: 'g1', toolIds: ['quick-tool-1', 'gone-tool'], ingredients: [{ materialId: 'gin', amount: 50, unit: 'ml' }] }, [{ id: 'gin', name: '金酒', form: 'liquid', alcoholic: true, abv: 40, owned: true, acquisition: 'long-term' }], [{ id: 'g1', name: '新名字', capacityMl: 40, imagePath: '/g.png', notes: '冷藏' }], [{ id: 'quick-tool-1', name: '摇酒壶', builtIn: true }])
@@ -191,16 +200,16 @@ test('recipe editor and detail hydrate latest equipment, retain orphans, and use
 
 test('settings and recipe pages expose the expected route events and non-color status text', () => {
   const settings = fs.readFileSync('miniprogram/pages/settings/index.wxml', 'utf8')
+  const bar = fs.readFileSync('miniprogram/pages/materials/index.wxml', 'utf8')
   const editor = fs.readFileSync('miniprogram/pages/recipe-edit/index.wxml', 'utf8')
   const detail = fs.readFileSync('miniprogram/pages/recipe-detail/index.wxml', 'utf8')
-  for (const handler of ['onAddGlassware', 'onEditGlassware', 'onRequestDeleteGlassware', 'onAddTool', 'onEditTool', 'onRequestDeleteTool']) assert.match(settings, new RegExp(`bindtap="${handler}"`))
-  assert.match(settings, /固定用具/)
-  assert.match(settings, /自定义用具/)
-  assert.match(editor, /preview\.capacity\.message/)
-  assert.match(editor, /资料缺失/)
+  for (const handler of ['onAddGlassware', 'onEditGlassware', 'onRequestDeleteGlassware']) assert.match(bar, new RegExp(`(?:bindtap|catchtap)="${handler}"`))
+  assert.doesNotMatch(settings, /固定用具|自定义用具/)
+  assert.doesNotMatch(editor, /preview\.capacity\.message/)
+  assert.doesNotMatch(editor, /资料缺失/)
   assert.match(detail, /detail\.capacity\.message/)
-  assert.match(settings, /disabled="{{savingGlass}}"/)
-  assert.match(settings, /loading="{{savingGlass}}"/)
+  assert.match(bar, /disabled="{{savingGlass}}"/)
+  assert.match(bar, /loading="{{savingGlass}}"/)
 })
 
 test('editor operation guard prevents double saves and unlocks after success or failure', async () => {

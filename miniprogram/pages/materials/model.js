@@ -1,5 +1,32 @@
-const { getMaterialVisualState } = require('../../domain/material')
+const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, getMaterialIdentityKey, getMaterialVisualState, materialNameMatchesQuery } = require('../../domain/material')
+const { UNITS } = require('../../domain/constants')
 const { getMaterialUsageStats } = require('../../domain/relations')
+const { formatGlasswareLabel } = require('../../domain/equipment')
+const { normalizeEquipmentName } = require('../../domain/equipment-invariants')
+const { isValidDateString } = require('../../domain/date')
+
+const MATERIAL_LIBRARY_TABS = Object.freeze([
+  { key: 'all', label: '全部' },
+  ...MATERIAL_CATEGORY_GROUPS.map(({ key, label }) => ({ key, label }))
+])
+
+const MATERIAL_LIBRARY_TEMPLATES = Object.freeze([
+  { name: '金酒', category: 'base-spirit' },
+  { name: '白朗姆', category: 'base-spirit' },
+  { name: '伏特加', category: 'base-spirit' },
+  { name: '椰子利口酒', category: 'liqueur' },
+  { name: '普通糖浆', category: 'syrup/staple' },
+  { name: '接骨木糖浆', category: 'syrup/staple' }
+])
+
+function categoryGroup(category) {
+  return getMaterialCategoryGroup(category).key
+}
+
+function categoryLabel(category) {
+  const key = categoryGroup(category)
+  return (MATERIAL_LIBRARY_TABS.find((item) => item.key === key) || {}).label || '其他'
+}
 
 function asLookup(items) {
   return (Array.isArray(items) ? items : []).reduce((lookup, item) => {
@@ -43,6 +70,8 @@ function getLocalDateOrdinal(value, offsetMinutes) {
 }
 
 function formatExpiry(value, nowValue, offsetMinutes) {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'string' && !isValidDateString(value)) return ''
   const expiryOrdinal = getLocalDateOrdinal(value, offsetMinutes)
   const nowOrdinal = getLocalDateOrdinal(nowValue || new Date(), offsetMinutes)
   if (!Number.isFinite(expiryOrdinal) || !Number.isFinite(nowOrdinal)) return ''
@@ -56,9 +85,13 @@ function buildCard(material, recipes, materialsById, now) {
   const stats = getMaterialUsageStats(material.id, recipes, materialsById)
   const visualState = getMaterialVisualState(material)
   const inventoryLabel = formatInventory(material)
-  const expiryLabel = material.trackFreshness === true ? formatExpiry(material.expiresAt, now, undefined) : ''
+  const expiryLabel = material.freshOnHand === true && material.trackFreshness === true ? formatExpiry(material.expiresAt, now, undefined) : ''
   return {
     ...material,
+    renderKey: `material:${material.id}`,
+    categoryFilter: categoryGroup(material.category),
+    categoryLabel: categoryLabel(material.category),
+    isTemplate: false,
     visualState,
     usageCount: stats.usageCount,
     immediateUnlockCount: stats.immediateUnlockCount,
@@ -69,6 +102,37 @@ function buildCard(material, recipes, materialsById, now) {
     canAddFresh: material.acquisition === 'on-demand' && material.freshOnHand !== true,
     isFreshShelf: material.acquisition === 'on-demand' && material.freshOnHand === true
   }
+}
+
+function mergeCatalogTemplates(cards) {
+  const byIdentity = new Map(cards.map((card) => [getMaterialIdentityKey(card.category, card.name), card]))
+  const matchedIds = new Set()
+  const templates = MATERIAL_LIBRARY_TEMPLATES.map((template, catalogOrder) => {
+    const identity = getMaterialIdentityKey(template.category, template.name)
+    const existing = byIdentity.get(identity)
+    if (existing) {
+      matchedIds.add(existing.id)
+      return { ...existing, catalogOrder }
+    }
+    return {
+      ...template,
+      id: '',
+      renderKey: `template:${identity}`,
+      categoryFilter: categoryGroup(template.category),
+      categoryLabel: categoryLabel(template.category),
+      isTemplate: true,
+      visualState: 'missing-long-term',
+      isFreshShelf: false,
+      inventoryLabel: '',
+      expiryLabel: '',
+      inventoryMeta: '',
+      usageCount: 0,
+      immediateUnlockCount: 0,
+      catalogOrder
+    }
+  })
+  const extras = cards.filter((card) => !matchedIds.has(card.id)).map((card, index) => ({ ...card, catalogOrder: MATERIAL_LIBRARY_TEMPLATES.length + index }))
+  return [...templates, ...extras]
 }
 
 function matchesFilter(card, filter) {
@@ -86,13 +150,78 @@ function buildMaterialLibrary(materials = [], recipes = [], options = {}) {
   const acquisition = options.acquisition || 'all'
   const cards = safeMaterials.map((material) => buildCard(material, safeRecipes, materialsById, options.now))
   const freshShelf = cards.filter((card) => card.isFreshShelf)
-  const filtered = cards.filter((card) => {
-    if (query && !String(card.name || '').toLocaleLowerCase().includes(query)) return false
+  const libraryCards = options.includeCatalog === true ? mergeCatalogTemplates(cards) : cards
+  const categoryFilter = MATERIAL_LIBRARY_TABS.some((item) => item.key === options.categoryFilter) ? options.categoryFilter : 'all'
+  const filtered = libraryCards.filter((card) => {
+    if (query && !materialNameMatchesQuery(card.category, card.name, query)) return false
+    if (categoryFilter !== 'all' && card.categoryFilter !== categoryFilter) return false
     if (acquisition !== 'all' && card.acquisition !== acquisition) return false
     return matchesFilter(card, options.filter || 'all')
   })
   const byRecent = (first, second) => String(second.updatedAt || '').localeCompare(String(first.updatedAt || '')) || String(first.name || '').localeCompare(String(second.name || ''), 'zh-CN')
-  return { freshShelf: freshShelf.sort(byRecent), materials: filtered.sort(byRecent) }
+  const byCatalog = (first, second) => Number(first.catalogOrder || 0) - Number(second.catalogOrder || 0) || byRecent(first, second)
+  const priorOrder = options.includeCatalog === true ? byCatalog : byRecent
+  const categoryOrder = new Map(MATERIAL_CATEGORY_GROUPS.map(({ key }, index) => [key, index]))
+  const byCategory = (first, second) => Number(categoryOrder.get(first.categoryFilter) || 0) - Number(categoryOrder.get(second.categoryFilter) || 0)
+  const byAvailability = (first, second) => Number(first.visualState !== 'owned') - Number(second.visualState !== 'owned')
+  const byUsage = (first, second) => Number(second.usageCount || 0) - Number(first.usageCount || 0)
+  const byLibraryPriority = (first, second) => (
+    byAvailability(first, second) ||
+    (categoryFilter === 'all' ? byCategory(first, second) : 0) ||
+    byUsage(first, second) ||
+    priorOrder(first, second)
+  )
+  return { freshShelf: freshShelf.sort(byRecent), materials: filtered.sort(byLibraryPriority) }
+}
+
+function nextGlasswareName(glassware = []) {
+  const names = new Set((Array.isArray(glassware) ? glassware : []).map((item) => normalizeEquipmentName(item && item.name)).filter(Boolean))
+  let sequence = 1
+  while (names.has(`酒杯${sequence}`)) sequence += 1
+  return `酒杯${sequence}`
+}
+
+function prepareGlasswareForSave(form = {}, glassware = []) {
+  const source = form && typeof form === 'object' ? form : {}
+  return { ...source, name: normalizeEquipmentName(source.name) || nextGlasswareName(glassware) }
+}
+
+function buildGlasswareCards(glassware = []) {
+  return (Array.isArray(glassware) ? glassware : []).filter((item) => item && item.id).map((item) => ({
+    ...item,
+    displayLabel: formatGlasswareLabel(item)
+  }))
+}
+
+function ensureLibraryMaterial(repository, card = {}) {
+  if (!repository) return null
+  if (card.id) {
+    const persisted = repository.getMaterial(card.id)
+    if (persisted) return persisted
+  }
+  if (!card.name || !card.category) return null
+  const identity = getMaterialIdentityKey(card.category, card.name)
+  const existing = repository.listMaterials().find((item) => getMaterialIdentityKey(item.category, item.name) === identity)
+  return existing || repository.saveMaterial({ name: card.name, category: card.category, owned: false, assumedAvailable: false, freshOnHand: false })
+}
+
+function buildFreshFormState(material = {}) {
+  const requestedUnit = material.remainingUnit || material.defaultUnit || 'ml'
+  const matchedIndex = UNITS.findIndex(({ value }) => value === requestedUnit)
+  const freshUnitIndex = matchedIndex < 0 ? 0 : matchedIndex
+  return {
+    showFreshForm: true,
+    freshError: '',
+    freshUnitIndex,
+    freshDraft: {
+      materialId: String(material.id || ''),
+      name: String(material.name || ''),
+      trackFreshness: material.trackFreshness === true,
+      remainingAmount: material.remainingAmount === null || material.remainingAmount === undefined ? '' : material.remainingAmount,
+      remainingUnit: UNITS[freshUnitIndex].value,
+      expiresAt: material.expiresAt ? String(material.expiresAt).slice(0, 10) : ''
+    }
+  }
 }
 
 function orchestrateFreshUseUp({ repository, materialId, notify = () => {} }) {
@@ -120,7 +249,13 @@ function orchestrateFreshUndo({ repository, undo, notify = () => {} }) {
 }
 
 module.exports = {
+  MATERIAL_LIBRARY_TABS,
+  MATERIAL_LIBRARY_TEMPLATES,
   buildMaterialLibrary,
+  buildGlasswareCards,
+  buildFreshFormState,
+  ensureLibraryMaterial,
+  prepareGlasswareForSave,
   formatInventory,
   formatExpiry,
   getLocalDateOrdinal,

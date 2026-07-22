@@ -1,12 +1,13 @@
 const { createMaterialDefaults } = require('../../domain/material')
 const { UNITS } = require('../../domain/constants')
+const { isValidDateString } = require('../../domain/date')
 
-const CATEGORIES = ['base-spirit', 'other-base-spirit', 'liqueur', 'bitters', 'citrus', 'syrup/staple', 'fruit', 'dairy/juice', 'soda/tonic', 'other-liquid', 'other-solid']
+const CATEGORIES = ['base-spirit', 'other-base-spirit', 'liqueur', 'bitters', 'citrus', 'syrup/staple', 'fruit', 'dairy/juice', 'soda/tonic', 'other-liquid', 'other-solid', 'other']
 const ACQUISITIONS = ['long-term', 'on-demand']
 const FORMS = ['liquid', 'solid']
 const UNIT_VALUES = UNITS.map(({ value }) => value)
 
-function validOptionalDate(value) { return !value || (typeof value === 'string' && Number.isFinite(Date.parse(value))) }
+function validOptionalDate(value) { return !value || isValidDateString(value) }
 
 function validateMaterialForm(form = {}) {
   const errors = {}
@@ -24,9 +25,10 @@ function validateMaterialForm(form = {}) {
   const trackFreshness = form.trackFreshness === true
   const hasAmount = form.remainingAmount !== null && form.remainingAmount !== undefined && String(form.remainingAmount).trim() !== ''
   const remainingAmount = Number(form.remainingAmount)
+  if (!validOptionalDate(form.purchasedAt)) errors.date = '请填写有效日期'
   if (freshOnHand && trackFreshness && hasAmount && (!Number.isFinite(remainingAmount) || remainingAmount < 0)) errors.remainingAmount = '余量不能小于 0'
   if (freshOnHand && trackFreshness && form.remainingUnit && !UNIT_VALUES.includes(form.remainingUnit)) errors.remainingUnit = '请选择有效余量单位'
-  if (freshOnHand && trackFreshness && (!validOptionalDate(form.purchasedAt) || !validOptionalDate(form.expiresAt))) errors.date = '请填写有效日期'
+  if (freshOnHand && trackFreshness && !validOptionalDate(form.expiresAt)) errors.date = '请填写有效日期'
   if (Object.keys(errors).length) return { valid: false, value: null, errors }
   return {
     valid: true,
@@ -44,7 +46,7 @@ function validateMaterialForm(form = {}) {
       freshOnHand,
       remainingAmount: freshOnHand && trackFreshness && hasAmount ? remainingAmount : null,
       remainingUnit: freshOnHand && trackFreshness ? (form.remainingUnit || null) : null,
-      purchasedAt: freshOnHand && trackFreshness ? (form.purchasedAt || null) : null,
+      purchasedAt: form.purchasedAt || null,
       expiresAt: freshOnHand && trackFreshness ? (form.expiresAt || null) : null
     },
     errors: {}
@@ -54,6 +56,11 @@ function validateMaterialForm(form = {}) {
 function createFormDefaults(category = 'other-liquid', name = '') {
   const defaults = createMaterialDefaults(CATEGORIES.includes(category) ? category : 'other-liquid', name)
   return { ...defaults, remainingAmount: '', remainingUnit: defaults.defaultUnit, purchasedAt: '', expiresAt: '' }
+}
+
+function materialSaveNavigation(mode, materialId) {
+  if (mode === 'edit') return { action: 'back' }
+  return { action: 'redirect', url: `/pages/material-detail/index?id=${encodeURIComponent(materialId)}` }
 }
 
 function orchestrateMaterialSave({ repository, form, materialId = '', notify = () => {}, navigate = () => {} } = {}) {
@@ -77,4 +84,4 @@ function orchestrateMaterialSave({ repository, form, materialId = '', notify = (
   }
 }
 
-module.exports = { CATEGORIES, ACQUISITIONS, FORMS, createFormDefaults, validateMaterialForm, orchestrateMaterialSave }
+module.exports = { CATEGORIES, ACQUISITIONS, FORMS, createFormDefaults, validateMaterialForm, materialSaveNavigation, orchestrateMaterialSave }

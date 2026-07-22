@@ -4,8 +4,12 @@ const PREP_TYPES = Object.freeze([
   '冷泡/浸泡',
   '奶洗',
   '低温慢煮',
-  '其他预制'
+  '其他预调'
 ])
+
+function normalizePreparationType(type) {
+  return type === '其他预制' ? '其他预调' : type
+}
 
 const RATINGS = Object.freeze(['夯', '顶尖', '人上人', 'NPC', '拉完了'])
 
@@ -47,5 +51,6 @@ module.exports = {
   RATINGS,
   QUICK_BASE_SPIRITS,
   QUICK_TOOLS,
-  UNITS
+  UNITS,
+  normalizePreparationType
 }

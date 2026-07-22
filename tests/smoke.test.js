@@ -10,7 +10,7 @@ test('app config starts with recipes and declares the three tabs', () => {
   assert.equal(appConfig.pages[0], 'pages/recipes/index')
   assert.deepEqual(
     appConfig.tabBar.list.map((tab) => tab.text),
-    ['酒单', '材料', '我的']
+    ['酒单', '吧台', '我的']
   )
 })
 
@@ -45,11 +45,18 @@ test('fast recipe editor route and focused form components are registered', () =
   assert.match(editorConfig, /"ingredient-row"/)
   assert.match(editorConfig, /"prep-editor"/)
   const ingredientRow = fs.readFileSync(path.join(root, 'components', 'ingredient-row', 'index.wxml'), 'utf8')
-  assert.match(ingredientRow, /data-field="name"/)
+  assert.match(ingredientRow, /class="name readonly-name"[^>]*bindtap="onNameTap"/)
+  assert.match(ingredientRow, /data-field="amount"/)
+  assert.match(ingredientRow, /class="unit"/)
+  assert.match(ingredientRow, /class="remove"/)
   assert.match(fs.readFileSync(path.join(root, 'components', 'ingredient-row', 'index.js'), 'utf8'), /this\.data\.units\[index\]\.value/)
-  assert.match(fs.readFileSync(path.join(root, 'components', 'prep-editor', 'index.js'), 'utf8'), /preparation\.units\[pickerIndex\]\.value/)
-  assert.match(ingredientRow, /category/)
-  assert.match(ingredientRow, /switch/)
-  assert.match(ingredientRow, /item\.isExisting/)
-  assert.match(ingredientRow, /酒精度缺失，请补全/)
+  const prepEditor = fs.readFileSync(path.join(root, 'components', 'prep-editor', 'index.wxml'), 'utf8')
+  assert.match(prepEditor, /data-field="durationValue"/)
+  assert.match(prepEditor, /<picker[^>]*bindchange="unit"/)
+  assert.doesNotMatch(prepEditor, /amountEnd/)
+  assert.doesNotMatch(ingredientRow, /category/)
+  assert.doesNotMatch(ingredientRow, /switch/)
+  assert.doesNotMatch(ingredientRow, /showAbvInput/)
+  assert.doesNotMatch(ingredientRow, /item\.isExisting/)
+  assert.doesNotMatch(ingredientRow, /酒精度缺失，请补全/)
 })

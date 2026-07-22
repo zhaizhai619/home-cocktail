@@ -3,6 +3,8 @@ const test = require('node:test')
 
 const {
   filterRecipes,
+  formatPreparationDurationText,
+  getPreparationDurationParts,
   getMaterialReadiness,
   getPrimaryPreparation,
   normalizePrepSelections,
@@ -81,7 +83,7 @@ test('discards malformed and unknown preparation selections', () => {
   ]), [{ type: '即调' }])
 })
 
-test('accepts canonical preparation units and compatible hour/day aliases', () => {
+test('accepts canonical preparation units and upgrades the legacy other-preparation label', () => {
   const preparations = [
     { type: '冷冻', amount: 2, unit: 'hours' },
     { type: '冷泡/浸泡', amount: 3, unit: 'hour' },
@@ -90,11 +92,59 @@ test('accepts canonical preparation units and compatible hour/day aliases', () =
     { type: '其他预制', amount: 4, unit: '小时' }
   ]
 
-  assert.deepEqual(normalizePrepSelections(preparations), preparations)
+  assert.deepEqual(normalizePrepSelections(preparations), [
+    ...preparations.slice(0, -1),
+    { type: '其他预调', amount: 4, unit: '小时' }
+  ])
   assert.equal(
     getPrimaryPreparation([{ type: '奶洗', amount: 2, unit: '天' }]).leadHours,
     48
   )
+})
+
+test('free-text preparation duration accepts arbitrary copy and parses numeric ranges for sorting', () => {
+  const range = { type: '冷泡/浸泡', durationText: '3–7天' }
+  assert.deepEqual(normalizePrepSelections([range]), [range])
+  assert.equal(getPrimaryPreparation([range]).leadHours, 168)
+
+  const overnight = { type: '奶洗', durationText: '隔夜' }
+  assert.deepEqual(normalizePrepSelections([overnight]), [overnight])
+  assert.equal(getPrimaryPreparation([overnight]).leadHours, Number.POSITIVE_INFINITY)
+})
+
+test('preparation duration keeps one value field and a separate hour or day unit', () => {
+  assert.equal(typeof getPreparationDurationParts, 'function')
+  assert.equal(typeof formatPreparationDurationText, 'function')
+  assert.deepEqual(getPreparationDurationParts({ type: '冷泡/浸泡', durationText: '3–7天' }), { value: '3–7', unit: 'day' })
+  assert.deepEqual(getPreparationDurationParts({ type: '冷冻', durationText: '12小时' }), { value: '12', unit: 'hour' })
+  assert.deepEqual(getPreparationDurationParts({ type: '奶洗', durationText: '' }), { value: '', unit: 'hour' })
+  assert.equal(formatPreparationDurationText(' 3–7 ', 'day'), '3–7天')
+  assert.equal(formatPreparationDurationText('12', 'hour'), '12小时')
+  assert.equal(formatPreparationDurationText('', 'day'), '')
+})
+
+test('preparation sorting puts unparseable free-text durations after calculable durations', () => {
+  const recipes = [
+    recipe({ id: 'unknown', preparations: [{ type: '奶洗', durationText: '隔夜' }] }),
+    recipe({ id: 'week', preparations: [{ type: '冷泡/浸泡', durationText: '一周左右' }] }),
+    recipe({ id: 'hours', preparations: [{ type: '冷冻', durationText: '12小时' }] })
+  ]
+
+  assert.deepEqual(sortRecipes(recipes, 'prep-time').map(({ id }) => id), ['hours', 'unknown', 'week'])
+})
+
+test('readiness includes real materials used only by an embedded preparation', () => {
+  const value = recipe({
+    ingredients: [
+      { kind: 'prepared-output', preparationId: 'prep-1', amount: 40, unit: 'ml' },
+      { materialId: 'soda', amount: null, unit: 'top-up' }
+    ],
+    advancePreparations: [{ id: 'prep-1', outputName: '菠萝朗姆', ingredients: [{ materialId: 'pineapple', amount: 200, unit: 'g' }] }]
+  })
+  assert.equal(getMaterialReadiness(value, {
+    soda: material({ id: 'soda' }),
+    pineapple: material({ id: 'pineapple', acquisition: 'on-demand', freshOnHand: false })
+  }), 'fresh-only')
 })
 
 test('returns null when there is no primary preparation', () => {
@@ -334,6 +384,36 @@ test('combines instant preparation and fresh-only material filters', () => {
   )
 })
 
+test('filters only untried recipes and treats missing legacy tried state as untried', () => {
+  const recipes = [
+    recipe({ id: 'tried', tried: true }),
+    recipe({ id: 'untried', tried: false }),
+    recipe({ id: 'legacy-untried' })
+  ]
+
+  assert.deepEqual(
+    filterRecipes(recipes, { prepType: 'all', materialCondition: 'all', untriedOnly: true }, {}),
+    [recipes[1], recipes[2]]
+  )
+})
+
+test('untried recipes never match a residual rating filter', () => {
+  const recipes = [
+    recipe({ id: 'tried', tried: true, rating: '顶尖' }),
+    recipe({ id: 'untried-stale', tried: false, rating: '顶尖' }),
+    recipe({ id: 'legacy-stale', rating: '顶尖' })
+  ]
+
+  assert.deepEqual(
+    filterRecipes(recipes, { prepType: 'all', materialCondition: 'all', rating: '顶尖' }, {}),
+    [recipes[0]]
+  )
+  assert.deepEqual(
+    filterRecipes(recipes, { prepType: 'all', materialCondition: 'all', rating: '顶尖', untriedOnly: true }, {}),
+    []
+  )
+})
+
 test('sorts preparation time ascending then creation time descending without mutation', () => {
   const recipes = [
     recipe({
@@ -383,18 +463,30 @@ test('sorts recently created recipes descending', () => {
 
 test('sorts ratings by fixed rank with unrated last and recent ties first', () => {
   const recipes = [
-    recipe({ id: 'unrated-new', createdAt: '2026-07-30T00:00:00.000Z' }),
-    recipe({ id: 'npc', rating: 'NPC' }),
-    recipe({ id: 'top-old', rating: '夯', createdAt: '2026-07-01T00:00:00.000Z' }),
-    recipe({ id: 'worst', rating: '拉完了' }),
-    recipe({ id: 'top-new', rating: '夯', createdAt: '2026-07-10T00:00:00.000Z' }),
-    recipe({ id: 'excellent', rating: '顶尖' }),
-    recipe({ id: 'above', rating: '人上人' })
+    recipe({ id: 'unrated-new', tried: true, createdAt: '2026-07-30T00:00:00.000Z' }),
+    recipe({ id: 'npc', tried: true, rating: 'NPC' }),
+    recipe({ id: 'top-old', tried: true, rating: '夯', createdAt: '2026-07-01T00:00:00.000Z' }),
+    recipe({ id: 'worst', tried: true, rating: '拉完了' }),
+    recipe({ id: 'top-new', tried: true, rating: '夯', createdAt: '2026-07-10T00:00:00.000Z' }),
+    recipe({ id: 'excellent', tried: true, rating: '顶尖' }),
+    recipe({ id: 'above', tried: true, rating: '人上人' })
   ]
 
   assert.deepEqual(
     sortRecipes(recipes, 'rating').map(({ id }) => id),
     ['top-new', 'top-old', 'excellent', 'above', 'npc', 'worst', 'unrated-new']
+  )
+})
+
+test('rating sort ignores residual ratings on untried recipes', () => {
+  const recipes = [
+    recipe({ id: 'stale-top-old', tried: false, rating: '夯', createdAt: '2026-07-01T00:00:00.000Z' }),
+    recipe({ id: 'stale-worst-new', tried: false, rating: '拉完了', createdAt: '2026-07-20T00:00:00.000Z' })
+  ]
+
+  assert.deepEqual(
+    sortRecipes(recipes, 'rating').map(({ id }) => id),
+    ['stale-worst-new', 'stale-top-old']
   )
 })
 

@@ -1,4 +1,4 @@
-const { PREP_TYPES, RATINGS } = require('./constants')
+const { PREP_TYPES, RATINGS, normalizePreparationType } = require('./constants')
 const { getMaterialVisualState } = require('./material')
 
 const INSTANT_PREPARATION = '即调'
@@ -9,6 +9,40 @@ const PREPARATION_UNITS = new Set([
   '小时',
   ...DAY_UNITS
 ])
+
+function getPreparationDurationText(preparation) {
+  if (!preparation || typeof preparation !== 'object' || preparation.type === INSTANT_PREPARATION) return ''
+  if (typeof preparation.durationText === 'string') return preparation.durationText.trim()
+  const amount = Number(preparation.amount)
+  if (!Number.isFinite(amount) || amount <= 0 || !PREPARATION_UNITS.has(preparation.unit)) return ''
+  const amountEnd = Number(preparation.amountEnd)
+  const range = preparation.amountEnd !== undefined && preparation.amountEnd !== null && preparation.amountEnd !== '' && Number.isFinite(amountEnd) && amountEnd >= amount
+    ? `${amount}–${amountEnd}`
+    : String(amount)
+  return `${range}${DAY_UNITS.has(preparation.unit) ? '天' : '小时'}`
+}
+
+function getPreparationDurationParts(preparation) {
+  const durationText = getPreparationDurationText(preparation)
+  const match = durationText.match(/^(.*?)(小时|天)$/)
+  if (!match) return { value: durationText, unit: 'hour' }
+  return { value: match[1].trim(), unit: match[2] === '天' ? 'day' : 'hour' }
+}
+
+function formatPreparationDurationText(value, unit) {
+  const normalized = String(value || '').trim().replace(/(?:小时|天)$/, '').trim()
+  if (!normalized) return ''
+  return `${normalized}${unit === 'day' ? '天' : '小时'}`
+}
+
+function parsePreparationDurationHours(durationText) {
+  const normalized = String(durationText || '').trim().replace(/^提前\s*/, '').replace(/\s+/g, '')
+  const match = normalized.match(/^(\d+(?:\.\d+)?)(?:[-–—~～至到](\d+(?:\.\d+)?))?(小时|时|h|hr|hrs|hour|hours|天|日|d|day|days)$/i)
+  if (!match) return null
+  const amount = Number(match[2] || match[1])
+  if (!Number.isFinite(amount) || amount < 0) return null
+  return /^(天|日|d|day|days)$/i.test(match[3]) ? amount * 24 : amount
+}
 
 function isValidPreparation(preparation) {
   if (
@@ -24,8 +58,11 @@ function isValidPreparation(preparation) {
     return true
   }
 
+  if (typeof preparation.durationText === 'string') return Boolean(preparation.durationText.trim())
+
   return Number.isFinite(preparation.amount) &&
     preparation.amount > 0 &&
+    (preparation.amountEnd === undefined || (Number.isFinite(preparation.amountEnd) && preparation.amountEnd >= preparation.amount)) &&
     PREPARATION_UNITS.has(preparation.unit)
 }
 
@@ -38,12 +75,16 @@ function normalizePrepSelections(preparations) {
   const seenTypes = new Set()
 
   for (const preparation of preparations) {
-    if (!isValidPreparation(preparation) || seenTypes.has(preparation.type)) {
+    const normalizedPreparation = preparation && typeof preparation === 'object' && !Array.isArray(preparation)
+      ? { ...preparation, type: normalizePreparationType(preparation.type) }
+      : preparation
+    if (normalizedPreparation && typeof normalizedPreparation.durationText === 'string') normalizedPreparation.durationText = normalizedPreparation.durationText.trim()
+    if (!isValidPreparation(normalizedPreparation) || seenTypes.has(normalizedPreparation.type)) {
       continue
     }
 
-    seenTypes.add(preparation.type)
-    uniquePreparations.push({ ...preparation })
+    seenTypes.add(normalizedPreparation.type)
+    uniquePreparations.push(normalizedPreparation)
   }
 
   const hasAdvancePreparation = uniquePreparations.some(
@@ -60,9 +101,8 @@ function getLeadHours(preparation) {
     return 0
   }
 
-  const amount = Number(preparation.amount)
-  const safeAmount = Number.isFinite(amount) ? amount : 0
-  return DAY_UNITS.has(preparation.unit) ? safeAmount * 24 : safeAmount
+  const parsed = parsePreparationDurationHours(getPreparationDurationText(preparation))
+  return parsed === null ? Number.POSITIVE_INFINITY : parsed
 }
 
 function getPrimaryPreparation(preparations) {
@@ -95,9 +135,11 @@ function getPrimaryPreparation(preparations) {
 function getMaterialReadiness(recipe, materialsById) {
   let needsFreshMaterial = false
   const materialLookup = materialsById || {}
-  const ingredients = Array.isArray(recipe && recipe.ingredients)
-    ? recipe.ingredients
-    : []
+  const servingIngredients = (Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients : [])
+    .filter((ingredient) => !(ingredient && ingredient.kind === 'prepared-output'))
+  const advanceIngredients = (Array.isArray(recipe && recipe.advancePreparations) ? recipe.advancePreparations : [])
+    .flatMap((preparation) => Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
+  const ingredients = [...servingIngredients, ...advanceIngredients]
 
   for (const ingredient of ingredients) {
     const material = materialLookup[ingredient && ingredient.materialId]
@@ -123,6 +165,8 @@ function getMaterialReadiness(recipe, materialsById) {
 function filterRecipes(recipes, options = {}, materialsById = {}) {
   const prepType = options.prepType || 'all'
   const materialCondition = options.materialCondition || 'all'
+  const rating = options.rating || 'all'
+  const untriedOnly = options.untriedOnly === true
 
   return (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
     const preparations = normalizePrepSelections(recipe.preparations)
@@ -131,8 +175,12 @@ function filterRecipes(recipes, options = {}, materialsById = {}) {
     )
     const matchesMaterials = materialCondition === 'all' ||
       getMaterialReadiness(recipe, materialsById) === materialCondition
+    const matchesRating = rating === 'all' || (
+      recipe.tried === true && recipe.rating === rating
+    )
+    const matchesTriedState = !untriedOnly || recipe.tried !== true
 
-    return matchesPreparation && matchesMaterials
+    return matchesPreparation && matchesMaterials && matchesRating && matchesTriedState
   })
 }
 
@@ -161,8 +209,12 @@ function compareRecipes(first, second, sortKey) {
   }
 
   if (sortKey === 'rating') {
-    const firstRating = RATINGS.indexOf(first.rating)
-    const secondRating = RATINGS.indexOf(second.rating)
+    const firstRating = first && first.tried === true
+      ? RATINGS.indexOf(first.rating)
+      : -1
+    const secondRating = second && second.tried === true
+      ? RATINGS.indexOf(second.rating)
+      : -1
     const firstRank = firstRating === -1 ? RATINGS.length : firstRating
     const secondRank = secondRating === -1 ? RATINGS.length : secondRating
 
@@ -195,6 +247,10 @@ function sortRecipes(recipes, sortKey) {
 
 module.exports = {
   normalizePrepSelections,
+  getPreparationDurationText,
+  getPreparationDurationParts,
+  formatPreparationDurationText,
+  parsePreparationDurationHours,
   getPrimaryPreparation,
   getMaterialReadiness,
   filterRecipes,

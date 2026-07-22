@@ -1,11 +1,92 @@
-<scroll-view class="page" scroll-y="true">
-  <view class="section"><text class="title">基本信息</text><input data-field="name" value="{{form.name}}" placeholder="这杯酒叫什么？" bindinput="onBasicInput" /><text wx:if="{{errors.name}}" class="error">{{errors.name}}</text><input data-field="source" value="{{form.source}}" placeholder="来源（可选）" bindinput="onBasicInput" /><image wx:if="{{form.imagePath}}" class="recipe-image-preview" src="{{form.imagePath}}" mode="aspectFill" /><button disabled="{{savingImage}}" loading="{{savingImage}}" bindtap="onChooseImage">{{savingImage ? '图片处理中…' : '选择图片（可选）'}}</button><text wx:if="{{imageError}}" class="error">{{imageError}}</text><label class="tried-row"><switch checked="{{form.tried}}" bindchange="onTried" /> <text>我喝过</text></label></view>
-  <view class="section"><text class="title">材料</text><view class="quick-bases"><button wx:for="{{quickBases}}" wx:key="id" data-name="{{item.name}}" bindtap="onQuickBase">{{item.name}}</button></view><ingredient-row wx:for="{{formIngredients}}" wx:key="index" item="{{item}}" index="{{index}}" units="{{units}}" categories="{{categories}}" bind:change="onIngredientChange" bind:categorychange="onCategoryChange" bind:alcoholicchange="onAlcoholicChange" bind:remove="onRemoveIngredient" bind:pickname="onPickName" /><view class="quick-bases"><button wx:for="{{categories}}" wx:key="key" data-category="{{item.key}}" bindtap="onAddIngredient">＋{{item.label}}</button></view><text wx:if="{{errors.ingredients}}" class="error">{{errors.ingredients}}</text></view>
-  <view class="section"><text class="title">制作方式</text><prep-editor preparations="{{formPreparations}}" types="{{prepTypes}}" bind:toggle="onTogglePrep" bind:change="onPrepChange" /><text wx:if="{{errors.preparations}}" class="error">{{errors.preparations}}</text></view>
-  <view class="section"><text class="title">杯具与酒精度</text><picker range="{{glasswareOptions}}" range-key="name" value="{{glasswareIndex}}" bindchange="onGlassware"><view class="select">{{glasswareLabel}}</view></picker><checkbox-group bindchange="onTools"><label wx:for="{{tools}}" wx:key="id" class="tool-option {{item.orphaned ? 'orphaned' : ''}}"><checkbox value="{{index}}" checked="{{item.selected}}" />{{item.name}}<text wx:if="{{item.orphaned}}" class="missing-label">资料缺失，请取消或替换</text></label></checkbox-group><text class="abv">预估酒精度 {{preview.abvLabel}}%</text><text class="capacity-line {{preview.capacity.status}}">{{preview.capacity.message}}</text><text wx:if="{{preview.capacity.status === 'over'}}" class="warning">容量提醒：预计超出 {{preview.capacity.differenceMl}}ml（仍可保存）</text><view wx:if="{{preview.missing.length}}"><text class="warning">待补充：{{preview.missingText}}</text></view><text wx:if="{{errors.equipment}}" class="error">{{errors.equipment}}</text></view>
-  <view class="section"><text class="title">步骤与评价</text><textarea data-field="steps" value="{{form.steps}}" placeholder="每行一个步骤" bindinput="onBasicInput" /><view class="ratings"><button wx:for="{{ratings}}" wx:key="*this" data-rating="{{item}}" bindtap="onRating" class="{{form.rating === item ? 'selected' : ''}}" aria-label="{{item}}{{form.rating === item ? '，已选择' : ''}}"><text wx:if="{{form.rating === item}}">✓</text>{{item}}</button></view><textarea data-field="tastingNote" value="{{form.tastingNote}}" placeholder="品鉴笔记（可选）" bindinput="onBasicInput" /></view>
+<view class="edit-page">
+  <view class="section basic-section">
+    <view class="section-heading">
+      <text class="title">基本信息</text>
+      <view class="tried-toggle">
+        <button class="tried-option {{form.tried ? 'selected' : ''}}" data-tried="true" bindtap="onTriedTap">调过</button>
+        <button class="tried-option {{!form.tried ? 'selected' : ''}}" data-tried="false" bindtap="onTriedTap">未调过</button>
+      </view>
+    </view>
+    <scroll-view wx:if="{{form.tried}}" class="rating-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+      <view class="rating-track">
+        <button wx:for="{{ratings}}" wx:key="*this" data-rating="{{item}}" bindtap="onRating" class="rating-chip {{form.rating === item ? 'selected' : ''}}" aria-label="{{item}}{{form.rating === item ? '，已选择' : ''}}"><text wx:if="{{form.rating === item}}">✓ </text>{{item}}</button>
+      </view>
+    </scroll-view>
+    <view class="basic-grid">
+      <button class="image-button" disabled="{{savingImage}}" loading="{{savingImage}}" bindtap="onChooseImage" aria-label="选择配方图片">
+        <image wx:if="{{form.imagePath}}" class="recipe-image" src="{{form.imagePath}}" mode="aspectFill" />
+        <view wx:else class="image-placeholder"><text class="image-plus">＋</text><text>图片</text></view>
+      </button>
+      <view class="basic-fields">
+        <input class="basic-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
+        <input class="basic-input" data-field="source" value="{{form.source}}" placeholder="来源（可选）" bindinput="onBasicInput" />
+      </view>
+    </view>
+    <text wx:if="{{errors.name}}" class="error">{{errors.name}}</text>
+    <text wx:if="{{imageError}}" class="error">{{imageError}}</text>
+  </view>
+
+  <view class="section ingredient-section">
+    <text class="title">材料</text>
+    <view class="material-stage-switch">
+      <button class="material-stage {{materialStage === 'serving' ? 'selected' : ''}}" data-stage="serving" bindtap="onMaterialStage">饮用时</button>
+      <button class="material-stage {{materialStage === 'advance' ? 'selected' : ''}}" data-stage="advance" bindtap="onMaterialStage">提前准备</button>
+    </view>
+    <view wx:if="{{materialStage === 'serving'}}" class="material-shortcuts">
+      <view class="shortcut-track">
+        <button size="mini" class="shortcut primary" data-filter="base" bindtap="onOpenMaterialSelect">＋基酒</button>
+        <button size="mini" class="shortcut" data-filter="liqueur" bindtap="onOpenMaterialSelect">＋利口酒</button>
+        <button size="mini" class="shortcut" data-filter="produce" bindtap="onOpenMaterialSelect">＋果汁/果蔬</button>
+        <button size="mini" class="shortcut" data-filter="mixer" bindtap="onOpenMaterialSelect">＋混合饮品</button>
+        <button size="mini" class="shortcut" data-filter="all" bindtap="onOpenMaterialSelect">＋材料库</button>
+      </view>
+    </view>
+    <view wx:if="{{materialStage === 'serving'}}" class="ingredient-list">
+      <ingredient-row wx:for="{{formIngredients}}" wx:key="renderKey" item="{{item}}" index="{{index}}" units="{{units}}" dragging="{{draggingIngredientIndex === index}}" bind:change="onIngredientChange" bind:remove="onRemoveIngredient" bind:pickname="onPickName" bind:dragstart="onIngredientDragStart" bind:dragmove="onIngredientDragMove" bind:dragend="onIngredientDragEnd" />
+    </view>
+    <view wx:else class="advance-pane">
+      <view wx:for="{{advanceCards}}" wx:for-item="preparation" wx:key="id" class="advance-card">
+        <text class="compact-label">预调成品名称</text>
+        <input class="advance-name" data-preparation-id="{{preparation.id}}" data-field="outputName" value="{{preparation.outputName}}" bindinput="onAdvanceInput" />
+        <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="all" bindtap="onOpenMaterialSelect">＋材料</button>
+        <view class="ingredient-list advance-ingredients">
+          <ingredient-row wx:for="{{preparation.formIngredients}}" wx:for-item="ingredient" wx:key="renderKey" item="{{ingredient}}" index="{{index}}" preparation-id="{{preparation.id}}" units="{{units}}" dragging="{{draggingAdvancePreparationId === preparation.id && draggingAdvanceIndex === index}}" bind:change="onAdvanceIngredientChange" bind:remove="onRemoveAdvanceIngredient" bind:pickname="onPickAdvanceName" bind:dragstart="onAdvanceDragStart" bind:dragmove="onAdvanceDragMove" bind:dragend="onAdvanceDragEnd" />
+        </view>
+        <text class="compact-label">提前准备步骤</text>
+        <textarea class="advance-steps" data-preparation-id="{{preparation.id}}" data-field="steps" value="{{preparation.steps}}" bindinput="onAdvanceInput" />
+        <view class="advance-card-actions"><button class="advance-card-delete" data-preparation-id="{{preparation.id}}" bindtap="onRemoveAdvancePreparation">删除</button></view>
+      </view>
+      <button class="add-advance" bindtap="onCreateAdvancePreparation">＋ 添加提前准备</button>
+    </view>
+    <text wx:if="{{errors.ingredients}}" class="error">{{errors.ingredients}}</text>
+    <text wx:if="{{errors.advancePreparation}}" class="error">{{errors.advancePreparation}}</text>
+  </view>
+
+  <view class="section">
+    <text class="title">制作方式</text>
+    <prep-editor preparations="{{formPreparations}}" types="{{prepTypeOptions}}" bind:toggle="onTogglePrep" bind:change="onPrepChange" />
+    <text wx:if="{{errors.preparations}}" class="error">{{errors.preparations}}</text>
+  </view>
+
+  <view class="section calculation-section">
+    <text class="title">酒杯与酒精度</text>
+    <view class="select" bindtap="onOpenGlasswareSelect" aria-role="button" aria-label="选择酒杯，当前{{glasswareLabel}}"><text>{{glasswareLabel}}</text><text>›</text></view>
+    <view class="calculation-card">
+      <view class="abv-row"><text>预估酒精度</text><text class="abv-value">{{preview.abvLabel}}{{preview.status === 'ok' ? '%' : ''}}</text></view>
+      <text wx:if="{{preview.abvHint}}" class="abv-hint">{{preview.abvHint}}</text>
+    </view>
+    <text wx:if="{{errors.equipment}}" class="error">{{errors.equipment}}</text>
+  </view>
+
+  <view class="section note-section">
+    <text class="title">备注与步骤</text>
+    <textarea class="note-input" data-field="steps" value="{{form.steps}}" bindinput="onBasicInput" />
+  </view>
   <view class="bottom-space"></view>
-  <view wx:if="{{suggestionOpen}}" class="mask" bindtap="closeSuggestions"><view class="sheet" catchtap="noop"><text class="title">选择材料</text><input value="{{suggestionQuery}}" placeholder="搜索已有材料" bindinput="onSuggestionInput" /><button wx:for="{{suggestions}}" wx:key="index" data-index="{{index}}" bindtap="onChooseSuggestion">{{item.name}}</button></view></view>
-</scroll-view>
-<view class="save-bar"><text wx:if="{{formError}}" class="error save-error" aria-live="assertive">{{formError}}</text><button class="save-button {{savingImage || savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingImage || savingRecipe}}" loading="{{savingImage || savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button></view>
+</view>
+
+<view class="save-bar">
+  <text wx:if="{{formError}}" class="error save-error" aria-live="assertive">{{formError}}</text>
+  <button class="save-button {{savingImage || savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingImage || savingRecipe}}" loading="{{savingImage || savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button>
+</view>
 <view wx:if="{{savingImage}}" class="operation-mask" catchtap="noop" aria-label="图片处理中"><text>图片处理中…</text></view>

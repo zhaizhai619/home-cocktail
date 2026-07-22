@@ -23,8 +23,8 @@ function validateGlasswareForm(input) {
   const source = input && typeof input === 'object' ? input : {}
   const name = normalizeEquipmentName(source.name)
   const capacityMl = Number(source.capacityMl)
-  if (!name) return { valid: false, message: '请填写杯具名称' }
-  if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) return { valid: false, message: '杯具容量需大于 0 且不超过 5000ml' }
+  if (!name) return { valid: false, message: '请填写酒杯名称' }
+  if (source.capacityMl === '' || source.capacityMl === null || source.capacityMl === undefined || !Number.isFinite(capacityMl) || capacityMl <= 0 || capacityMl > MAX_GLASS_CAPACITY_ML) return { valid: false, message: '酒杯容量需大于 0 且不超过 5000ml' }
   return { valid: true, value: { ...(source.id ? { id: source.id } : {}), name, capacityMl, imagePath: String(source.imagePath || '').trim(), notes: String(source.notes || '').trim() } }
 }
 
@@ -111,7 +111,7 @@ async function orchestrateGlasswareMediaSave({ repository, mediaFiles, form, sel
   try {
     const item = repository && repository.upsertGlassware({ ...validation.value, imagePath: persisted.path })
     if (!item) throw new Error('not saved')
-    if (priorPath && priorPath !== persisted.path) await cleanupIfUnreferenced({ repository, mediaFiles, path: priorPath, message: '杯具已保存，但旧图片清理失败', warn })
+    if (priorPath && priorPath !== persisted.path) await cleanupIfUnreferenced({ repository, mediaFiles, path: priorPath, message: '酒杯已保存，但旧图片清理失败', warn })
     notify('已保存')
     return { saved: true, item }
   } catch (error) {
@@ -149,7 +149,7 @@ function orchestrateEquipmentDelete({ repository, type, id, confirmed = false, n
 async function orchestrateGlasswareMediaDelete({ repository, mediaFiles, id, confirmed = false, notify = () => {}, warn = () => {} } = {}) {
   const existing = repository && repository.getGlassware ? repository.getGlassware(id) : null
   const result = orchestrateEquipmentDelete({ repository, type: 'glassware', id, confirmed, notify })
-  if (result.deleted && existing && existing.imagePath) await cleanupIfUnreferenced({ repository, mediaFiles, path: existing.imagePath, message: '杯具已删除，但图片清理失败', warn })
+  if (result.deleted && existing && existing.imagePath) await cleanupIfUnreferenced({ repository, mediaFiles, path: existing.imagePath, message: '酒杯已删除，但图片清理失败', warn })
   return result
 }
 

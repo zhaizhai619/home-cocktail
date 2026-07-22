@@ -1,8 +1,10 @@
 <view class="prep-editor">
-  <view class="chips"><button wx:for="{{types}}" wx:key="*this" data-type="{{item}}" bindtap="choose" class="chip">{{item}}</button></view>
+  <view class="chips"><button wx:for="{{types}}" wx:key="type" data-type="{{item.type}}" bindtap="choose" size="mini" class="chip {{item.selected ? 'selected' : ''}}"><text wx:if="{{item.selected}}">✓ </text>{{item.type}}</button></view>
   <view wx:for="{{preparations}}" wx:key="type" class="prep-row">
-    <text>{{item.type}}</text>
-    <block wx:if="{{item.needsDuration}}"><input data-index="{{index}}" data-field="amount" type="digit" value="{{item.amount}}" placeholder="时长" bindinput="edit" /><picker range="{{item.units}}" range-key="label" value="{{item.unitIndex}}" data-index="{{index}}" bindchange="unit"><text>{{item.unitLabel}}</text></picker></block>
-    <input data-index="{{index}}" data-field="note" value="{{item.note}}" placeholder="备注（可选）" bindinput="edit" />
+    <text class="prep-name">{{item.type}}</text>
+    <view wx:if="{{item.needsDuration}}" class="prep-duration-control">
+      <input class="prep-duration-text" data-index="{{index}}" data-field="durationValue" value="{{item.durationValue}}" placeholder="例如 3–7" bindinput="edit" />
+      <picker class="prep-duration-unit" range="{{item.units}}" range-key="label" value="{{item.unitIndex}}" data-index="{{index}}" bindchange="unit"><text>{{item.durationUnitLabel}}⌄</text></picker>
+    </view>
   </view>
 </view>

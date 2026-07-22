@@ -57,6 +57,7 @@ test('migration is idempotent and gives invalid recipe dates the supplied timest
     source: '',
     tried: false,
     ingredients: [],
+    advancePreparations: [],
     preparations: [],
     glasswareId: null,
     toolIds: [],
@@ -75,7 +76,7 @@ test('migration preserves the full recipe shape, user fields, and uses steps can
   const now = '2026-07-20T00:00:00.000Z'
   const recipe = migrateState({ recipes: [{
     id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
-    ingredients: [{ materialId: 'gin' }], preparations: [{ type: '即调' }], glasswareId: 'coupe',
+    ingredients: [{ materialId: 'gin' }], advancePreparations: [], preparations: [{ type: '即调' }], glasswareId: 'coupe',
     toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
     materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
     createdAt: now, updatedAt: now
@@ -83,12 +84,16 @@ test('migration preserves the full recipe shape, user fields, and uses steps can
 
   assert.deepEqual(recipe, {
     id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
-    ingredients: [{ materialId: 'gin' }], preparations: [{ type: '即调' }], glasswareId: 'coupe',
+    ingredients: [{ materialId: 'gin' }], advancePreparations: [], preparations: [{ type: '即调' }], glasswareId: 'coupe',
     toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
     materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
     createdAt: now, updatedAt: now
   })
   assert.deepEqual(migrateState({ recipes: [{ id: 'legacy', instructions: 'Build' }] }, now).recipes[0].steps, ['Build'])
+  assert.deepEqual(
+    migrateState({ recipes: [{ id: 'legacy-preparation', preparations: [{ type: '其他预制', amount: 4, unit: 'hour' }] }] }, now).recipes[0].preparations,
+    [{ type: '其他预调', amount: 4, unit: 'hour' }]
+  )
 })
 
 test('recipe CRUD assigns IDs and timestamps and preserves createdAt on update', () => {
@@ -102,7 +107,7 @@ test('recipe CRUD assigns IDs and timestamps and preserves createdAt on update',
 
   assert.deepEqual(created, {
     id: 'id-1', name: 'Negroni', imagePath: '', source: '', tried: false,
-    ingredients: [], preparations: [], glasswareId: null, toolIds: [], steps: [],
+    ingredients: [], advancePreparations: [], preparations: [], glasswareId: null, toolIds: [], steps: [],
     rating: null, tastingNote: '', materialObservations: [],
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z'
   })
@@ -176,6 +181,121 @@ test('material migration and writes normalize category aliases and invalid categ
   assert.equal(repository.upsertMaterial({ name: 'Mystery', category: 'not-a-category' }).category, 'other-liquid')
 })
 
+test('migration merges legacy rum into white rum and remaps every recipe reference', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const raw = {
+    materials: [
+      { id: 'white-rum', name: '白朗姆', category: 'base-spirit', owned: false, abv: 38, preferenceNote: '保留白朗姆设置' },
+      { id: 'rum', name: '朗姆', category: 'base-spirit', owned: true, abv: 40, preferenceNote: '不覆盖标准材料' },
+      { id: 'dark-rum', name: '黑朗姆', category: 'other-base-spirit', owned: true, abv: 43 }
+    ],
+    recipes: [{
+      id: 'daiquiri',
+      ingredients: [{ materialId: 'rum', amount: 45, unit: 'ml' }, { materialId: 'dark-rum', amount: 5, unit: 'ml' }],
+      materialObservations: [{ materialId: 'rum', note: '清爽' }, { materialId: 'dark-rum', note: '厚重' }]
+    }]
+  }
+
+  const migrated = migrateState(raw, now)
+
+  assert.deepEqual(migrated.materials.map(({ id, name }) => ({ id, name })), [
+    { id: 'white-rum', name: '白朗姆' },
+    { id: 'dark-rum', name: '黑朗姆' }
+  ])
+  assert.equal(migrated.materials[0].owned, false)
+  assert.equal(migrated.materials[0].abv, 38)
+  assert.equal(migrated.materials[0].preferenceNote, '保留白朗姆设置')
+  assert.deepEqual(migrated.recipes[0].ingredients.map(({ materialId }) => materialId), ['white-rum', 'dark-rum'])
+  assert.deepEqual(migrated.recipes[0].materialObservations.map(({ materialId }) => materialId), ['white-rum', 'dark-rum'])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('migration renames a lone rum in place and leaves specific rum styles untouched', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const raw = {
+    materials: [
+      { id: 'rum', name: '朗姆', category: 'base-spirit', owned: false, abv: 37, preferenceNote: '保留原设置' },
+      { id: 'dark', name: '黑朗姆', category: 'base-spirit', owned: true, abv: 43 },
+      { id: 'gold', name: '金朗姆', category: 'base-spirit', owned: true, abv: 40 },
+      { id: 'aged', name: '陈年朗姆', category: 'base-spirit', owned: true, abv: 45 }
+    ],
+    recipes: [{ id: 'r1', ingredients: [{ materialId: 'rum' }], materialObservations: [{ materialId: 'rum', note: '清爽' }] }]
+  }
+
+  const migrated = migrateState(raw, now)
+
+  assert.deepEqual(migrated.materials.map(({ id, name }) => ({ id, name })), [
+    { id: 'rum', name: '白朗姆' },
+    { id: 'dark', name: '黑朗姆' },
+    { id: 'gold', name: '金朗姆' },
+    { id: 'aged', name: '陈年朗姆' }
+  ])
+  assert.equal(migrated.materials[0].owned, false)
+  assert.equal(migrated.materials[0].abv, 37)
+  assert.equal(migrated.materials[0].preferenceNote, '保留原设置')
+  assert.equal(migrated.recipes[0].ingredients[0].materialId, 'rum')
+  assert.equal(migrated.recipes[0].materialObservations[0].materialId, 'rum')
+})
+
+test('migration does not collapse two native white rum records without an alias', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const raw = {
+    materials: [
+      { id: 'white-a', name: '白朗姆', category: 'base-spirit', owned: false, abv: 38 },
+      { id: 'white-b', name: '白朗姆', category: 'base-spirit', owned: true, abv: 40 }
+    ],
+    recipes: [{ id: 'r1', ingredients: [{ materialId: 'white-a' }, { materialId: 'white-b' }] }]
+  }
+
+  const migrated = migrateState(raw, now)
+
+  assert.deepEqual(migrated.materials.map(({ id }) => id), ['white-a', 'white-b'])
+  assert.deepEqual(migrated.recipes[0].ingredients.map(({ materialId }) => materialId), ['white-a', 'white-b'])
+})
+
+test('migration consolidates ordinary syrup aliases into the canonical material and remaps recipe references', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const raw = {
+    materials: [
+      { id: 'simple', name: '普通糖浆', category: 'syrup/staple', owned: false, assumedAvailable: false, preferenceNote: '保留标准材料设置' },
+      { id: 'syrup', name: '糖浆', category: 'syrup/staple', owned: true, preferenceNote: '旧简称' },
+      { id: 'single', name: '单糖浆', category: 'syrup/staple', owned: true, preferenceNote: '旧术语' },
+      { id: 'honey', name: '蜂蜜糖浆', category: 'syrup/staple', owned: true }
+    ],
+    recipes: [{
+      id: 'r1',
+      ingredients: [{ materialId: 'syrup' }, { materialId: 'single' }, { materialId: 'honey' }],
+      materialObservations: [{ materialId: 'syrup', note: '甜度合适' }, { materialId: 'single', note: '也是同一种' }]
+    }]
+  }
+
+  const migrated = migrateState(raw, now)
+
+  assert.deepEqual(migrated.materials.map(({ id, name }) => ({ id, name })), [
+    { id: 'simple', name: '普通糖浆' },
+    { id: 'honey', name: '蜂蜜糖浆' }
+  ])
+  assert.equal(migrated.materials[0].owned, false)
+  assert.equal(migrated.materials[0].preferenceNote, '保留标准材料设置')
+  assert.deepEqual(migrated.recipes[0].ingredients.map(({ materialId }) => materialId), ['simple', 'simple', 'honey'])
+  assert.deepEqual(migrated.recipes[0].materialObservations.map(({ materialId }) => materialId), ['simple', 'simple'])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('migration renames a lone syrup alias in place without changing its settings or references', () => {
+  const now = '2026-07-20T00:00:00.000Z'
+  const migrated = migrateState({
+    materials: [{ id: 'syrup', name: '单糖浆', category: 'syrup/staple', owned: false, assumedAvailable: false, preferenceNote: '少甜' }],
+    recipes: [{ id: 'r1', ingredients: [{ materialId: 'syrup' }], materialObservations: [{ materialId: 'syrup', note: '减量' }] }]
+  }, now)
+
+  assert.deepEqual(migrated.materials.map(({ id, name, owned, preferenceNote }) => ({ id, name, owned, preferenceNote })), [
+    { id: 'syrup', name: '普通糖浆', owned: false, preferenceNote: '少甜' }
+  ])
+  assert.equal(migrated.recipes[0].ingredients[0].materialId, 'syrup')
+  assert.equal(migrated.recipes[0].materialObservations[0].materialId, 'syrup')
+})
+
 test('migration repairs missing and duplicate IDs deterministically in every collection', () => {
   const raw = {
     recipes: [{ id: 'keep' }, {}, { id: '' }, { id: 'keep' }],
@@ -210,9 +330,9 @@ test('migration canonicalizes legacy equipment names and capacities without losi
   const migrated = migrateState(raw, '2026-01-01T00:00:00.000Z')
 
   assert.deepEqual(migrated.glassware.map(({ id, name, capacityMl }) => ({ id, name, capacityMl })), [
-    { id: 'g-empty', name: '未命名杯具', capacityMl: null },
+    { id: 'g-empty', name: '未命名酒杯', capacityMl: null },
     { id: 'g-coupe', name: 'Coupe', capacityMl: null },
-    { id: 'g-coupe-2', name: 'coupe (2)', capacityMl: null }
+    { id: 'g-coupe-2', name: 'coupe', capacityMl: null }
   ])
   assert.deepEqual(migrated.tools.slice(QUICK_TOOLS.length).map(({ id, name }) => ({ id, name })), [
     { id: 't-empty', name: '未命名用具' },
@@ -301,9 +421,11 @@ test('a category transition keeps supplied fresh inventory only when on-hand and
   assert.deepEqual({ freshOnHand: tonic.freshOnHand, remainingAmount: tonic.remainingAmount, remainingUnit: tonic.remainingUnit }, { freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece' })
 })
 
-test('migration clears fresh inventory fields when freshOnHand is false', () => {
+test('migration clears batch-only inventory fields while preserving the optional purchase date', () => {
   const material = migrateState({ materials: [{ id: 'm1', freshOnHand: false, remainingAmount: 5, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
-  assert.deepEqual({ remainingAmount: material.remainingAmount, remainingUnit: material.remainingUnit, purchasedAt: material.purchasedAt, expiresAt: material.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null })
+  assert.deepEqual({ remainingAmount: material.remainingAmount, remainingUnit: material.remainingUnit, purchasedAt: material.purchasedAt, expiresAt: material.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: null })
+  assert.equal(migrateState({ materials: [{ id: 'invalid-date', purchasedAt: '2026-02-30' }] }, '2026-01-01T00:00:00.000Z').materials[0].purchasedAt, null)
+  assert.equal(migrateState({ materials: [{ id: 'invalid-suffix', purchasedAt: '2026-02-28junk' }] }, '2026-01-01T00:00:00.000Z').materials[0].purchasedAt, null)
 })
 
 test('material updates preserve createdAt and refresh updatedAt without legacy fresh fields', () => {
@@ -369,6 +491,40 @@ test('recipe save transaction reuses normalized materials and commits recipe plu
   assert.equal('draftKey' in first.ingredients[0], false)
 })
 
+test('recipe transaction resolves advance input drafts without persisting the prepared output as a material', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `advance-${++id}` })(), now: () => '2026-01-01T00:00:00.000Z' })
+  repository.initialize()
+  const saved = repository.saveRecipeWithMaterials({
+    name: '菠萝朗姆嗨棒', ingredients: [{ kind: 'prepared-output', preparationId: 'prep-1', amount: 40, unit: 'ml' }],
+    advancePreparations: [{
+      id: 'prep-1',
+      outputName: '菠萝朗姆',
+      ingredients: [{ materialId: '', draftKey: 'fruit:菠萝', amount: 200, unit: 'g' }],
+      steps: ['浸泡后过滤']
+    }]
+  }, [{ draftKey: 'fruit:菠萝', category: 'fruit', name: '菠萝', defaultUnit: 'g' }])
+  const materials = repository.listMaterials()
+  assert.deepEqual(materials.map(({ name }) => name), ['菠萝'])
+  assert.deepEqual(saved.ingredients[0], { kind: 'prepared-output', preparationId: 'prep-1', amount: 40, unit: 'ml' })
+  assert.equal(saved.advancePreparations[0].outputName, '菠萝朗姆')
+  assert.equal(saved.advancePreparations[0].ingredients[0].materialId, materials[0].id)
+  assert.equal(repository.getMaterialUsageCount(materials[0].id), 1)
+  assert.equal(repository.deleteMaterial(materials[0].id).reason, 'referenced')
+})
+
+test('migration upgrades the old single advance preparation and adds its serving usage once', () => {
+  const migrated = migrateState({ recipes: [{
+    id: 'legacy-prep', name: '旧预制酒', ingredients: [{ materialId: 'soda', amount: null, unit: 'top-up' }],
+    advancePreparation: { outputName: '菠萝朗姆', ingredients: [{ materialId: 'rum', amount: 500, unit: 'ml' }], steps: ['过滤'] }
+  }] }, '2026-01-01T00:00:00.000Z')
+  const recipe = migrated.recipes[0]
+  assert.equal('advancePreparation' in recipe, false)
+  assert.equal(recipe.advancePreparations.length, 1)
+  assert.equal(recipe.advancePreparations[0].outputName, '菠萝朗姆')
+  assert.deepEqual(recipe.ingredients.filter(({ kind }) => kind === 'prepared-output'), [{ kind: 'prepared-output', preparationId: recipe.advancePreparations[0].id, amount: null, unit: 'to-taste' }])
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
 test('recipe save transaction rolls back all in-memory and storage changes when its final write fails', () => {
   const adapter = createMemoryAdapter()
   const originalSet = adapter.set
@@ -391,6 +547,38 @@ test('recipe save transaction uses a case-insensitive trimmed identity key for m
   const second = save('gin')
   assert.equal(repository.listMaterials().length, 1)
   assert.equal(first.ingredients[0].materialId, second.ingredients[0].materialId)
+})
+
+test('material writes and recipe drafts store plain rum as white rum without creating a duplicate', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `id-${++id}` })() })
+  repository.initialize()
+  const whiteRum = repository.saveMaterial({ name: '白朗姆', category: 'base-spirit', abv: 40 })
+  const recipe = repository.saveRecipeWithMaterials({
+    name: '代基里',
+    ingredients: [{ materialId: '', draftKey: 'base-spirit:朗姆', amount: 45, unit: 'ml' }]
+  }, [{ draftKey: 'base-spirit:朗姆', category: 'base-spirit', name: '朗姆', abv: 40 }])
+
+  assert.equal(repository.listMaterials().length, 1)
+  assert.equal(repository.listMaterials()[0].name, '白朗姆')
+  assert.equal(recipe.ingredients[0].materialId, whiteRum.id)
+  const reused = repository.saveMaterial({ name: '朗姆', category: 'base-spirit', abv: 40 })
+  assert.equal(reused.id, whiteRum.id)
+  assert.equal(repository.listMaterials().length, 1)
+})
+
+test('material writes reuse ordinary syrup for both short aliases without overwriting its settings', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `id-${++id}` })() })
+  repository.initialize()
+  const ordinary = repository.saveMaterial({ name: '普通糖浆', category: 'syrup/staple', owned: false, preferenceNote: '少甜' })
+
+  const fromShortName = repository.saveMaterial({ name: '糖浆', category: 'syrup/staple', owned: true })
+  const fromTechnicalName = repository.saveMaterial({ name: '单糖浆', category: 'syrup/staple', owned: true })
+
+  assert.equal(fromShortName.id, ordinary.id)
+  assert.equal(fromTechnicalName.id, ordinary.id)
+  assert.equal(repository.listMaterials().length, 1)
+  assert.equal(repository.getMaterial(ordinary.id).owned, false)
+  assert.equal(repository.getMaterial(ordinary.id).preferenceNote, '少甜')
 })
 
 test('recipe save transaction atomically updates a missing existing material ABV and rejects invalid values', () => {

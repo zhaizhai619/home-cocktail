@@ -10,7 +10,11 @@ const {
 } = require('../miniprogram/domain/constants')
 const {
   createMaterialDefaults,
-  getMaterialVisualState
+  getMaterialIdentityKey,
+  getMaterialVisualState,
+  MATERIAL_CATEGORY_GROUPS,
+  getMaterialCategoryGroup,
+  selectMaterialCategory
 } = require('../miniprogram/domain/material')
 
 test('exports the approved quick base spirits in display order', () => {
@@ -38,7 +42,7 @@ test('exports the approved preparation types and ratings in display order', () =
     '冷泡/浸泡',
     '奶洗',
     '低温慢煮',
-    '其他预制'
+    '其他预调'
   ])
   assert.deepEqual(RATINGS, ['夯', '顶尖', '人上人', 'NPC', '拉完了'])
 })
@@ -86,6 +90,21 @@ test('quick base spirits default to owned 40 percent liquids', () => {
     owned: true,
     freshOnHand: false
   })
+})
+
+test('plain rum is a base-spirit alias for white rum without collapsing specific rum styles', () => {
+  assert.equal(createMaterialDefaults('base-spirit', ' 朗姆 ').name, '白朗姆')
+  assert.equal(getMaterialIdentityKey('base-spirit', '朗姆'), getMaterialIdentityKey('base-spirit', '白朗姆'))
+  assert.notEqual(getMaterialIdentityKey('base-spirit', '黑朗姆'), getMaterialIdentityKey('base-spirit', '白朗姆'))
+  assert.notEqual(getMaterialIdentityKey('other-base-spirit', '朗姆'), getMaterialIdentityKey('base-spirit', '白朗姆'))
+})
+
+test('plain and single syrup names share the ordinary syrup identity without collapsing flavored syrups', () => {
+  assert.equal(createMaterialDefaults('syrup/staple', '糖浆').name, '普通糖浆')
+  assert.equal(createMaterialDefaults('syrup/staple', '单糖浆').name, '普通糖浆')
+  assert.equal(getMaterialIdentityKey('syrup/staple', '糖浆'), getMaterialIdentityKey('syrup/staple', '普通糖浆'))
+  assert.equal(getMaterialIdentityKey('syrup/staple', '单糖浆'), getMaterialIdentityKey('syrup/staple', '普通糖浆'))
+  assert.notEqual(getMaterialIdentityKey('syrup/staple', '蜂蜜糖浆'), getMaterialIdentityKey('syrup/staple', '普通糖浆'))
 })
 
 test('fruit defaults to an unprepared freshness-tracked solid', () => {
@@ -153,6 +172,11 @@ test('all plan material categories have stable defaults', () => {
     'other-solid': {
       acquisition: 'on-demand', form: 'solid', alcoholic: false, abv: null,
       defaultUnit: 'g', trackFreshness: false, assumedAvailable: false,
+      owned: false, freshOnHand: false
+    },
+    other: {
+      acquisition: 'on-demand', form: 'liquid', alcoholic: false, abv: null,
+      defaultUnit: 'ml', trackFreshness: false, assumedAvailable: false,
       owned: false, freshOnHand: false
     }
   }
@@ -228,4 +252,20 @@ test('returns the three material visual states from availability semantics', () 
     }),
     'owned'
   )
+})
+
+test('user-facing material categories are shared while legacy detail categories remain stable', () => {
+  assert.deepEqual(MATERIAL_CATEGORY_GROUPS.map(({ key, label }) => ({ key, label })), [
+    { key: 'base', label: '基酒' },
+    { key: 'liqueur', label: '利口酒' },
+    { key: 'syrup', label: '糖浆' },
+    { key: 'produce', label: '果汁/果蔬' },
+    { key: 'mixer', label: '混合饮品' },
+    { key: 'spice', label: '香料' },
+    { key: 'other', label: '其他' }
+  ])
+  assert.equal(getMaterialCategoryGroup('dairy/juice').key, 'produce')
+  assert.equal(getMaterialCategoryGroup('other').key, 'other')
+  assert.equal(selectMaterialCategory('dairy/juice', 'produce'), 'dairy/juice')
+  assert.equal(selectMaterialCategory('dairy/juice', 'mixer'), 'other-liquid')
 })

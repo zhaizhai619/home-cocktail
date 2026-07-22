@@ -57,7 +57,7 @@ Page({
     this.setData({
       editorOpen: true,
       editorType: type,
-      editorTitle: `${item ? '编辑' : '新增'}${isGlassware ? '杯具' : '自定义用具'}`,
+      editorTitle: `${item ? '编辑' : '新增'}${isGlassware ? '酒杯' : '自定义用具'}`,
       editorError: '',
       selectedImagePath: isGlassware && item && item.imagePath || '',
       imagePreviewPath: isGlassware && item && item.imagePath || '',
@@ -125,7 +125,7 @@ Page({
     const check = orchestrateEquipmentDelete({ repository, type, id, notify: toast })
     if (!check.needsConfirmation || typeof wx === 'undefined' || !wx.showModal) return
     wx.showModal({
-      title: `删除${type === 'glassware' ? '杯具' : '用具'}？`,
+      title: `删除${type === 'glassware' ? '酒杯' : '用具'}？`,
       content: '删除后无法恢复。未被酒款使用时才可删除。',
       confirmText: '删除', confirmColor: '#a54d36',
       success: async ({ confirm }) => {

@@ -9,6 +9,7 @@ const {
   formatDate,
   validateObservation,
   orchestrateObservationSave,
+  orchestrateRatingToggle,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('../miniprogram/pages/recipe-detail/model')
@@ -79,6 +80,66 @@ test('buildRecipeDetail returns an explicit missing state for an absent recipe',
   })
 })
 
+test('recipe detail renders multiple prepared outputs as normal serving rows without suffix copy', () => {
+  const detail = buildRecipeDetail({
+    id: 'prepared', name: '双预制嗨棒', ingredients: [
+      { kind: 'prepared-output', preparationId: 'prep-rum', amount: 40, unit: 'ml' },
+      { kind: 'prepared-output', preparationId: 'prep-juice', amount: 20, unit: 'ml' },
+      { materialId: 'soda', amount: null, unit: 'top-up' }
+    ],
+    advancePreparations: [
+      { id: 'prep-rum', outputName: '菠萝朗姆', ingredients: [{ materialId: 'rum', amount: 500, unit: 'ml' }], steps: ['浸泡后过滤'] },
+      { id: 'prep-juice', outputName: '澄清果汁', ingredients: [{ materialId: 'juice', amount: 300, unit: 'ml' }], steps: ['澄清后冷藏'] }
+    ]
+  }, [
+    { id: 'soda', name: '苏打水', alcoholic: false, acquisition: 'long-term', owned: true },
+    { id: 'rum', name: '白朗姆', alcoholic: true, abv: 40, acquisition: 'long-term', owned: true },
+    { id: 'juice', name: '苹果汁', alcoholic: false, acquisition: 'on-demand', freshOnHand: true }
+  ])
+  assert.deepEqual(detail.ingredients.slice(0, 2).map(({ name, amountLabel }) => ({ name, amountLabel })), [
+    { name: '菠萝朗姆', amountLabel: '40ml' }, { name: '澄清果汁', amountLabel: '20ml' }
+  ])
+  assert.equal(detail.advancePreparations[0].ingredients[0].name, '白朗姆')
+  assert.equal(detail.advancePreparations[1].ingredients[0].name, '苹果汁')
+  assert.equal(detail.abv.valueLabel, '--')
+  assert.equal(detail.abv.issueLines[0].text, '含本配方预调成品，暂不计算酒精度')
+})
+
+test('recipe detail uses the short syrup name for ingredients, observations and ingredient options', () => {
+  const detail = buildRecipeDetail({
+    id: 'simple-syrup', name: '糖浆测试', ingredients: [{ materialId: 'ordinary', amount: 15, unit: 'ml' }],
+    materialObservations: [{ materialId: 'ordinary', note: '减量', createdAt: '2026-07-20T00:00:00.000Z' }]
+  }, [{ id: 'ordinary', name: '普通糖浆', category: 'syrup/staple', acquisition: 'long-term', owned: true, alcoholic: false }])
+
+  assert.equal(detail.ingredients[0].name, '糖浆')
+  assert.equal(detail.ingredients[0].accessibilityLabel, '糖浆，材料已在手头，15ml')
+  assert.equal(detail.observations[0].materialName, '糖浆')
+  assert.deepEqual(detail.ingredientOptions, [{ id: 'ordinary', name: '糖浆' }])
+})
+
+test('recipe detail renders a text ingredient amount with its unit', () => {
+  const detail = buildRecipeDetail({
+    id: 'cucumber', name: '黄瓜酒', ingredients: [{ materialId: 'cucumber', amount: '半', unit: 'piece' }]
+  }, [{ id: 'cucumber', name: '黄瓜', category: 'fruit', acquisition: 'on-demand', freshOnHand: true, alcoholic: false }])
+
+  assert.equal(detail.ingredients[0].amountLabel, '半个')
+})
+
+test('recipe detail uses the short syrup name in calculation warnings', () => {
+  const detail = buildRecipeDetail({
+    id: 'missing-syrup-amount', name: '待补用量', ingredients: [
+      { materialId: 'ordinary', amount: null, unit: 'ml' },
+      { materialId: 'same-name-other-category', amount: null, unit: 'ml' }
+    ]
+  }, [
+    { id: 'ordinary', name: '普通糖浆', category: 'syrup/staple', acquisition: 'long-term', owned: true, alcoholic: false },
+    { id: 'same-name-other-category', name: '普通糖浆', category: 'other-liquid', acquisition: 'long-term', owned: true, alcoholic: false }
+  ])
+
+  assert.deepEqual(detail.abv.missing, ['糖浆', '普通糖浆', '没有可计算的液体材料'])
+  assert.deepEqual(detail.abv.issueLines, [{ kind: 'amount', text: '缺少可计算用量：糖浆、普通糖浆、没有可计算的液体材料' }])
+})
+
 test('buildRecipeDetail composes complete display data without mutating its inputs', () => {
   const fixture = createDetailFixture()
   const snapshot = structuredClone(fixture)
@@ -100,10 +161,30 @@ test('buildRecipeDetail composes complete display data without mutating its inpu
   assert.deepEqual(detail.abv, { status: 'ok', valueLabel: '7.2%', liquidVolumeLabel: '250ml', missing: [], ignored: [], issueLines: [], ignoredText: '', needsEditing: false })
   assert.deepEqual(detail.glassware, { id: 'highball', name: '海波杯', capacityLabel: '300ml' })
   assert.deepEqual(detail.tools.map(({ name }) => name), ['摇酒壶', '滤冰器'])
-  assert.deepEqual(detail.steps, ['摇和除汤力水外的材料', '滤入杯中并补满汤力水'])
+  assert.deepEqual(detail.steps, ['摇和除汤力水外的材料', '滤入杯中并补满汤力水', '清爽，西瓜味很自然'])
   assert.deepEqual(detail.ratings, RATINGS.map((label) => ({ label, selected: label === '顶尖' })))
   assert.deepEqual(detail.observations, [{ materialId: 'watermelon', materialName: '西瓜', note: '无籽西瓜更省事', createdAtLabel: '2026-07-19' }])
   assert.deepEqual(fixture, snapshot)
+})
+
+test('recipe detail merges a legacy tasting note into steps without duplicating the same text', () => {
+  const legacyOnly = buildRecipeDetail({ id: 'legacy-note', name: '旧配方', steps: [], tastingNote: '少放糖更好喝' })
+  assert.deepEqual(legacyOnly.steps, ['少放糖更好喝'])
+
+  const duplicate = buildRecipeDetail({ id: 'duplicate-note', name: '重复文本', steps: ['少放糖更好喝'], tastingNote: ' 少放糖更好喝 ' })
+  assert.deepEqual(duplicate.steps, ['少放糖更好喝'])
+})
+
+test('recipe detail displays arbitrary preparation duration text without duplicating 提前', () => {
+  const detail = buildRecipeDetail({
+    id: 'free-duration', name: '自由时间',
+    preparations: [
+      { type: '奶洗', durationText: '隔夜' },
+      { type: '其他预调', durationText: '提前一周' }
+    ]
+  })
+
+  assert.deepEqual(detail.preparations.map(({ label }) => label), ['奶洗 · 提前隔夜', '其他预调 · 提前一周'])
 })
 
 test('buildRecipeDetail counts orphan ml amounts but blocks ABV with distinct material and ABV reasons', () => {
@@ -126,6 +207,14 @@ test('buildRecipeDetail counts orphan ml amounts but blocks ABV with distinct ma
     ],
     ignoredText: '', needsEditing: true
   })
+})
+
+test('buildRecipeDetail exposes the sole missing ABV material as the direct edit target', () => {
+  const detail = buildRecipeDetail({
+    id: 'missing-abv', name: '待补度数', ingredients: [{ materialId: 'amaro', amount: 20, unit: 'ml' }]
+  }, [{ id: 'amaro', name: '阿玛罗', acquisition: 'long-term', owned: true, alcoholic: true, abv: null }])
+
+  assert.equal(detail.abv.editMaterialId, 'amaro')
 })
 
 test('buildRecipeDetail distinguishes missing calculable amounts from ignored non-ml garnishes', () => {
@@ -169,6 +258,28 @@ test('buildRecipeDetail treats every invalid legacy alcoholic ABV as missing', (
     assert.deepEqual(detail.abv.missing, ['旧酒款'], `abv=${abv}`)
     assert.deepEqual(detail.abv.issueLines, [{ kind: 'abv', text: '缺少酒精度：旧酒款' }], `abv=${abv}`)
   }
+})
+
+test('buildRecipeDetail treats prototype-like material ids as orphaned', () => {
+  const detail = buildRecipeDetail({
+    id: 'legacy-orphan', name: '旧数据', preparations: [{ type: '即调' }],
+    ingredients: [{ materialId: 'constructor', amount: 30, unit: 'ml' }]
+  }, [])
+
+  assert.equal(detail.abv.valueLabel, '--')
+  assert.deepEqual(detail.abv.issueLines, [{ kind: 'material', text: '材料资料缺失：缺失材料（constructor）' }])
+  assert.equal(detail.ingredients[0].orphaned, true)
+})
+
+test('buildRecipeDetail accepts a real material whose id is __proto__', () => {
+  const detail = buildRecipeDetail({
+    id: 'safe-prototype-id', name: '原型键配方', preparations: [{ type: '即调' }],
+    ingredients: [{ materialId: '__proto__', amount: 30, unit: 'ml' }]
+  }, [{ id: '__proto__', name: '金酒', alcoholic: true, abv: 40 }])
+
+  assert.equal(detail.abv.valueLabel, '40%')
+  assert.equal(detail.ingredients[0].name, '金酒')
+  assert.equal(detail.ingredients[0].orphaned, false)
 })
 
 test('observation validation requires a recipe ingredient and non-empty text', () => {
@@ -235,6 +346,72 @@ test('observation save orchestration handles validation, success, and repository
   assert.deepEqual(calls, [{ id: 'summer', value: { materialId: 'gin', note: '干爽' } }])
   assert.equal(orchestrateObservationSave({ repository: { appendRecipeObservation() { throw new Error('offline') } }, recipe, materialId: 'gin', note: 'x', notify: (value) => messages.push(value) }).saved, false)
   assert.equal(messages.at(-1), '保存失败，请重试')
+})
+
+test('rating toggle saves directly and remembers when an untried recipe was promoted', () => {
+  const savedValues = []
+  const repository = {
+    upsertRecipe(value) {
+      savedValues.push(value)
+      return value
+    }
+  }
+  const untried = { id: 'new', name: '未调过', tried: false, rating: null }
+
+  const selected = orchestrateRatingToggle({ repository, recipe: untried, rating: '顶尖', promotedFromUntried: false })
+  assert.equal(selected.saved, true)
+  assert.equal(selected.promotedFromUntried, true)
+  assert.equal(selected.recipe.tried, true)
+  assert.equal(selected.recipe.rating, '顶尖')
+
+  const changed = orchestrateRatingToggle({ repository, recipe: selected.recipe, rating: '夯', promotedFromUntried: selected.promotedFromUntried })
+  assert.equal(changed.promotedFromUntried, true)
+  assert.equal(changed.recipe.tried, true)
+  assert.equal(changed.recipe.rating, '夯')
+  assert.equal(savedValues.length, 2)
+})
+
+test('cancelling a selected rating restores only newly promoted recipes to untried', () => {
+  const repository = { upsertRecipe: (value) => value }
+  const promoted = orchestrateRatingToggle({
+    repository,
+    recipe: { id: 'promoted', name: '刚刚点过', tried: true, rating: '人上人' },
+    rating: '人上人',
+    promotedFromUntried: true
+  })
+  assert.equal(promoted.saved, true)
+  assert.equal(promoted.recipe.tried, false)
+  assert.equal(promoted.recipe.rating, null)
+  assert.equal(promoted.promotedFromUntried, false)
+
+  const alreadyTried = orchestrateRatingToggle({
+    repository,
+    recipe: { id: 'tried', name: '原本调过', tried: true, rating: 'NPC' },
+    rating: 'NPC',
+    promotedFromUntried: false
+  })
+  assert.equal(alreadyTried.saved, true)
+  assert.equal(alreadyTried.recipe.tried, true)
+  assert.equal(alreadyTried.recipe.rating, null)
+  assert.equal(alreadyTried.promotedFromUntried, false)
+})
+
+test('rating toggle rejects invalid input and keeps the prior promotion state on save failure', () => {
+  const messages = []
+  const recipe = { id: 'r1', name: '测试', tried: false, rating: null }
+  assert.deepEqual(orchestrateRatingToggle({
+    repository: { upsertRecipe: (value) => value }, recipe, rating: '不存在', promotedFromUntried: false,
+    notify: (message) => messages.push(message)
+  }), { saved: false, recipe: null, promotedFromUntried: false })
+  assert.equal(messages.at(-1), '评价选项无效')
+
+  const failed = orchestrateRatingToggle({
+    repository: { upsertRecipe() { throw new Error('offline') } },
+    recipe: { ...recipe, tried: true, rating: '夯' }, rating: '夯', promotedFromUntried: true,
+    notify: (message) => messages.push(message)
+  })
+  assert.deepEqual(failed, { saved: false, recipe: null, promotedFromUntried: true })
+  assert.equal(messages.at(-1), '评价保存失败，请重试')
 })
 
 test('repository duplicates a recipe with a fresh ID while reusing all material references', () => {
@@ -326,7 +503,7 @@ test('mini program registers the detail route and wires recipe selection to a st
   assert.ok(app.pages.includes('pages/recipe-detail/index'))
   assert.match(listController, /event\.detail\.id/)
   assert.match(listController, /pages\/recipe-detail\/index\?id=/)
-  for (const handler of ['onEdit', 'onCopy', 'onDelete', 'onSaveObservation', 'onObservationMaterialChange']) {
+  for (const handler of ['onEdit', 'onDelete', 'onSaveObservation', 'onObservationMaterialChange']) {
     assert.match(detailTemplate, new RegExp(`bind(?:tap|change)="${handler}"`))
     assert.match(detailController, new RegExp(`${handler}\\(`))
   }

@@ -1,31 +1,4 @@
-<scroll-view class="page settings-page" scroll-y="true">
-  <view class="heading"><view><text class="page-title">我的调酒装备</text><text class="page-subtitle">杯具容量会帮助判断一杯酒是否装得下</text></view></view>
-
-  <view class="section">
-    <view class="section-heading"><text class="section-title">杯具</text><button class="add-button" disabled="{{savingGlass}}" bindtap="onAddGlassware">＋ 新增杯具</button></view>
-    <view wx:if="{{view.glassware.length}}" class="item-list">
-      <view wx:for="{{view.glassware}}" wx:key="id" class="equipment-card">
-        <image wx:if="{{item.imagePath}}" class="equipment-image" src="{{item.imagePath}}" mode="aspectFill" />
-        <view class="equipment-content"><view class="name-line"><text class="item-name">{{item.name}}</text><text class="capacity {{item.capacityMl ? '' : 'pending'}}">{{item.capacityLabel}}</text></view><text wx:if="{{item.notes}}" class="item-notes">{{item.notes}}</text><text class="usage">{{item.usageCount ? item.usageCount + ' 款酒正在使用' : '暂未被酒款使用'}}</text></view>
-        <view class="card-actions"><button disabled="{{savingGlass}}" data-id="{{item.id}}" bindtap="onEditGlassware">编辑</button><button class="danger" disabled="{{savingGlass}}" data-id="{{item.id}}" bindtap="onRequestDeleteGlassware">删除</button></view>
-      </view>
-    </view>
-    <text wx:else class="empty-copy">还没有杯具。新增后，录配方时可以直接选择。</text>
-  </view>
-
-  <view class="section">
-    <view class="section-heading"><view><text class="section-title">固定用具</text><text class="section-hint">始终可选，不可编辑或删除</text></view></view>
-    <view class="chip-list"><text wx:for="{{view.builtInTools}}" wx:key="id" class="tool-chip">{{item.name}}<text class="built-in-mark">固定</text></text></view>
-  </view>
-
-  <view class="section">
-    <view class="section-heading"><text class="section-title">自定义用具</text><button class="add-button" disabled="{{savingGlass}}" bindtap="onAddTool">＋ 新增用具</button></view>
-    <view wx:if="{{view.customTools.length}}" class="item-list">
-      <view wx:for="{{view.customTools}}" wx:key="id" class="tool-row"><view><text class="item-name">{{item.name}}</text><text class="usage">{{item.usageCount ? item.usageCount + ' 款酒正在使用' : '暂未被酒款使用'}}</text></view><view class="row-actions"><button disabled="{{savingGlass}}" data-id="{{item.id}}" bindtap="onEditTool">编辑</button><button class="danger" disabled="{{savingGlass}}" data-id="{{item.id}}" bindtap="onRequestDeleteTool">删除</button></view></view>
-    </view>
-    <text wx:else class="empty-copy">固定用具不够用时，可以补充自己的装备。</text>
-  </view>
-  <view class="bottom-space"></view>
-
-  <view wx:if="{{editorOpen}}" class="mask" bindtap="closeEditor"><view class="sheet {{savingGlass ? 'is-disabled' : ''}}" catchtap="noop"><view class="sheet-heading"><text class="section-title">{{editorTitle}}</text><button class="close-button" disabled="{{savingGlass}}" bindtap="closeEditor" aria-label="关闭编辑">×</button></view><input data-field="name" value="{{form.name}}" maxlength="40" placeholder="名称（必填）" disabled="{{savingGlass}}" bindinput="onFormInput" /><block wx:if="{{editorType === 'glassware'}}"><input type="digit" data-field="capacityMl" value="{{form.capacityMl}}" placeholder="容量 ml（必填）" disabled="{{savingGlass}}" bindinput="onFormInput" /><image wx:if="{{imagePreviewPath}}" class="editor-image-preview" src="{{imagePreviewPath}}" mode="aspectFill" /><view class="image-actions"><button disabled="{{savingGlass}}" bindtap="onChooseGlassImage">{{imagePreviewPath ? '更换图片' : '选择图片（可选）'}}</button><button wx:if="{{imagePreviewPath}}" class="danger" disabled="{{savingGlass}}" bindtap="onRemoveGlassImage">移除图片</button></view><textarea data-field="notes" value="{{form.notes}}" maxlength="300" placeholder="备注（可选）" disabled="{{savingGlass}}" bindinput="onFormInput" /></block><text wx:if="{{editorError}}" class="form-error">{{editorError}}</text><button class="save-button" disabled="{{savingGlass}}" loading="{{savingGlass}}" bindtap="onSaveEditor">{{savingGlass ? '保存中…' : '保存'}}</button></view></view>
-</scroll-view>
+<view class="profile-page">
+  <view class="profile-heading"><text class="profile-title">我的</text><text class="profile-subtitle">个人数据与同步设置</text></view>
+  <view class="profile-card"><text class="profile-card-title">数据保存在当前设备</text><text class="profile-card-note">云端同步、备份与账号功能后续在这里补充。</text></view>
+</view>

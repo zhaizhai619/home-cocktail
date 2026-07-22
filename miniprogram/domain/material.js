@@ -128,7 +128,73 @@ const CATEGORY_DEFAULTS = {
     assumedAvailable: false,
     owned: false,
     freshOnHand: false
+  },
+  other: {
+    acquisition: 'on-demand',
+    form: 'liquid',
+    alcoholic: false,
+    abv: null,
+    defaultUnit: 'ml',
+    trackFreshness: false,
+    assumedAvailable: false,
+    owned: false,
+    freshOnHand: false
   }
+}
+
+const MATERIAL_CATEGORY_GROUPS = Object.freeze([
+  Object.freeze({ key: 'base', label: '基酒', category: 'base-spirit', categories: Object.freeze(['base-spirit', 'other-base-spirit']) }),
+  Object.freeze({ key: 'liqueur', label: '利口酒', category: 'liqueur', categories: Object.freeze(['liqueur']) }),
+  Object.freeze({ key: 'syrup', label: '糖浆', category: 'syrup/staple', categories: Object.freeze(['syrup/staple']) }),
+  Object.freeze({ key: 'produce', label: '果汁/果蔬', category: 'fruit', categories: Object.freeze(['citrus', 'fruit', 'dairy/juice']) }),
+  Object.freeze({ key: 'mixer', label: '混合饮品', category: 'other-liquid', categories: Object.freeze(['soda/tonic', 'other-liquid']) }),
+  Object.freeze({ key: 'spice', label: '香料', category: 'other-solid', categories: Object.freeze(['bitters', 'other-solid']) }),
+  Object.freeze({ key: 'other', label: '其他', category: 'other', categories: Object.freeze(['other']) })
+])
+
+function getMaterialCategoryGroup(category) {
+  return MATERIAL_CATEGORY_GROUPS.find((group) => group.categories.includes(category)) || MATERIAL_CATEGORY_GROUPS[MATERIAL_CATEGORY_GROUPS.length - 1]
+}
+
+function selectMaterialCategory(currentCategory, groupKey) {
+  const group = MATERIAL_CATEGORY_GROUPS.find((item) => item.key === groupKey) || getMaterialCategoryGroup('other')
+  return group.categories.includes(currentCategory) ? currentCategory : group.category
+}
+
+function normalizeMaterialName(category, name) {
+  const normalizedCategory = CATEGORY_ALIASES[category] || category
+  const trimmedName = String(name || '').trim()
+  if (normalizedCategory === 'base-spirit' && trimmedName === '朗姆') return '白朗姆'
+  if (normalizedCategory === 'syrup/staple' && ['糖浆', '单糖浆'].includes(trimmedName)) return '普通糖浆'
+  return trimmedName
+}
+
+function getMaterialDisplayName(category, name) {
+  const normalizedCategory = CATEGORY_ALIASES[category] || category
+  const normalizedName = normalizeMaterialName(normalizedCategory, name)
+  return normalizedCategory === 'syrup/staple' && normalizedName === '普通糖浆'
+    ? '糖浆'
+    : normalizedName
+}
+
+function materialNameMatchesQuery(category, name, query) {
+  const normalizedCategory = CATEGORY_ALIASES[category] || category
+  const normalizedName = normalizeMaterialName(normalizedCategory, name)
+  const normalizedQuery = String(query || '').trim().toLocaleLowerCase()
+  if (!normalizedQuery) return true
+  const names = [normalizedName, getMaterialDisplayName(normalizedCategory, normalizedName)]
+  if (normalizedCategory === 'syrup/staple' && normalizedName === '普通糖浆') names.push('单糖浆')
+  return names.some((candidate) => String(candidate || '').toLocaleLowerCase().includes(normalizedQuery))
+}
+
+function normalizeMaterialObservations(value) {
+  return (Array.isArray(value) ? value : []).reduce((observations, item) => {
+    if (!item || typeof item !== 'object' || typeof item.note !== 'string' || !item.note.trim()) return observations
+    const observation = { note: item.note.trim() }
+    if (typeof item.createdAt === 'string' && item.createdAt) observation.createdAt = item.createdAt
+    observations.push(observation)
+    return observations
+  }, [])
 }
 
 function createMaterialDefaults(category, name) {
@@ -141,7 +207,7 @@ function createMaterialDefaults(category, name) {
 
   return {
     category: normalizedCategory,
-    name,
+    name: normalizeMaterialName(normalizedCategory, name),
     ...defaults
   }
 }
@@ -165,7 +231,14 @@ function getMaterialVisualState(material) {
 }
 
 module.exports = {
+  MATERIAL_CATEGORY_GROUPS,
   createMaterialDefaults,
+  getMaterialCategoryGroup,
+  getMaterialDisplayName,
   getMaterialIdentityKey,
-  getMaterialVisualState
+  getMaterialVisualState,
+  materialNameMatchesQuery,
+  normalizeMaterialObservations,
+  normalizeMaterialName,
+  selectMaterialCategory
 }

@@ -3,12 +3,16 @@
   <block wx:else>
     <view class="hero">
       <view class="hero-top"><view><text class="eyebrow">MATERIAL</text><text class="title">{{detail.name}}</text></view><button class="edit" bindtap="onEdit">编辑</button></view>
-      <view class="status-actions">
-        <button wx:if="{{detail.canToggleOwned}}" class="status {{detail.owned ? 'active' : ''}}" bindtap="onToggleOwned">{{detail.owned ? '我有' : '我没有'}}</button>
+      <view class="availability-row" wx:if="{{detail.canToggleOwned}}"><view><text class="availability-title">当前我有</text><text class="availability-note">关闭后，酒单中的相关材料会显示为缺少</text></view><switch checked="{{detail.owned}}" bindchange="onToggleOwned" color="#6d8666"/></view>
+      <view wx:if="{{detail.canAddFresh || detail.canUseUp}}" class="status-actions">
         <button wx:if="{{detail.canAddFresh}}" class="status warm" bindtap="onOpenFreshForm">加入手头鲜材</button>
         <button wx:if="{{detail.canUseUp}}" class="status danger" bindtap="onUseUp">用完</button>
       </view>
       <view wx:if="{{detail.inventoryLabel || detail.expiryLabel}}" class="inventory"><text>{{detail.inventoryLabel}}</text><text wx:if="{{detail.expiryLabel}}">{{detail.expiryLabel}}</text></view>
+      <view wx:if="{{detail.canEditPurchasedAt}}" class="purchase-row">
+        <text class="purchase-label">购买日期</text>
+        <view class="purchase-actions"><button wx:if="{{detail.purchasedAtDate && !detail.trackFreshness}}" class="purchase-clear" bindtap="onClearPurchaseDate">清除</button><picker mode="date" value="{{detail.purchasedAtDate}}" bindchange="onPurchaseDateChange"><view class="purchase-value">{{detail.purchasedAtDate || '未填写'}} ›</view></picker></view>
+      </view>
     </view>
 
     <view class="numbers">
@@ -16,26 +20,15 @@
       <view><text class="number">{{detail.immediateUnlockCount}}</text><text class="number-label">买后立即解锁</text></view>
     </view>
 
-    <view class="section">
-      <text class="section-title">还能做什么</text>
-      <text class="section-note">直接查看每款酒还需要什么</text>
-      <view wx:if="{{detail.relatedRecipes.length}}" class="recipes">
-        <view wx:for="{{detail.relatedRecipes}}" wx:key="id" class="recipe-card" bindtap="onOpenRecipe" data-id="{{item.id}}">
-          <image wx:if="{{item.imagePath}}" class="recipe-image" src="{{item.imagePath}}" mode="aspectFill" aria-label="{{item.name}}配图" />
-          <view class="recipe-content"><view class="recipe-title-row"><text class="recipe-title">{{item.name}}</text><text class="prep">{{item.preparationLabel}}</text></view>
-            <view class="ingredients"><text wx:for="{{item.ingredients}}" wx:for-item="ingredient" wx:key="materialId" class="ingredient state-{{ingredient.state}}" aria-label="{{ingredient.accessibilityLabel}}"><text wx:if="{{ingredient.quickBuyIcon}}" class="quick-buy-icon" aria-hidden="true">{{ingredient.quickBuyIcon}}</text>{{ingredient.name}} {{ingredient.amountLabel}}{{index < item.ingredients.length - 1 ? ' · ' : ''}}</text></view>
-            <view class="recipe-meta"><text>杯具：{{item.glasswareLabel}}</text><text>用具：{{item.toolsLabel}}</text></view>
-          </view>
-        </view>
-      </view>
-      <view wx:else class="empty">酒单里还没有用到它的酒</view>
-    </view>
-
     <view class="section observations">
       <text class="section-title">我的材料观察</text>
+      <view class="material-observation-form">
+        <textarea value="{{observationNote}}" maxlength="300" placeholder="记录这个材料的新发现" bindinput="onObservationInput"/>
+        <view class="observation-form-footer"><text wx:if="{{observationError}}" class="form-error">{{observationError}}</text><button class="save-observation" bindtap="onSaveObservation">保存观察</button></view>
+      </view>
       <view wx:if="{{detail.observations.length}}">
         <view wx:for="{{detail.observations}}" wx:key="index" class="note-card">
-          <text class="note">“{{item.note}}”</text><text class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAt || '未记录日期'}}</text>
+          <text class="note">“{{item.note}}”</text><text wx:if="{{item.direct}}" class="note-source">记录于 {{item.createdAt || '未记录日期'}}</text><text wx:else class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAt || '未记录日期'}}</text>
         </view>
       </view>
       <view wx:else class="empty">还没有关于这个材料的品尝记录</view>

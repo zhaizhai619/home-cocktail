@@ -1,74 +1,236 @@
-const { QUICK_BASE_SPIRITS, PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
-const { createEmptyRecipeForm, applyQuickBase, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateIngredientField, selectExistingIngredient, getFormPreview, orchestrateRecipeSave } = require('./model')
+const { PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
+const { formatPreparationDurationText, getPreparationDurationParts } = require('../../domain/recipe')
+const { getMaterialCategoryGroup, getMaterialDisplayName, getMaterialIdentityKey, materialNameMatchesQuery } = require('../../domain/material')
+const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
   { key: 'citrus', label: '柑橘汁' }, { key: 'syrup/staple', label: '糖浆/常备' },
-  { key: 'soda/tonic', label: '苏打/汤力' }, { key: 'fruit', label: '水果' }, { key: 'other-liquid', label: '其他液体' }, { key: 'other-solid', label: '其他固体' }
+  { key: 'soda/tonic', label: '苏打/汤力' }, { key: 'fruit', label: '水果' }, { key: 'dairy/juice', label: '奶制品/果汁' },
+  { key: 'other-liquid', label: '其他液体' }, { key: 'other-solid', label: '其他固体' }, { key: 'other', label: '其他' }
 ]
+
+const MATERIAL_SHORTCUTS = [
+  { key: 'base', label: '基酒' },
+  { key: 'liqueur', label: '利口酒' },
+  { key: 'produce', label: '果汁/果蔬' },
+  { key: 'mixer', label: '混合饮品' },
+  { key: 'all', label: '材料库' }
+]
+
+function categoryFilterForIngredient(row) {
+  return row && row.category ? getMaterialCategoryGroup(row.category).key : 'all'
+}
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
 function imageMediaFiles() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.mediaFiles }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
-function displayIngredient(row) { const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true; return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', missingExistingAbv, showAbvInput: (!isExisting && row.alcoholic === true) || needsExistingAbvInput, showAbvReadonly: isExisting && row.alcoholic === true && !needsExistingAbvInput, ...unitView(row.unit) } }
-function displayPrep(row) { const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]; const index = units.findIndex((item) => item.value === row.unit); return { ...row, needsDuration: row.type !== '即调', units, unitIndex: index < 0 ? 0 : index, unitLabel: units[index < 0 ? 0 : index].label } }
+function displayIngredient(row) {
+  if (row && row.kind === 'prepared-output') return { ...row, nameLabel: row.name || '预调成品', isPrepared: true, ...unitView(row.unit) }
+  const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true
+  return { ...row, nameLabel: row.name || '选择材料', categoryIndex: categoryIndex < 0 ? 0 : categoryIndex, categoryLabel: category.label, isExisting, canEditMetadata: !isExisting, alcoholicLabel: row.alcoholic ? '含酒精' : '不含酒精', missingExistingAbv, showAbvInput: (!isExisting && row.alcoholic === true) || needsExistingAbvInput, showAbvReadonly: isExisting && row.alcoholic === true && !needsExistingAbvInput, ...unitView(row.unit) }
+}
+function displayPrep(row) {
+  const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]
+  const duration = getPreparationDurationParts(row)
+  const unitIndex = Math.max(0, units.findIndex(({ value }) => value === duration.unit))
+  return { ...row, needsDuration: row.type !== '即调', durationValue: duration.value, durationUnit: units[unitIndex].value, durationUnitLabel: units[unitIndex].label, units, unitIndex }
+}
+function prepTypeOptions(preparations) {
+  const selected = new Set((Array.isArray(preparations) ? preparations : []).map((item) => item.type))
+  return PREP_TYPES.map((type) => ({ type, selected: selected.has(type) }))
+}
 function emptyData(form, glassware, tools) {
   const preview = getFormPreview(form)
   const equipment = hydrateEquipmentSelections(form, glassware, tools)
-  return { form: equipment.form, glasswareOptions: equipment.glasswareOptions, glasswareIndex: equipment.glasswareIndex, glasswareLabel: equipment.glasswareLabel, tools: equipment.tools, formIngredients: equipment.form.ingredients.map(displayIngredient), formPreparations: equipment.form.preparations.map(displayPrep), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', missingText: (preview.missing || []).join('、'), capacity: equipment.capacity }, errors: {} }
+  const advanceCards = equipment.form.advancePreparations.map((preparation) => ({ ...preparation, formIngredients: preparation.ingredients.map(displayIngredient) }))
+  return { form: equipment.form, glasswareOptions: equipment.glasswareOptions, glasswareIndex: equipment.glasswareIndex, glasswareLabel: equipment.glasswareLabel, tools: equipment.tools, formIngredients: equipment.form.ingredients.map(displayIngredient), advanceCards, formPreparations: equipment.form.preparations.map(displayPrep), prepTypeOptions: prepTypeOptions(equipment.form.preparations), preview: { ...preview, abvLabel: preview.status === 'ok' ? preview.abv : '--', abvHint: getMissingAlcoholAbvHint(form), missingText: (preview.missing || []).join('、'), capacity: equipment.capacity }, errors: {} }
 }
 
 Page({
-  data: { quickBases: QUICK_BASE_SPIRITS, units: UNITS, prepTypes: PREP_TYPES, ratings: RATINGS, categories: NEW_CATEGORIES, materials: [], glasswareOptions: [], tools: [], suggestionOpen: false, suggestionIndex: -1, suggestions: [], savingImage: false, savingRecipe: false, imageError: '', formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingImage: false, savingRecipe: false, imageError: '', formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
   onLoad(query) {
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
     let form = createEmptyRecipeForm()
     if (recipe) {
       const lookup = this.materials.reduce((all, item) => { all[item.id] = item; return all }, {})
-      form = { ...form, ...recipe, steps: Array.isArray(recipe.steps) ? recipe.steps.join('\n') : '', ingredients: (recipe.ingredients || []).map((row) => hydrateRecipeIngredient(row, lookup[row.materialId])) }
+      const advancePreparations = (Array.isArray(recipe.advancePreparations) ? recipe.advancePreparations : []).map((preparation) => ({ ...preparation, steps: Array.isArray(preparation.steps) ? preparation.steps.join('\n') : '', ingredients: (preparation.ingredients || []).map((row) => hydrateRecipeIngredient(row, lookup[row.materialId])) }))
+      const preparationsById = advancePreparations.reduce((all, preparation) => { all[preparation.id] = preparation; return all }, {})
+      form = { ...form, ...recipe, steps: Array.isArray(recipe.steps) ? recipe.steps.join('\n') : '', advancePreparations, ingredients: (recipe.ingredients || []).map((row) => hydrateRecipeIngredient(row, lookup[row.materialId], preparationsById[row.preparationId])) }
     }
     this.setData({ materials: this.materials, ...emptyData(form, this.glassware, this.tools) })
   },
   onShow() {
+    this._openingGlassSelect = false
+    this._openingMaterialSelect = false
     const repo = repository()
     if (!repo || !this.data.form) return
     this.materials = repo.listMaterials(); this.glassware = repo.listGlassware(); this.tools = repo.listTools()
-    this.setData({ materials: this.materials, ...emptyData(this.data.form, this.glassware, this.tools) })
+    this.setData({ materials: this.materials, ...emptyData(this.data.form, this.glassware, this.tools), errors: this.data.errors || {}, formError: this.data.formError || '' })
   },
   sync(form, errors) { const nextErrors = errors || {}; this.setData({ ...emptyData(form, this.glassware, this.tools), errors: nextErrors, formError: nextErrors.form || '' }) },
   onBasicInput(event) { const field = event.currentTarget.dataset.field; this.sync({ ...this.data.form, [field]: event.detail.value }) },
-  onTried(event) { this.sync({ ...this.data.form, tried: event.detail.value }) },
-  onQuickBase(event) { this.sync(applyQuickBase(this.data.form, event.currentTarget.dataset.name)) },
-  onAddIngredient(event) { const category = event.currentTarget.dataset.category || 'other-liquid'; const name = category === 'citrus' ? '青柠汁' : category === 'syrup/staple' ? '蜂蜜糖浆' : ''; this.sync({ ...this.data.form, ingredients: [...this.data.form.ingredients, createIngredientDraft(category, name)] }) },
-  onIngredientChange(event) { const { index, field, value } = event.detail; const next = updateIngredientField(this.data.form, index, field, value); this.sync(next) },
-  onCategoryChange(event) { const { index, category } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index && !(item.materialId && !item.orphanedMaterialId) ? { ...createIngredientDraft(category, item.name), amount: item.amount, observation: item.observation || '' } : item); this.sync({ ...this.data.form, ingredients }) },
-  onAlcoholicChange(event) { const { index, value } = event.detail; const ingredients = this.data.form.ingredients.map((item, itemIndex) => itemIndex === index && !(item.materialId && !item.orphanedMaterialId) ? { ...item, alcoholic: value, abv: value ? item.abv : null } : item); this.sync({ ...this.data.form, ingredients }) },
-  onRemoveIngredient(event) { const index = event.detail.index; const ingredients = this.data.form.ingredients.filter((_, itemIndex) => itemIndex !== index); this.sync({ ...this.data.form, ingredients }) },
-  onPickName(event) {
-    const index = event.detail.index
-    this.setData({ suggestionOpen: true, suggestionIndex: index, suggestionQuery: '', suggestions: this.suggestionsFor(index, '') })
+  onTriedTap(event) { this.sync(updateTriedState(this.data.form, event.currentTarget.dataset.tried === 'true')) },
+  onOpenMaterialSelect(event) {
+    if (this.data.savingRecipe || this._openingMaterialSelect || typeof wx === 'undefined' || !wx.navigateTo) return
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {}
+    const detail = event && event.detail ? event.detail : {}
+    const categoryFilter = dataset.filter || detail.categoryFilter || 'all'
+    const stage = dataset.stage || detail.stage || this.data.materialStage || 'serving'
+    const preparationId = dataset.preparationId || detail.preparationId || ''
+    const index = Number.isInteger(Number(dataset.index)) ? Number(dataset.index) : (Number.isInteger(Number(detail.index)) ? Number(detail.index) : -1)
+    const materialSelectUrl = categoryFilter === 'all'
+      ? '/pages/material-select/index'
+      : `/pages/material-select/index?categoryFilter=${encodeURIComponent(categoryFilter)}`
+    this._openingMaterialSelect = true
+    wx.navigateTo({
+      url: materialSelectUrl,
+      fail: () => { this._openingMaterialSelect = false },
+      success: ({ eventChannel }) => {
+        if (!eventChannel) return
+        if (eventChannel.on) eventChannel.on('material:selected', ({ material } = {}) => {
+          if (material) this.sync(stage === 'advance' ? applyAdvanceMaterialSelection(this.data.form, preparationId, index, material) : applyMaterialSelection(this.data.form, index, material), this.data.errors)
+        })
+        if (eventChannel.emit) eventChannel.emit('material-select:init', { categoryFilter })
+      }
+    })
   },
+  onIngredientChange(event) { const { index, field, value } = event.detail; const next = updateIngredientField(this.data.form, index, field, value); this.sync(next) },
+  onRemoveIngredient(event) {
+    const index = event.detail.index; const row = this.data.form.ingredients[index]
+    if (row && row.kind === 'prepared-output') return this.sync(removeAdvancePreparation(this.data.form, row.preparationId), this.data.errors)
+    const ingredients = this.data.form.ingredients.filter((_, itemIndex) => itemIndex !== index); this.sync({ ...this.data.form, ingredients })
+  },
+  onIngredientDragStart(event) {
+    this._ingredientDrag = { index: event.detail.index, lastY: Number(event.detail.y) || 0 }
+    this.setData({ draggingIngredientIndex: event.detail.index })
+  },
+  onIngredientDragMove(event) {
+    if (!this._ingredientDrag || this._ingredientDrag.index !== event.detail.index) return
+    const y = Number(event.detail.y)
+    if (!Number.isFinite(y)) return
+    const delta = y - this._ingredientDrag.lastY
+    if (Math.abs(delta) < 36) return
+    const from = this._ingredientDrag.index
+    const to = Math.max(0, Math.min(this.data.form.ingredients.length - 1, from + (delta > 0 ? 1 : -1)))
+    if (to !== from) {
+      this.sync(reorderIngredient(this.data.form, from, to), this.data.errors)
+      this._ingredientDrag.index = to
+      this._ingredientDrag.lastY = y
+      this.setData({ draggingIngredientIndex: to })
+    }
+  },
+  onIngredientDragEnd() { this._ingredientDrag = null; this.setData({ draggingIngredientIndex: -1 }) },
+  onPickName(event) {
+    const row = this.data.form.ingredients[event.detail.index]
+    if (row && row.kind === 'prepared-output') return this.setData({ materialStage: 'advance' })
+    this.onOpenMaterialSelect({ detail: { index: event.detail.index, categoryFilter: categoryFilterForIngredient(row) } })
+  },
+  onPickAdvanceName(event) {
+    const preparation = this.data.form.advancePreparations.find((item) => item.id === event.detail.preparationId)
+    const row = preparation && preparation.ingredients[event.detail.index]
+    this.onOpenMaterialSelect({ detail: { index: event.detail.index, preparationId: event.detail.preparationId, categoryFilter: categoryFilterForIngredient(row), stage: 'advance' } })
+  },
+  onMaterialStage(event) { this.setData({ materialStage: event.currentTarget.dataset.stage === 'advance' ? 'advance' : 'serving' }) },
+  onCreateAdvancePreparation() {
+    const form = createAdvancePreparation(this.data.form)
+    this.setData({ materialStage: 'advance' })
+    this.sync(form, this.data.errors)
+  },
+  onAdvanceInput(event) { this.sync(updateAdvancePreparation(this.data.form, event.currentTarget.dataset.preparationId, event.currentTarget.dataset.field, event.detail.value), this.data.errors) },
+  onAdvanceIngredientChange(event) {
+    const { index, field, value, preparationId } = event.detail
+    const preparationIndex = this.data.form.advancePreparations.findIndex(({ id }) => id === preparationId)
+    if (preparationIndex === -1) return
+    const preparation = this.data.form.advancePreparations[preparationIndex]
+    const shadow = { ...this.data.form, advancePreparations: [], ingredients: preparation.ingredients }
+    const changed = updateIngredientField(shadow, index, field, value)
+    const advancePreparations = this.data.form.advancePreparations.map((item, itemIndex) => itemIndex === preparationIndex ? { ...item, ingredients: changed.ingredients } : item)
+    this.sync({ ...this.data.form, advancePreparations }, this.data.errors)
+  },
+  onRemoveAdvanceIngredient(event) {
+    const { preparationId, index } = event.detail
+    const advancePreparations = this.data.form.advancePreparations.map((preparation) => preparation.id === preparationId ? { ...preparation, ingredients: preparation.ingredients.filter((_, itemIndex) => itemIndex !== index) } : preparation)
+    this.sync({ ...this.data.form, advancePreparations }, this.data.errors)
+  },
+  onAdvanceDragStart(event) { this._advanceDrag = { preparationId: event.detail.preparationId, index: event.detail.index, lastY: Number(event.detail.y) || 0 }; this.setData({ draggingAdvanceIndex: event.detail.index, draggingAdvancePreparationId: event.detail.preparationId }) },
+  onAdvanceDragMove(event) {
+    if (!this._advanceDrag || this._advanceDrag.index !== event.detail.index || this._advanceDrag.preparationId !== event.detail.preparationId) return
+    const y = Number(event.detail.y); const delta = y - this._advanceDrag.lastY
+    if (!Number.isFinite(y) || Math.abs(delta) < 36) return
+    const from = this._advanceDrag.index
+    const preparationIndex = this.data.form.advancePreparations.findIndex(({ id }) => id === this._advanceDrag.preparationId)
+    if (preparationIndex === -1) return
+    const rows = this.data.form.advancePreparations[preparationIndex].ingredients
+    const to = Math.max(0, Math.min(rows.length - 1, from + (delta > 0 ? 1 : -1)))
+    if (to !== from) {
+      const moved = reorderIngredient({ ingredients: rows }, from, to).ingredients
+      const advancePreparations = this.data.form.advancePreparations.map((preparation, index) => index === preparationIndex ? { ...preparation, ingredients: moved } : preparation)
+      this.sync({ ...this.data.form, advancePreparations }, this.data.errors)
+      this._advanceDrag = { preparationId: this._advanceDrag.preparationId, index: to, lastY: y }; this.setData({ draggingAdvanceIndex: to })
+    }
+  },
+  onAdvanceDragEnd() { this._advanceDrag = null; this.setData({ draggingAdvanceIndex: -1, draggingAdvancePreparationId: '' }) },
+  onRemoveAdvancePreparation(event) { this.sync(removeAdvancePreparation(this.data.form, event.currentTarget.dataset.preparationId), this.data.errors) },
   suggestionsFor(index, query) {
     const ingredient = this.data.form.ingredients[index] || {}; const common = ingredient.category === 'citrus' ? ['柠檬汁', '青柠汁'] : ingredient.category === 'syrup/staple' ? ['糖浆', '蜂蜜糖浆', '肉桂糖浆'] : []
     const normalized = String(query || '').trim().toLowerCase()
-    return [...common.map((name) => ({ name, category: ingredient.category, kind: 'replace' })), ...this.materials.map((item) => ({ ...item, kind: 'existing' }))].filter((item) => !normalized || String(item.name || '').toLowerCase().includes(normalized))
-  },
-  onSuggestionInput(event) { const suggestionQuery = event.detail.value || ''; this.setData({ suggestionQuery, suggestions: this.suggestionsFor(this.data.suggestionIndex, suggestionQuery) }) },
-  closeSuggestions() { this.setData({ suggestionOpen: false }) },
-  onChooseSuggestion(event) {
-    const option = this.data.suggestions[event.currentTarget.dataset.index]; const index = this.data.suggestionIndex; if (!option || index < 0) return this.closeSuggestions()
-    const ingredients = this.data.form.ingredients.slice(); const next = option.kind === 'existing' ? selectExistingIngredient(this.data.form, index, option) : { ...this.data.form, ingredients: replaceIngredientName({ ...this.data.form, ingredients }, index, option.name).ingredients }
-    this.sync(next); this.closeSuggestions()
+    const existingByIdentity = new Map()
+    this.materials.forEach((item) => {
+      const identity = getMaterialIdentityKey(item.category, item.name)
+      if (!existingByIdentity.has(identity)) existingByIdentity.set(identity, item)
+    })
+    const usedIdentities = new Set()
+    const commonOptions = common.map((name) => {
+      const identity = getMaterialIdentityKey(ingredient.category, name)
+      const existing = existingByIdentity.get(identity)
+      if (existing) {
+        usedIdentities.add(identity)
+        return { ...existing, name: getMaterialDisplayName(existing.category, existing.name), kind: 'existing', renderKey: `material:${existing.id}` }
+      }
+      usedIdentities.add(identity)
+      return { name, category: ingredient.category, kind: 'replace', renderKey: `common:${ingredient.category}:${name}` }
+    })
+    const additionalMaterials = []
+    this.materials.forEach((item, itemIndex) => {
+      const identity = getMaterialIdentityKey(item.category, item.name)
+      if (usedIdentities.has(identity)) return
+      usedIdentities.add(identity)
+      additionalMaterials.push({ ...item, name: getMaterialDisplayName(item.category, item.name), kind: 'existing', renderKey: `material:${item.id || `${item.category}:${item.name}:${itemIndex}`}` })
+    })
+    return [...commonOptions, ...additionalMaterials].filter((item) => !normalized || materialNameMatchesQuery(item.category, item.name, normalized))
   },
   onTogglePrep(event) {
     const type = event.detail.type; const existing = this.data.form.preparations || []; let preparations
-    if (type === '即调') preparations = [{ type, amount: '', unit: 'hour', note: '' }]
-    else { preparations = existing.filter((item) => item.type !== '即调'); preparations = preparations.some((item) => item.type === type) ? preparations.filter((item) => item.type !== type) : [...preparations, { type, amount: '', unit: 'hour', note: '' }] }
+    if (type === '即调') preparations = [{ type, note: '' }]
+    else { preparations = existing.filter((item) => item.type !== '即调'); preparations = preparations.some((item) => item.type === type) ? preparations.filter((item) => item.type !== type) : [...preparations, { type, durationText: '', note: '' }] }
     this.sync({ ...this.data.form, preparations })
   },
-  onPrepChange(event) { const { index, field, value } = event.detail; const preparations = this.data.form.preparations.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item); this.sync({ ...this.data.form, preparations }) },
-  onGlassware(event) { const option = this.data.glasswareOptions[Number(event.detail.value)]; this.sync({ ...this.data.form, glasswareId: option ? option.id : '' }) },
+  onPrepChange(event) {
+    const { index, field, value } = event.detail
+    const displayed = this.data.formPreparations[index] || displayPrep(this.data.form.preparations[index] || {})
+    const durationValue = field === 'durationValue' ? value : displayed.durationValue
+    const durationUnit = field === 'durationUnit' ? value : displayed.durationUnit
+    const durationText = formatPreparationDurationText(durationValue, durationUnit)
+    const preparations = this.data.form.preparations.map((item, itemIndex) => itemIndex === index ? { ...item, durationText } : item)
+    this.sync({ ...this.data.form, preparations })
+  },
+  onOpenGlasswareSelect() {
+    if (this.data.savingRecipe || this._openingGlassSelect || typeof wx === 'undefined' || !wx.navigateTo) return
+    this._openingGlassSelect = true
+    wx.navigateTo({
+      url: '/pages/glass-select/index',
+      fail: () => { this._openingGlassSelect = false },
+      success: ({ eventChannel }) => {
+        if (!eventChannel) return
+        if (eventChannel.on) eventChannel.on('glassware:selected', ({ glasswareId } = {}) => {
+          if (typeof glasswareId === 'string') this.sync({ ...this.data.form, glasswareId }, this.data.errors)
+        })
+        if (eventChannel.emit) eventChannel.emit('glassware:init', { selectedId: this.data.form.glasswareId || '' })
+      }
+    })
+  },
   onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.data.tools[Number(index)]).filter(Boolean).map((tool) => tool.id) }) },
   onRating(event) { this.sync({ ...this.data.form, rating: event.currentTarget.dataset.rating }) },
   noop() {},

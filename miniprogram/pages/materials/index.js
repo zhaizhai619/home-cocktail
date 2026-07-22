@@ -1,21 +1,15 @@
 const { UNITS } = require('../../domain/constants')
-const { buildMaterialLibrary, orchestrateFreshUseUp, orchestrateFreshUndo } = require('./model')
-
-const FILTERS = [
-  { key: 'all', label: '全部' },
-  { key: 'owned', label: '我有' },
-  { key: 'fresh', label: '手头鲜材' },
-  { key: 'missing', label: '我没有' }
-]
-const ACQUISITIONS = [
-  { key: 'all', label: '全部类型' },
-  { key: 'long-term', label: '长期材料' },
-  { key: 'on-demand', label: '随买随用' }
-]
+const { MATERIAL_LIBRARY_TABS, buildMaterialLibrary, buildGlasswareCards, buildFreshFormState, ensureLibraryMaterial, prepareGlasswareForSave, orchestrateFreshUseUp, orchestrateFreshUndo } = require('./model')
+const { validateGlasswareForm, orchestrateGlasswareSave, orchestrateEquipmentDelete, orchestrateGlasswareMediaDelete } = require('../settings/model')
 
 function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
   return app && app.globalData && app.globalData.repository
+}
+
+function mediaFiles() {
+  const app = typeof getApp === 'function' ? getApp() : null
+  return app && app.globalData && app.globalData.mediaFiles
 }
 
 function toast(title) {
@@ -24,15 +18,20 @@ function toast(title) {
 
 Page({
   data: {
-    filters: FILTERS,
-    acquisitions: ACQUISITIONS,
+    barTabIndex: 0,
+    categoryTabs: MATERIAL_LIBRARY_TABS,
     units: UNITS,
     unitLabels: UNITS.map(({ label }) => label),
     search: '',
-    filter: 'all',
-    acquisition: 'all',
+    categoryFilter: 'all',
     freshShelf: [],
     materials: [],
+    glassware: [],
+    glassEditorOpen: false,
+    glassEditorTitle: '新增酒杯',
+    glassForm: { id: '', name: '', capacityMl: '', imagePath: '', notes: '' },
+    glassError: '',
+    savingGlass: false,
     showFreshForm: false,
     freshDraft: { materialId: '', name: '', trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
@@ -43,17 +42,78 @@ Page({
   onUnload() { if (this.undoTimer) clearTimeout(this.undoTimer) },
   reload() {
     const repo = repository()
-    const view = buildMaterialLibrary(repo ? repo.listMaterials() : [], repo ? repo.listRecipes() : [], this.data)
-    this.setData(view)
+    const view = buildMaterialLibrary(repo ? repo.listMaterials() : [], repo ? repo.listRecipes() : [], { ...this.data, includeCatalog: true })
+    this.setData({ ...view, glassware: buildGlasswareCards(repo ? repo.listGlassware() : []) })
   },
+  onSelectBarTab(event) {
+    const index = Number(event.currentTarget.dataset.index)
+    this.setData({ barTabIndex: index === 1 ? 1 : 0 })
+  },
+  onBarSwiperChange(event) { this.setData({ barTabIndex: Number(event.detail.current) === 1 ? 1 : 0 }) },
   onSearchInput(event) { this.setData({ search: event.detail.value || '' }); this.reload() },
-  onSelectFilter(event) { this.setData({ filter: event.currentTarget.dataset.key || 'all' }); this.reload() },
-  onSelectAcquisition(event) { this.setData({ acquisition: event.currentTarget.dataset.key || 'all' }); this.reload() },
+  onSelectCategory(event) { this.setData({ categoryFilter: event.currentTarget.dataset.key || 'all' }); this.reload() },
   onOpenMaterial(event) {
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
   },
+  onOpenLibraryCard(event) {
+    const { id, name, category } = event.currentTarget.dataset
+    try {
+      const material = ensureLibraryMaterial(repository(), { id, name, category })
+      if (!material) throw new Error('material not found')
+      wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(material.id)}` })
+    } catch (_) { toast('打开材料失败，请重试') }
+  },
   onAddMaterial() { wx.navigateTo({ url: '/pages/material-edit/index' }) },
+  openGlassEditor(item) {
+    if (this.data.savingGlass) return
+    this.setData({
+      glassEditorOpen: true,
+      glassEditorTitle: item ? '编辑酒杯' : '新增酒杯',
+      glassError: '',
+      glassForm: {
+        id: item && item.id || '',
+        name: item && item.name || '',
+        capacityMl: item && item.capacityMl || '',
+        imagePath: item && item.imagePath || '',
+        notes: item && item.notes || ''
+      }
+    })
+  },
+  onAddGlassware() { this.openGlassEditor() },
+  onEditGlassware(event) {
+    const item = this.data.glassware.find((entry) => entry.id === event.currentTarget.dataset.id)
+    if (item) this.openGlassEditor(item)
+  },
+  onGlassFormInput(event) { if (!this.data.savingGlass) this.setData({ [`glassForm.${event.currentTarget.dataset.field}`]: event.detail.value, glassError: '' }) },
+  onCloseGlassEditor() { if (!this.data.savingGlass) this.setData({ glassEditorOpen: false, glassError: '' }) },
+  onSaveGlassware() {
+    if (this.data.savingGlass) return
+    const form = prepareGlasswareForSave(this.data.glassForm, this.data.glassware)
+    const validation = validateGlasswareForm(form)
+    if (!validation.valid) { this.setData({ glassError: validation.message }); return toast(validation.message) }
+    this.setData({ savingGlass: true, glassError: '' })
+    const result = orchestrateGlasswareSave({ repository: repository(), form, notify: toast })
+    this.setData({ savingGlass: false })
+    if (!result.saved) return this.setData({ glassError: '保存失败，请重试' })
+    this.setData({ glassEditorOpen: false })
+    this.reload()
+  },
+  onRequestDeleteGlassware(event) {
+    if (this.data.savingGlass) return
+    const id = event.currentTarget.dataset.id
+    const repo = repository()
+    const check = orchestrateEquipmentDelete({ repository: repo, type: 'glassware', id, notify: toast })
+    if (!check.needsConfirmation || typeof wx === 'undefined' || !wx.showModal) return
+    wx.showModal({
+      title: '删除酒杯？', content: '删除后无法恢复。正在被配方使用的酒杯不能删除。', confirmText: '删除', confirmColor: '#a54d36',
+      success: async ({ confirm }) => {
+        if (!confirm) return
+        const result = await orchestrateGlasswareMediaDelete({ repository: repo, mediaFiles: mediaFiles(), id, confirmed: true, notify: toast, warn: toast })
+        if (result.deleted) this.reload()
+      }
+    })
+  },
   onEditMaterial(event) {
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(id)}` })
@@ -71,14 +131,7 @@ Page({
     const id = event.currentTarget.dataset.id
     const item = (repository() && repository().getMaterial(id)) || null
     if (!item) return toast('没有找到这个材料')
-    const unit = item.remainingUnit || item.defaultUnit || 'ml'
-    const index = Math.max(0, UNITS.findIndex(({ value }) => value === unit))
-    this.setData({
-      showFreshForm: true,
-      freshError: '',
-      freshUnitIndex: index,
-      freshDraft: { materialId: item.id, name: item.name, trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' }
-    })
+    this.setData(buildFreshFormState(item))
   },
   onCloseFreshForm() { this.setData({ showFreshForm: false, freshError: '' }) },
   noop() {},

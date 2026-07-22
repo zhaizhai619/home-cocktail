@@ -1,6 +1,6 @@
 const { UNITS } = require('../../domain/constants')
-const { buildMaterialDetail, decodeMaterialId } = require('./model')
-const { orchestrateFreshUseUp, orchestrateFreshUndo } = require('../materials/model')
+const { buildMaterialDetail, decodeMaterialId, orchestrateMaterialObservationSave } = require('./model')
+const { buildFreshFormState, orchestrateFreshUseUp, orchestrateFreshUndo } = require('../materials/model')
 
 function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
@@ -17,6 +17,8 @@ Page({
     freshDraft: { trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     freshError: '',
+    observationNote: '',
+    observationError: '',
     undo: null
   },
   onLoad(query) { this.materialId = decodeMaterialId(query && query.id); this.reload() },
@@ -26,18 +28,13 @@ Page({
     const repo = repository()
     const material = repo && this.materialId ? repo.getMaterial(this.materialId) : null
     const detail = buildMaterialDetail(material, {
-      materials: repo ? repo.listMaterials() : [], recipes: repo ? repo.listRecipes() : [],
-      glassware: repo ? repo.listGlassware() : [], tools: repo ? repo.listTools() : []
+      materials: repo ? repo.listMaterials() : [], recipes: repo ? repo.listRecipes() : []
     })
     this.setData({ detail })
     if (detail.status === 'ok' && wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: detail.name || '材料详情' })
   },
   onBack() { wx.navigateBack() },
   onEdit() { if (this.materialId) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(this.materialId)}` }) },
-  onOpenRecipe(event) {
-    const id = event.currentTarget.dataset.id
-    if (id) wx.navigateTo({ url: `/pages/recipe-detail/index?id=${encodeURIComponent(id)}` })
-  },
   onToggleOwned() {
     try {
       const saved = repository().setMaterialOwned(this.materialId, !this.data.detail.owned)
@@ -45,12 +42,30 @@ Page({
       this.reload()
     } catch (_) { toast('更新失败，请重试') }
   },
+  savePurchaseDate(value) {
+    try {
+      const saved = repository().setMaterialPurchasedAt(this.materialId, value || null)
+      if (!saved) throw new Error('not found')
+      this.reload()
+    } catch (_) { toast('购买日期保存失败') }
+  },
+  onPurchaseDateChange(event) { this.savePurchaseDate(event.detail.value || null) },
+  onClearPurchaseDate() { this.savePurchaseDate(null) },
+  onObservationInput(event) { this.setData({ observationNote: event.detail.value, observationError: '' }) },
+  onSaveObservation() {
+    const result = orchestrateMaterialObservationSave({ repository: repository(), materialId: this.materialId, note: this.data.observationNote, notify: toast })
+    if (!result.saved) {
+      this.setData({ observationError: result.message })
+      return
+    }
+    this.setData({ observationNote: '', observationError: '' })
+    this.reload()
+  },
   onOpenFreshForm() {
-    const item = this.data.detail
-    if (item.status !== 'ok') return
-    const unit = item.remainingUnit || item.defaultUnit || 'ml'
-    const index = Math.max(0, UNITS.findIndex(({ value }) => value === unit))
-    this.setData({ showFreshForm: true, freshError: '', freshUnitIndex: index, freshDraft: { trackFreshness: item.trackFreshness === true, remainingAmount: item.remainingAmount === null ? '' : item.remainingAmount, remainingUnit: UNITS[index].value, expiresAt: item.expiresAt ? String(item.expiresAt).slice(0, 10) : '' } })
+    const repo = repository()
+    const item = repo && this.materialId ? repo.getMaterial(this.materialId) : null
+    if (!item) return toast('没有找到这个材料')
+    this.setData(buildFreshFormState(item))
   },
   onCloseFreshForm() { this.setData({ showFreshForm: false, freshError: '' }) },
   noop() {},

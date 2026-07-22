@@ -298,3 +298,19 @@ test('returns no preference notes for missing or malformed collections', () => {
     { materialObservations: ['note', null] }
   ]), [])
 })
+
+test('combines direct material observations with recipe observations newest first', () => {
+  const recipes = [{
+    id: 'r1', name: '黄瓜酒',
+    materialObservations: [{ materialId: 'cucumber', note: '酒单里的记录', createdAt: '2026-07-20T10:00:00.000Z' }]
+  }]
+  const direct = [
+    { note: '直接记录的新观察', createdAt: '2026-07-22T10:00:00.000Z' },
+    { note: '   ', createdAt: '2026-07-23T10:00:00.000Z' }
+  ]
+
+  assert.deepEqual(getMaterialPreferenceNotes('cucumber', recipes, direct), [
+    { recipeId: '', recipeName: '', note: '直接记录的新观察', createdAt: '2026-07-22T10:00:00.000Z', direct: true },
+    { recipeId: 'r1', recipeName: '黄瓜酒', note: '酒单里的记录', createdAt: '2026-07-20T10:00:00.000Z' }
+  ])
+})

@@ -1,5 +1,9 @@
 function getIngredients(recipe) {
-  return Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients : []
+  const serving = (Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients : [])
+    .filter((ingredient) => !(ingredient && ingredient.kind === 'prepared-output'))
+  const advance = (Array.isArray(recipe && recipe.advancePreparations) ? recipe.advancePreparations : [])
+    .flatMap((preparation) => Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
+  return [...serving, ...advance]
 }
 
 function getRecipesUsingMaterial(materialId, recipes) {
@@ -93,8 +97,18 @@ function hydrateRecipeSummary(recipe, lookups = {}) {
   }
 }
 
-function getMaterialPreferenceNotes(materialId, recipes) {
+function getMaterialPreferenceNotes(materialId, recipes, directObservations) {
   const notes = []
+
+  for (const observation of Array.isArray(directObservations) ? directObservations : []) {
+    if (!observation || typeof observation !== 'object' ||
+      typeof observation.note !== 'string' || !observation.note.trim()) continue
+    const timestamp = typeof observation.createdAt === 'string' ? Date.parse(observation.createdAt) : NaN
+    notes.push({
+      recipeId: '', recipeName: '', note: observation.note.trim(), createdAt: observation.createdAt,
+      direct: true, timestamp, order: notes.length
+    })
+  }
 
   for (const recipe of Array.isArray(recipes) ? recipes : []) {
     if (!recipe || typeof recipe !== 'object' ||
@@ -133,11 +147,12 @@ function getMaterialPreferenceNotes(materialId, recipes) {
       return firstValid ? -1 : 1
     }
     return first.order - second.order
-  }).map(({ recipeId, recipeName, note, createdAt }) => ({
+  }).map(({ recipeId, recipeName, note, createdAt, direct }) => ({
     recipeId,
     recipeName,
     note,
-    createdAt
+    createdAt,
+    ...(direct ? { direct: true } : {})
   }))
 }
 

@@ -3,6 +3,7 @@ const {
   decodeRecipeId,
   validateObservation,
   orchestrateObservationSave,
+  orchestrateRatingToggle,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('./model')
@@ -26,6 +27,7 @@ Page({
   },
   onLoad(query) {
     this.recipeId = decodeRecipeId(query && query.id)
+    this.ratingPromotedFromUntried = false
     this.loadDetail()
   },
   onShow() {
@@ -60,6 +62,18 @@ Page({
     this.setData({ observationMaterialIndex: Number.isInteger(index) ? index : 0, observationMaterialLabel: option ? option.name : '选择材料', observationError: '' })
   },
   onObservationInput(event) { this.setData({ observationNote: event.detail.value || '', observationError: '' }) },
+  onToggleRating(event) {
+    const result = orchestrateRatingToggle({
+      repository: getRepository(),
+      recipe: this.recipe,
+      rating: event.currentTarget.dataset.rating,
+      promotedFromUntried: this.ratingPromotedFromUntried,
+      notify: toast
+    })
+    if (!result.saved) return
+    this.ratingPromotedFromUntried = result.promotedFromUntried
+    this.loadDetail()
+  },
   onSaveObservation() {
     const options = this.data.detail.status === 'ok' ? this.data.detail.ingredientOptions : []
     const selected = options[this.data.observationMaterialIndex]
@@ -77,6 +91,11 @@ Page({
   onOpenMaterial(event) {
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
+  },
+  onEditMissingAbv() {
+    const detail = this.data.detail
+    const id = detail && detail.status === 'ok' && detail.abv && detail.abv.editMaterialId
+    if (id) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(id)}` })
   },
   onEdit() {
     if (!this.recipeId) return toast('无法编辑这款酒')

@@ -25,7 +25,8 @@
       <view wx:if="{{detail.abv.issueLines.length || detail.abv.ignoredText}}" class="calculation-notice">
         <text wx:for="{{detail.abv.issueLines}}" wx:key="kind" class="calculation-line {{item.kind}}">{{item.text}}</text>
         <text wx:if="{{detail.abv.ignoredText}}" class="calculation-line ignored">{{detail.abv.ignoredText}}</text>
-        <button wx:if="{{detail.abv.needsEditing}}" class="inline-edit-button" bindtap="onEdit">去编辑补全</button>
+        <button wx:if="{{detail.abv.editMaterialId}}" class="inline-edit-button" bindtap="onEditMissingAbv">去编辑补全</button>
+        <button wx:elif="{{detail.abv.needsEditing}}" class="inline-edit-button" bindtap="onEdit">编辑配方</button>
       </view>
     </view>
 
@@ -34,16 +35,22 @@
       <view class="ingredient-list">
         <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
           <view class="ingredient-main"><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍</text><text class="ingredient-name">{{item.name}}</text></view>
-          <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text><text class="row-arrow" aria-hidden="true">›</text></view>
+          <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text><text wx:if="{{!item.prepared}}" class="row-arrow" aria-hidden="true">›</text></view>
         </view>
       </view>
     </view>
 
+    <view wx:for="{{detail.advancePreparations}}" wx:for-item="preparation" wx:key="id" class="section">
+      <text class="section-title">提前准备 · {{preparation.outputName}}</text>
+      <view class="ingredient-list"><view wx:for="{{preparation.ingredients}}" wx:for-item="ingredient" wx:key="index" class="ingredient-row {{ingredient.state}}" data-id="{{ingredient.materialId}}" bindtap="onOpenMaterial"><text class="ingredient-name">{{ingredient.name}}</text><text class="ingredient-amount">{{ingredient.amountLabel}}</text></view></view>
+      <view wx:if="{{preparation.steps.length}}" class="steps"><view wx:for="{{preparation.steps}}" wx:for-item="step" wx:key="index" class="step"><text class="step-index">{{index + 1}}</text><text class="step-copy">{{step}}</text></view></view>
+    </view>
+
     <view class="section">
-      <text class="section-title">杯具与用具</text>
-      <view wx:if="{{detail.glassware}}" class="glass-card {{detail.glassware.orphaned ? 'orphaned' : ''}}"><image wx:if="{{detail.glassware.imagePath}}" class="glass-image" src="{{detail.glassware.imagePath}}" mode="aspectFill" /><view class="glass-copy"><view class="equipment-line"><text>杯具</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view><text wx:if="{{detail.glassware.notes}}" class="muted">{{detail.glassware.notes}}</text><text wx:if="{{detail.glassware.orphaned}}" class="orphan-label">资料缺失，请编辑配方重新选择</text></view></view>
+      <text class="section-title">酒杯与用具</text>
+      <view wx:if="{{detail.glassware}}" class="glass-card {{detail.glassware.orphaned ? 'orphaned' : ''}}"><image wx:if="{{detail.glassware.imagePath}}" class="glass-image" src="{{detail.glassware.imagePath}}" mode="aspectFill" /><view class="glass-copy"><view class="equipment-line"><text>酒杯</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view><text wx:if="{{detail.glassware.notes}}" class="muted">{{detail.glassware.notes}}</text><text wx:if="{{detail.glassware.orphaned}}" class="orphan-label">资料缺失，请编辑配方重新选择</text></view></view>
       <view wx:if="{{detail.tools.length}}" class="tool-list"><text wx:for="{{detail.tools}}" wx:key="id" class="tool-chip {{item.orphaned ? 'orphaned' : ''}}">{{item.name}}<text wx:if="{{item.orphaned}}"> · 资料缺失</text></text></view>
-      <text wx:if="{{!detail.glassware && !detail.tools.length}}" class="muted">暂未记录杯具和用具</text>
+      <text wx:if="{{!detail.glassware && !detail.tools.length}}" class="muted">暂未记录酒杯和用具</text>
     </view>
 
     <view class="section">
@@ -54,9 +61,7 @@
 
     <view class="section">
       <text class="section-title">我的评价</text>
-      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" class="rating-option {{item.selected ? 'selected' : ''}}"><text wx:if="{{item.selected}}" class="selected-mark">✓</text>{{item.label}}</text></view>
-      <text wx:if="{{detail.tastingNote}}" class="tasting-note">{{detail.tastingNote}}</text>
-      <text wx:else class="muted">暂未记录总体备注</text>
+      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" data-rating="{{item.label}}" bindtap="onToggleRating" class="rating-option {{item.selected ? 'selected' : ''}}" aria-role="button" aria-label="{{item.label}}{{item.selected ? '，已选择，再点取消' : '，点按评价'}}"><text wx:if="{{item.selected}}" class="selected-mark">✓</text>{{item.label}}</text></view>
     </view>
 
     <view class="section">
@@ -74,6 +79,6 @@
     </view>
 
     <view class="bottom-space"></view>
-    <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button copy" bindtap="onCopy">复制</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
+    <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
   </block>
 </view>
