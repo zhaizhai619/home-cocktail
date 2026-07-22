@@ -218,6 +218,19 @@ function getMaterialIdentityKey(category, name) {
   return `${defaults.category}:${String(defaults.name || '').trim().toLowerCase()}`
 }
 
+function isMaterialAvailable(material) {
+  if (!material || typeof material !== 'object') return false
+  if (material.acquisition === 'on-demand') return material.freshOnHand === true
+  if (material.acquisition === 'long-term') return material.owned === true
+  return material.owned === true || material.freshOnHand === true
+}
+
+function materialAvailabilityFields(material, available) {
+  return material && material.acquisition === 'on-demand'
+    ? { owned: false, freshOnHand: available === true }
+    : { owned: available === true, freshOnHand: false }
+}
+
 function getMaterialVisualState(material) {
   if (material.assumedAvailable && material.trackFreshness === false) {
     return 'owned'
@@ -237,6 +250,8 @@ module.exports = {
   getMaterialDisplayName,
   getMaterialIdentityKey,
   getMaterialVisualState,
+  isMaterialAvailable,
+  materialAvailabilityFields,
   materialNameMatchesQuery,
   normalizeMaterialObservations,
   normalizeMaterialName,

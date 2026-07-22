@@ -35,9 +35,16 @@ Page({
   },
   onBack() { wx.navigateBack() },
   onEdit() { if (this.materialId) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(this.materialId)}` }) },
-  onToggleOwned() {
+  onToggleAvailable(event) {
     try {
-      const saved = repository().setMaterialOwned(this.materialId, !this.data.detail.owned)
+      const saved = repository().setMaterialAvailable(this.materialId, event.detail.value === true)
+      if (!saved) throw new Error('not found')
+      this.reload()
+    } catch (_) { toast('更新失败，请重试') }
+  },
+  onToggleTracking(event) {
+    try {
+      const saved = repository().setMaterialTracking(this.materialId, event.detail.value === true)
       if (!saved) throw new Error('not found')
       this.reload()
     } catch (_) { toast('更新失败，请重试') }
@@ -61,7 +68,7 @@ Page({
     this.setData({ observationNote: '', observationError: '' })
     this.reload()
   },
-  onOpenFreshForm() {
+  onOpenTrackingForm() {
     const repo = repository()
     const item = repo && this.materialId ? repo.getMaterial(this.materialId) : null
     if (!item) return toast('没有找到这个材料')
@@ -76,15 +83,15 @@ Page({
     this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
   },
   onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '', freshError: '' }) },
-  onConfirmFresh() {
+  onConfirmTracking() {
     const draft = this.data.freshDraft
     const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
     if (draft.trackFreshness && String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
     try {
-      const saved = repository().addToFreshShelf(this.materialId, fields)
+      const saved = repository().updateMaterialInventory(this.materialId, fields)
       if (!saved) throw new Error('not saved')
       this.setData({ showFreshForm: false })
-      this.reload(); toast('已加入手头鲜材')
+      this.reload(); toast('追踪信息已更新')
     } catch (_) { this.setData({ freshError: '请检查余量和日期' }); toast('请检查余量和日期') }
   },
   onUseUp() {

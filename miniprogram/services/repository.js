@@ -1,4 +1,4 @@
-const { createMaterialDefaults, getMaterialIdentityKey, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
+const { createMaterialDefaults, getMaterialIdentityKey, isMaterialAvailable, materialAvailabilityFields, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
 const { UNITS } = require('../domain/constants')
 const { STORAGE_KEY, migrateState } = require('./schema')
 const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, equipmentNameIdentity } = require('../domain/equipment-invariants')
@@ -41,7 +41,8 @@ function validateMaterialValue(value, existing) {
   if (normalized.alcoholic !== true) normalized.abv = null
   if (!isValidOptionalDate(normalized.purchasedAt)) throw new RangeError('Invalid material date')
   normalized.purchasedAt = normalized.purchasedAt || null
-  if (normalized.freshOnHand === true && normalized.trackFreshness === true) {
+  const currentlyAvailable = isMaterialAvailable(normalized)
+  if (currentlyAvailable && normalized.trackFreshness === true) {
     if (hasSuppliedAbv(normalized.remainingAmount)) {
       const amount = Number(normalized.remainingAmount)
       if (!Number.isFinite(amount) || amount < 0) throw new RangeError('Invalid material remaining amount')
@@ -209,9 +210,8 @@ function createRepository(adapter, options = {}) {
         throw new Error('Material already exists')
       }
       const normalizedForSave = { ...validated }
-      const startsTrackedBatch = validated.freshOnHand === true && validated.trackFreshness === true && (!existing || existing.freshOnHand !== true)
-      const explicitlyChangedPurchaseDate = Boolean(incoming.purchasedAt) && (!existing || incoming.purchasedAt !== existing.purchasedAt)
-      if (startsTrackedBatch && !explicitlyChangedPurchaseDate) normalizedForSave.purchasedAt = toLocalDateValue(now())
+      const startsTrackedBatch = isMaterialAvailable(validated) && validated.trackFreshness === true && (!existing || !isMaterialAvailable(existing) || existing.trackFreshness !== true)
+      if (startsTrackedBatch && !normalizedForSave.purchasedAt) normalizedForSave.purchasedAt = toLocalDateValue(now())
       if (existing && validated.category !== existing.category) {
         const categoryDefaults = createMaterialDefaults(validated.category, validated.name)
         for (const field of ['acquisition', 'form', 'defaultUnit', 'alcoholic', 'abv', 'owned', 'freshOnHand', 'trackFreshness', 'assumedAvailable']) {
@@ -345,6 +345,34 @@ function createRepository(adapter, options = {}) {
       if (!item) return null
       if (item.acquisition !== 'long-term') throw new RangeError('Invalid material availability')
       return saveMaterial({ ...item, owned: owned === true, assumedAvailable: false })
+    },
+    setMaterialAvailable(id, available) {
+      const item = get('materials', id)
+      if (!item) return null
+      const isAvailable = available === true
+      return saveMaterial({
+        ...item,
+        ...materialAvailabilityFields(item, isAvailable),
+        assumedAvailable: false,
+        ...(isAvailable ? {} : { remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null })
+      })
+    },
+    setMaterialTracking(id, tracked) {
+      const item = get('materials', id)
+      if (!item) return null
+      const trackFreshness = tracked === true
+      return saveMaterial({
+        ...item,
+        trackFreshness,
+        assumedAvailable: trackFreshness ? false : item.assumedAvailable,
+        ...(trackFreshness ? {} : { remainingAmount: null, remainingUnit: null, expiresAt: null })
+      })
+    },
+    updateMaterialInventory(id, fields = {}) {
+      const item = get('materials', id)
+      if (!item) return null
+      if (!isMaterialAvailable(item) || item.trackFreshness !== true) throw new RangeError('Invalid material tracking')
+      return saveMaterial({ ...item, ...fields })
     },
     setMaterialPurchasedAt(id, purchasedAt) {
       const item = get('materials', id)

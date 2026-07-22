@@ -133,6 +133,42 @@ test('long-term ownership and fresh inventory lifecycle are separate and use-up 
   assert.equal(repository.restoreFreshMaterial(fruit.id, used.undoToken), null)
 })
 
+test('every acquisition type can be available and optionally track one current batch', () => {
+  const repository = createRepository(memoryAdapter(), repositoryOptions())
+  repository.initialize()
+  assert.equal(typeof repository.setMaterialAvailable, 'function')
+  assert.equal(typeof repository.setMaterialTracking, 'function')
+
+  const gin = repository.saveMaterial({
+    name: '金酒', category: 'base-spirit', owned: true, trackFreshness: true,
+    remainingAmount: 500, remainingUnit: 'ml', purchasedAt: '2026-07-01', expiresAt: '2027-07-01'
+  })
+  assert.deepEqual({ owned: gin.owned, tracked: gin.trackFreshness, amount: gin.remainingAmount, unit: gin.remainingUnit, purchasedAt: gin.purchasedAt, expiresAt: gin.expiresAt }, {
+    owned: true, tracked: true, amount: 500, unit: 'ml', purchasedAt: '2026-07-01', expiresAt: '2027-07-01'
+  })
+
+  const missingGin = repository.setMaterialAvailable(gin.id, false)
+  assert.deepEqual({ owned: missingGin.owned, tracked: missingGin.trackFreshness, amount: missingGin.remainingAmount, purchasedAt: missingGin.purchasedAt, expiresAt: missingGin.expiresAt }, {
+    owned: false, tracked: true, amount: null, purchasedAt: null, expiresAt: null
+  })
+  const restockedGin = repository.setMaterialAvailable(gin.id, true)
+  assert.equal(restockedGin.owned, true)
+  assert.ok(restockedGin.purchasedAt)
+  const untrackedGin = repository.setMaterialTracking(gin.id, false)
+  assert.deepEqual({ owned: untrackedGin.owned, tracked: untrackedGin.trackFreshness, amount: untrackedGin.remainingAmount, expiresAt: untrackedGin.expiresAt }, {
+    owned: true, tracked: false, amount: null, expiresAt: null
+  })
+
+  const datedRum = repository.saveMaterial({ name: '白朗姆', category: 'base-spirit', owned: true, trackFreshness: false, purchasedAt: '2026-06-01' })
+  assert.equal(repository.setMaterialTracking(datedRum.id, true).purchasedAt, '2026-06-01')
+
+  const watermelon = repository.saveMaterial({ name: '西瓜', category: 'fruit', freshOnHand: false })
+  const stockedWatermelon = repository.setMaterialAvailable(watermelon.id, true)
+  assert.deepEqual({ owned: stockedWatermelon.owned, freshOnHand: stockedWatermelon.freshOnHand, tracked: stockedWatermelon.trackFreshness }, {
+    owned: false, freshOnHand: true, tracked: true
+  })
+})
+
 test('explicit ownership overrides assumed staples and rolls back on storage failure', () => {
   let fail = false
   const adapter = memoryAdapter(undefined, () => fail)
@@ -269,11 +305,11 @@ test('library view model separates tracked fresh shelf and supports final filter
     { id: 'r2', ingredients: [{ materialId: 'violet' }, { materialId: 'gin' }] }
   ]
   const all = buildMaterialLibrary(materials, recipes, { now: '2026-07-20T00:00:00+08:00' })
-  assert.deepEqual(all.freshShelf.map(({ id }) => id).sort(), ['tonic', 'watermelon'])
+  assert.deepEqual(all.freshShelf.map(({ id }) => id), ['watermelon'])
   assert.match(all.freshShelf.find(({ id }) => id === 'watermelon').inventoryLabel, /320g/)
-  assert.equal(all.freshShelf.find(({ id }) => id === 'tonic').inventoryLabel, '当前在手头')
+  assert.equal(all.materials.find(({ id }) => id === 'tonic').isFreshShelf, false)
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'owned' }).materials.map(({ id }) => id).sort(), ['gin', 'tonic', 'watermelon'])
-  assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'fresh' }).materials.map(({ id }) => id).sort(), ['tonic', 'watermelon'])
+  assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'fresh' }).materials.map(({ id }) => id), ['watermelon'])
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { filter: 'missing' }).materials.map(({ id }) => id).sort(), ['milk', 'violet'])
   assert.deepEqual(buildMaterialLibrary(materials, recipes, { search: '紫罗兰' }).materials.map(({ id }) => id), ['violet'])
   assert.equal(buildMaterialLibrary([{ id: 'raw', name: '旧西瓜', acquisition: 'on-demand', trackFreshness: true, freshOnHand: false, expiresAt: '2026-07-22' }], [], { now: '2026-07-21' }).materials[0].expiryLabel, '')
@@ -300,7 +336,7 @@ test('complete catalog merges templates with real materials and filters by the e
   assert.deepEqual({ id: base[0].id, template: base[0].isTemplate, state: base[0].visualState, label: base[0].categoryLabel }, { id: 'gin-real', template: false, state: 'owned', label: '基酒' })
   assert.deepEqual({ id: base[1].id, template: base[1].isTemplate, state: base[1].visualState }, { id: '', template: true, state: 'missing-long-term' })
   assert.equal(new Set(base.map(({ renderKey }) => renderKey)).size, base.length)
-  assert.deepEqual(buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'liqueur' }).materials.map(({ name }) => name), ['椰子利口酒'])
+  assert.deepEqual(buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'liqueur' }).materials.map(({ name }) => name), [])
   assert.deepEqual(buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'syrup' }).materials.map(({ name }) => name), ['普通糖浆', '接骨木糖浆'])
   assert.deepEqual(buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'spice' }).materials.map(({ name }) => name), ['薄荷'])
   assert.deepEqual(buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'other' }).materials.map(({ name }) => name), ['神秘材料'])
@@ -436,7 +472,7 @@ test('library cards show usage and immediate unlock counts', () => {
   assert.equal(card.immediateUnlockCount, 1)
 })
 
-test('purchase dates are independent from freshness tracking while tracked stock defaults to today', () => {
+test('available materials may keep an optional purchase date while tracked stock defaults to today', () => {
   let id = 0
   const repository = createRepository(memoryAdapter(), {
     idFactory: () => `purchase-${++id}`,
@@ -445,10 +481,10 @@ test('purchase dates are independent from freshness tracking while tracked stock
   repository.initialize()
   const gin = repository.saveMaterial({ name: '金酒', category: 'base-spirit', owned: true, trackFreshness: false, purchasedAt: '2026-07-01' })
   assert.equal(gin.purchasedAt, '2026-07-01')
-  assert.equal(repository.setMaterialOwned(gin.id, false).purchasedAt, '2026-07-01')
+  assert.equal(repository.setMaterialOwned(gin.id, false).purchasedAt, null)
 
-  const tonic = repository.saveMaterial({ name: '苏打水', category: 'soda/tonic', trackFreshness: false, purchasedAt: '2026-07-03' })
-  assert.equal(repository.addToFreshShelf(tonic.id).purchasedAt, '2026-07-03')
+  const tonic = repository.saveMaterial({ name: '苏打水', category: 'soda/tonic', trackFreshness: false })
+  assert.equal(repository.addToFreshShelf(tonic.id, { purchasedAt: '2026-07-03' }).purchasedAt, '2026-07-03')
 
   const watermelon = repository.saveMaterial({ name: '西瓜', category: 'fruit', trackFreshness: true })
   const stocked = repository.addToFreshShelf(watermelon.id)
@@ -494,6 +530,22 @@ test('material detail keeps summary statistics and observations without hydratin
   assert.equal(detail.expiryLabel, '')
   assert.equal(Object.hasOwn(detail, 'relatedRecipes'), false)
   assert.equal(detail.observations[0].note, '冰一点更好')
+})
+
+test('material detail exposes one availability switch and optional tracking for every acquisition type', () => {
+  const trackedGin = buildMaterialDetail({
+    id: 'gin', name: '金酒', acquisition: 'long-term', owned: true, freshOnHand: false,
+    trackFreshness: true, remainingAmount: 300, remainingUnit: 'ml', purchasedAt: '2026-07-20'
+  })
+  assert.deepEqual({ available: trackedGin.available, canToggleAvailable: trackedGin.canToggleAvailable, canToggleTracking: trackedGin.canToggleTracking, canEditTracking: trackedGin.canEditTracking }, {
+    available: true, canToggleAvailable: true, canToggleTracking: true, canEditTracking: true
+  })
+  const missingFruit = buildMaterialDetail({ id: 'fruit', name: '西瓜', acquisition: 'on-demand', owned: false, freshOnHand: false, trackFreshness: true })
+  assert.deepEqual({ available: missingFruit.available, canToggleAvailable: missingFruit.canToggleAvailable, canToggleTracking: missingFruit.canToggleTracking, canEditTracking: missingFruit.canEditTracking }, {
+    available: false, canToggleAvailable: true, canToggleTracking: false, canEditTracking: false
+  })
+  const untrackedTonic = buildMaterialDetail({ id: 'tonic', name: '汤力水', acquisition: 'on-demand', freshOnHand: true, trackFreshness: false })
+  assert.equal(untrackedTonic.inventoryLabel, '')
 })
 
 test('material detail appends multiple direct observations and validates empty notes', () => {
@@ -556,6 +608,8 @@ test('material form validation normalizes all fields and allows missing alcoholi
   const onHandUntracked = validateMaterialForm({ name: '汤力水', category: 'soda/tonic', acquisition: 'on-demand', form: 'liquid', defaultUnit: 'top-up', alcoholic: false, freshOnHand: true, trackFreshness: false, remainingAmount: '2', remainingUnit: 'piece', expiresAt: '2026-07-25' })
   assert.deepEqual({ freshOnHand: onHandUntracked.value.freshOnHand, trackFreshness: onHandUntracked.value.trackFreshness, remainingAmount: onHandUntracked.value.remainingAmount, remainingUnit: onHandUntracked.value.remainingUnit, expiresAt: onHandUntracked.value.expiresAt }, { freshOnHand: true, trackFreshness: false, remainingAmount: null, remainingUnit: null, expiresAt: null })
   assert.equal(validateMaterialForm({ name: '汤力水', category: 'soda/tonic', acquisition: 'on-demand', form: 'liquid', defaultUnit: 'top-up', alcoholic: false, freshOnHand: true, trackFreshness: false, purchasedAt: '2026-07-18' }).value.purchasedAt, '2026-07-18')
+  const trackedSpirit = validateMaterialForm({ name: '金酒', category: 'base-spirit', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: true, abv: '40', owned: true, trackFreshness: true, remainingAmount: '350', remainingUnit: 'ml', purchasedAt: '2026-07-18', expiresAt: '2027-07-18' })
+  assert.deepEqual({ owned: trackedSpirit.value.owned, remainingAmount: trackedSpirit.value.remainingAmount, remainingUnit: trackedSpirit.value.remainingUnit, purchasedAt: trackedSpirit.value.purchasedAt, expiresAt: trackedSpirit.value.expiresAt }, { owned: true, remainingAmount: 350, remainingUnit: 'ml', purchasedAt: '2026-07-18', expiresAt: '2027-07-18' })
   const explicitMissingStaple = validateMaterialForm({ name: '柠檬汁', category: 'citrus', acquisition: 'long-term', form: 'liquid', defaultUnit: 'ml', alcoholic: false, owned: false, assumedAvailable: true, trackFreshness: false })
   assert.deepEqual({ owned: explicitMissingStaple.value.owned, assumedAvailable: explicitMissingStaple.value.assumedAvailable }, { owned: false, assumedAvailable: false })
 })

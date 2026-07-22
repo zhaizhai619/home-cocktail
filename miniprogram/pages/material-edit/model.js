@@ -21,14 +21,15 @@ function validateMaterialForm(form = {}) {
   const hasAbv = form.abv !== null && form.abv !== undefined && String(form.abv).trim() !== ''
   const numericAbv = Number(form.abv)
   if (alcoholic && hasAbv && (!Number.isFinite(numericAbv) || numericAbv <= 0 || numericAbv > 100)) errors.abv = '酒精度需大于 0 且不超过 100'
-  const freshOnHand = form.acquisition === 'on-demand' && form.freshOnHand === true
+  const currentlyAvailable = form.acquisition === 'on-demand' ? form.freshOnHand === true : form.owned === true
+  const freshOnHand = form.acquisition === 'on-demand' && currentlyAvailable
   const trackFreshness = form.trackFreshness === true
   const hasAmount = form.remainingAmount !== null && form.remainingAmount !== undefined && String(form.remainingAmount).trim() !== ''
   const remainingAmount = Number(form.remainingAmount)
-  if (!validOptionalDate(form.purchasedAt)) errors.date = '请填写有效日期'
-  if (freshOnHand && trackFreshness && hasAmount && (!Number.isFinite(remainingAmount) || remainingAmount < 0)) errors.remainingAmount = '余量不能小于 0'
-  if (freshOnHand && trackFreshness && form.remainingUnit && !UNIT_VALUES.includes(form.remainingUnit)) errors.remainingUnit = '请选择有效余量单位'
-  if (freshOnHand && trackFreshness && !validOptionalDate(form.expiresAt)) errors.date = '请填写有效日期'
+  if (currentlyAvailable && !validOptionalDate(form.purchasedAt)) errors.date = '请填写有效日期'
+  if (currentlyAvailable && trackFreshness && hasAmount && (!Number.isFinite(remainingAmount) || remainingAmount < 0)) errors.remainingAmount = '余量不能小于 0'
+  if (currentlyAvailable && trackFreshness && form.remainingUnit && !UNIT_VALUES.includes(form.remainingUnit)) errors.remainingUnit = '请选择有效余量单位'
+  if (currentlyAvailable && trackFreshness && !validOptionalDate(form.expiresAt)) errors.date = '请填写有效日期'
   if (Object.keys(errors).length) return { valid: false, value: null, errors }
   return {
     valid: true,
@@ -44,10 +45,10 @@ function validateMaterialForm(form = {}) {
       assumedAvailable: trackFreshness || (form.acquisition === 'long-term' && form.owned !== true) ? false : form.assumedAvailable === true,
       owned: form.acquisition === 'long-term' && form.owned === true,
       freshOnHand,
-      remainingAmount: freshOnHand && trackFreshness && hasAmount ? remainingAmount : null,
-      remainingUnit: freshOnHand && trackFreshness ? (form.remainingUnit || null) : null,
-      purchasedAt: form.purchasedAt || null,
-      expiresAt: freshOnHand && trackFreshness ? (form.expiresAt || null) : null
+      remainingAmount: currentlyAvailable && trackFreshness && hasAmount ? remainingAmount : null,
+      remainingUnit: currentlyAvailable && trackFreshness ? (form.remainingUnit || null) : null,
+      purchasedAt: currentlyAvailable ? (form.purchasedAt || null) : null,
+      expiresAt: currentlyAvailable && trackFreshness ? (form.expiresAt || null) : null
     },
     errors: {}
   }

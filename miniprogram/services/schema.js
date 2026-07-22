@@ -1,5 +1,5 @@
 const { QUICK_TOOLS, normalizePreparationType } = require('../domain/constants')
-const { createMaterialDefaults, getMaterialIdentityKey, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
+const { createMaterialDefaults, getMaterialIdentityKey, isMaterialAvailable, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
 const { normalizeEquipmentName, normalizeGlassCapacity, equipmentNameIdentity, makeUniqueEquipmentName } = require('../domain/equipment-invariants')
 const { isValidDateString } = require('../domain/date')
 
@@ -130,12 +130,13 @@ function normalizeMaterial(material, now) {
     normalized.owned = false
     normalized.assumedAvailable = false
   }
-  if (!normalized.freshOnHand || normalized.trackFreshness !== true) {
+  const currentlyAvailable = isMaterialAvailable(normalized)
+  if (!currentlyAvailable || normalized.trackFreshness !== true) {
     normalized.remainingAmount = null
     normalized.remainingUnit = null
     normalized.expiresAt = null
   }
-  if (normalized.trackFreshness === true && normalized.freshOnHand !== true) normalized.purchasedAt = null
+  if (!currentlyAvailable) normalized.purchasedAt = null
   return normalized
 }
 

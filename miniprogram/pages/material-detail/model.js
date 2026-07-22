@@ -1,4 +1,4 @@
-const { getMaterialVisualState } = require('../../domain/material')
+const { getMaterialVisualState, isMaterialAvailable } = require('../../domain/material')
 const { getMaterialUsageStats, getMaterialPreferenceNotes } = require('../../domain/relations')
 const { formatInventory, formatExpiry } = require('../materials/model')
 const { toLocalDateValue } = require('../../domain/date')
@@ -24,20 +24,22 @@ function buildMaterialDetail(material, sources = {}) {
   const materials = Array.isArray(sources.materials) ? sources.materials : []
   const recipes = Array.isArray(sources.recipes) ? sources.recipes : []
   const stats = getMaterialUsageStats(material.id, recipes, lookup(materials))
-  const currentlyAvailable = material.acquisition === 'long-term' ? material.owned === true : material.freshOnHand === true
+  const currentlyAvailable = isMaterialAvailable(material)
+  const inventoryLabel = formatInventory(material)
   return {
     status: 'ok',
     ...material,
     visualState: getMaterialVisualState(material),
-    inventoryLabel: formatInventory(material),
-    expiryLabel: material.trackFreshness === true && material.freshOnHand === true ? formatExpiry(material.expiresAt, sources.now) : '',
+    inventoryLabel: inventoryLabel === '当前在手头' ? '' : inventoryLabel,
+    expiryLabel: material.trackFreshness === true && currentlyAvailable ? formatExpiry(material.expiresAt, sources.now) : '',
     purchasedAtDate: formatDateInput(material.purchasedAt),
     canEditPurchasedAt: currentlyAvailable,
     usageCount: stats.usageCount,
     immediateUnlockCount: stats.immediateUnlockCount,
-    canToggleOwned: material.acquisition === 'long-term',
-    canAddFresh: material.acquisition === 'on-demand' && material.freshOnHand !== true,
-    canUseUp: material.acquisition === 'on-demand' && material.freshOnHand === true,
+    available: currentlyAvailable,
+    canToggleAvailable: true,
+    canToggleTracking: currentlyAvailable,
+    canEditTracking: currentlyAvailable && material.trackFreshness === true,
     observations: getMaterialPreferenceNotes(material.id, recipes, material.observations)
   }
 }

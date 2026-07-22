@@ -1,4 +1,4 @@
-const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, getMaterialIdentityKey, getMaterialVisualState, materialNameMatchesQuery } = require('../../domain/material')
+const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, getMaterialIdentityKey, getMaterialVisualState, isMaterialAvailable, materialNameMatchesQuery } = require('../../domain/material')
 const { UNITS } = require('../../domain/constants')
 const { getMaterialUsageStats } = require('../../domain/relations')
 const { formatGlasswareLabel } = require('../../domain/equipment')
@@ -14,7 +14,6 @@ const MATERIAL_LIBRARY_TEMPLATES = Object.freeze([
   { name: '金酒', category: 'base-spirit' },
   { name: '白朗姆', category: 'base-spirit' },
   { name: '伏特加', category: 'base-spirit' },
-  { name: '椰子利口酒', category: 'liqueur' },
   { name: '普通糖浆', category: 'syrup/staple' },
   { name: '接骨木糖浆', category: 'syrup/staple' }
 ])
@@ -36,7 +35,7 @@ function asLookup(items) {
 }
 
 function formatInventory(material) {
-  if (!material || material.freshOnHand !== true) return ''
+  if (!isMaterialAvailable(material)) return ''
   if (material.trackFreshness !== true) return '当前在手头'
   const hasAmount = material.remainingAmount !== null && material.remainingAmount !== undefined && String(material.remainingAmount).trim() !== ''
   if (hasAmount && Number.isFinite(Number(material.remainingAmount))) {
@@ -85,7 +84,8 @@ function buildCard(material, recipes, materialsById, now) {
   const stats = getMaterialUsageStats(material.id, recipes, materialsById)
   const visualState = getMaterialVisualState(material)
   const inventoryLabel = formatInventory(material)
-  const expiryLabel = material.freshOnHand === true && material.trackFreshness === true ? formatExpiry(material.expiresAt, now, undefined) : ''
+  const available = isMaterialAvailable(material)
+  const expiryLabel = available && material.trackFreshness === true ? formatExpiry(material.expiresAt, now, undefined) : ''
   return {
     ...material,
     renderKey: `material:${material.id}`,
@@ -100,7 +100,7 @@ function buildCard(material, recipes, materialsById, now) {
     inventoryMeta: [inventoryLabel, expiryLabel].filter(Boolean).join(' · '),
     canToggleOwned: material.acquisition === 'long-term',
     canAddFresh: material.acquisition === 'on-demand' && material.freshOnHand !== true,
-    isFreshShelf: material.acquisition === 'on-demand' && material.freshOnHand === true
+    isFreshShelf: material.acquisition === 'on-demand' && material.freshOnHand === true && material.trackFreshness === true
   }
 }
 

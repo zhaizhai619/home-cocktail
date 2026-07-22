@@ -76,9 +76,13 @@ Page({
   onAcquisitionChange(event) {
     this.clearFormError()
     const index = Number(event.detail.value); const option = ACQUISITION_OPTIONS[index] || ACQUISITION_OPTIONS[0]
-    const updates = { acquisitionIndex: indexFor(ACQUISITION_OPTIONS, option.value), 'form.acquisition': option.value }
-    if (option.value === 'long-term') Object.assign(updates, { 'form.freshOnHand': false, 'form.remainingAmount': '', 'form.expiresAt': '' })
-    else updates['form.owned'] = false
+    const wasAvailable = this.data.form.acquisition === 'on-demand' ? this.data.form.freshOnHand === true : this.data.form.owned === true
+    const updates = {
+      acquisitionIndex: indexFor(ACQUISITION_OPTIONS, option.value),
+      'form.acquisition': option.value,
+      'form.owned': option.value === 'long-term' && wasAvailable,
+      'form.freshOnHand': option.value === 'on-demand' && wasAvailable
+    }
     this.setData(updates)
   },
   onUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ unitIndex: indexFor(UNITS, option.value), 'form.defaultUnit': option.value }) },
@@ -90,11 +94,6 @@ Page({
     this.setData({ 'form.trackFreshness': tracked, 'form.assumedAvailable': tracked ? false : this.data.form.assumedAvailable })
   },
   onAssumedChange(event) { this.clearFormError(); this.setData({ 'form.assumedAvailable': event.detail.value === true }) },
-  onFreshChange(event) {
-    this.clearFormError()
-    const fresh = event.detail.value === true
-    this.setData({ 'form.freshOnHand': fresh })
-  },
   onAmountInput(event) { this.setData({ 'form.remainingAmount': event.detail.value, 'errors.remainingAmount': '', 'errors.form': '' }) },
   onRemainingUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
   onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },

@@ -421,9 +421,9 @@ test('a category transition keeps supplied fresh inventory only when on-hand and
   assert.deepEqual({ freshOnHand: tonic.freshOnHand, remainingAmount: tonic.remainingAmount, remainingUnit: tonic.remainingUnit }, { freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece' })
 })
 
-test('migration clears batch-only inventory fields while preserving the optional purchase date', () => {
+test('migration clears batch-only inventory fields and dates when the material is unavailable', () => {
   const material = migrateState({ materials: [{ id: 'm1', freshOnHand: false, remainingAmount: 5, remainingUnit: 'piece', purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z' }] }, '2026-01-01T00:00:00.000Z').materials[0]
-  assert.deepEqual({ remainingAmount: material.remainingAmount, remainingUnit: material.remainingUnit, purchasedAt: material.purchasedAt, expiresAt: material.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: '2026-01-01T00:00:00.000Z', expiresAt: null })
+  assert.deepEqual({ remainingAmount: material.remainingAmount, remainingUnit: material.remainingUnit, purchasedAt: material.purchasedAt, expiresAt: material.expiresAt }, { remainingAmount: null, remainingUnit: null, purchasedAt: null, expiresAt: null })
   assert.equal(migrateState({ materials: [{ id: 'invalid-date', purchasedAt: '2026-02-30' }] }, '2026-01-01T00:00:00.000Z').materials[0].purchasedAt, null)
   assert.equal(migrateState({ materials: [{ id: 'invalid-suffix', purchasedAt: '2026-02-28junk' }] }, '2026-01-01T00:00:00.000Z').materials[0].purchasedAt, null)
 })
