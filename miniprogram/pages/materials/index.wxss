@@ -1,6 +1,6 @@
 .materials-page { display: flex; box-sizing: border-box; height: 100vh; overflow: hidden; flex-direction: column; }
-.section-head, .fresh-name-row, .amount-row { display: flex; align-items: center; }
-.section-head, .fresh-name-row { justify-content: space-between; }
+.section-head, .amount-row { display: flex; align-items: center; }
+.section-head { justify-content: space-between; }
 .bar-switch { display: grid; flex: none; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1rpx solid #ddd6cf; }
 .materials-page .bar-switch-item { position: relative; width: 100%; height: 78rpx; min-height: 78rpx; margin: 0; padding: 0; color: #9b958f; background: transparent; border-radius: 0; font-size: 27rpx; line-height: 78rpx; }
 .materials-page .bar-switch-item.selected { color: #24211f; font-weight: 650; }
@@ -21,17 +21,22 @@
 .section-note { display: block; margin-top: 6rpx; color: #8b8178; font-size: 23rpx; }
 .count { min-width: 48rpx; padding: 6rpx; color: #8c571f; background: #ead7bd; border-radius: 999rpx; text-align: center; }
 
-.fresh-scroll { width: 100%; margin-top: 20rpx; }
-.fresh-track { display: flex; gap: 18rpx; padding-right: 28rpx; }
-.fresh-card { box-sizing: border-box; width: 520rpx; flex: none; padding: 26rpx; background: linear-gradient(135deg, #fff9ec, #f5e2c4); border: 1rpx solid #e7c992; border-radius: 28rpx; box-shadow: 0 8rpx 24rpx rgba(96, 63, 30, .08); }
-.fresh-name { font-size: 32rpx; font-weight: 700; }
-.arrow { color: #9d6a32; font-size: 42rpx; }
-.inventory, .expiry { display: block; margin-top: 14rpx; font-size: 26rpx; }
-.expiry { margin-top: 6rpx; color: #a54d36; }
-.fresh-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 24rpx; }
-.fresh-actions button { margin: 0; border-radius: 999rpx; font-size: 24rpx; line-height: 64rpx; }
-.text-action { padding: 0; color: #755027; background: transparent; }
-.use-up { padding: 0 28rpx; color: #9b4f38; background: #fffdf8; border: 1rpx solid #d9b6a9; }
+.fresh-section-head { min-height: 74rpx; }
+.fresh-section-state { display: flex; align-items: center; gap: 14rpx; }
+.disclosure { width: 32rpx; color: #8b8178; font-size: 30rpx; text-align: center; }
+.fresh-list { display: grid; gap: 10rpx; margin-top: 16rpx; }
+.fresh-card { box-sizing: border-box; width: 100%; overflow: hidden; background: #fffdf8; border: 1rpx solid #e5ddd4; border-radius: 20rpx; }
+.fresh-summary { display: grid; min-height: 82rpx; padding: 12rpx 16rpx; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12rpx; }
+.fresh-name { display: block; overflow: hidden; color: #342f2b; font-size: 28rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.fresh-purchase-date { overflow: hidden; color: #7f756c; font-size: 23rpx; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.fresh-purchase-date.is-empty { color: #aaa198; }
+.materials-page .use-up { width: 72rpx; min-height: 48rpx; margin: 0; padding: 0; justify-self: end; color: #8f5947; background: transparent; border: 1rpx solid #d8c3b9; border-radius: 999rpx; font-size: 22rpx; line-height: 46rpx; }
+.fresh-recipes { padding: 8rpx 14rpx 12rpx; background: #faf7f2; border-top: 1rpx solid #eee7de; }
+.materials-page .fresh-recipe-row { display: grid; box-sizing: border-box; width: 100%; min-height: 74rpx; margin: 0; padding: 10rpx 4rpx; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12rpx; color: #342f2b; background: transparent; border-bottom: 1rpx solid #ece5dc; border-radius: 0; line-height: 1.3; text-align: left; }
+.fresh-recipe-rating { min-width: 64rpx; padding: 5rpx 9rpx; color: #76583a; background: #eee4d7; border-radius: 999rpx; font-size: 19rpx; text-align: center; }
+.fresh-recipe-name { overflow: hidden; font-size: 25rpx; text-overflow: ellipsis; white-space: nowrap; }
+.fresh-recipe-amount { max-width: 180rpx; overflow: hidden; color: #675e56; font-size: 23rpx; text-overflow: ellipsis; white-space: nowrap; }
+.fresh-recipes-empty { padding: 22rpx 8rpx; color: #9d948b; font-size: 22rpx; text-align: center; }
 .empty-fresh, .empty-list { display: flex; flex-direction: column; align-items: center; margin-top: 20rpx; padding: 40rpx 24rpx; color: #766d64; background: rgba(255, 253, 248, .7); border: 1rpx dashed #ddcfbc; border-radius: 24rpx; }
 .empty-sub { margin-top: 8rpx; color: #a0968c; font-size: 23rpx; }
 

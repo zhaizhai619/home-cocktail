@@ -1,6 +1,7 @@
 const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, getMaterialIdentityKey, getMaterialVisualState, isMaterialAvailable, materialNameMatchesQuery } = require('../../domain/material')
-const { UNITS } = require('../../domain/constants')
-const { getMaterialUsageStats } = require('../../domain/relations')
+const { RATINGS, UNITS } = require('../../domain/constants')
+const { getMaterialUsageStats, getRecipesUsingMaterial } = require('../../domain/relations')
+const { getMaterialReadiness, getPreparationDurationText, getPrimaryPreparation } = require('../../domain/recipe')
 const { formatGlasswareLabel } = require('../../domain/equipment')
 const { normalizeEquipmentName } = require('../../domain/equipment-invariants')
 const { isValidDateString } = require('../../domain/date')
@@ -17,6 +18,11 @@ const MATERIAL_LIBRARY_TEMPLATES = Object.freeze([
   { name: '普通糖浆', category: 'syrup/staple' },
   { name: '接骨木糖浆', category: 'syrup/staple' }
 ])
+
+const UNIT_LABELS = UNITS.reduce((labels, unit) => {
+  labels[unit.value] = unit.label
+  return labels
+}, {})
 
 function categoryGroup(category) {
   return getMaterialCategoryGroup(category).key
@@ -104,6 +110,90 @@ function buildCard(material, recipes, materialsById, now) {
   }
 }
 
+function formatRecipePreparation(recipe) {
+  const primary = getPrimaryPreparation(recipe && recipe.preparations)
+  if (!primary) return ''
+  if (primary.type === '即调') return '即调'
+  const duration = getPreparationDurationText(primary)
+  return `${primary.type} · ${duration.startsWith('提前') ? duration : `提前${duration}`}`
+}
+
+function getRecipeRatingRank(recipe) {
+  const ratingIndex = recipe && recipe.tried === true ? RATINGS.indexOf(recipe.rating) : -1
+  return ratingIndex < 0 ? RATINGS.length : ratingIndex
+}
+
+function getRecipeLeadHours(recipe) {
+  const primary = getPrimaryPreparation(recipe && recipe.preparations)
+  return primary ? primary.leadHours : 0
+}
+
+function formatRecipeMaterialAmount(recipe, materialId) {
+  const servingIngredients = (Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients : [])
+    .filter((ingredient) => ingredient && ingredient.kind !== 'prepared-output')
+  const advanceIngredients = (Array.isArray(recipe && recipe.advancePreparations) ? recipe.advancePreparations : [])
+    .flatMap((preparation) => Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
+  const groups = [...servingIngredients, ...advanceIngredients]
+    .filter((ingredient) => ingredient.materialId === materialId)
+    .reduce((result, ingredient) => {
+      const unit = String(ingredient.unit || '')
+      let group = result.find((item) => item.unit === unit)
+      if (!group) {
+        group = { unit, amounts: [] }
+        result.push(group)
+      }
+      group.amounts.push(ingredient.amount)
+      return result
+    }, [])
+
+  if (!groups.length) return ''
+  return groups.map(({ unit, amounts }) => {
+    if (unit === 'top-up') return '补满'
+    if (unit === 'to-taste') return '适量'
+    const filled = amounts.filter((amount) => amount !== null && amount !== undefined && String(amount).trim() !== '')
+    if (!filled.length) return '未记录用量'
+    const numeric = filled.map(Number)
+    const unitLabel = UNIT_LABELS[unit] || unit
+    if (numeric.every(Number.isFinite)) return `${numeric.reduce((sum, amount) => sum + amount, 0)}${unitLabel}`
+    return filled.map((amount) => `${String(amount).trim()}${unitLabel}`).join(' + ')
+  }).join(' + ')
+}
+
+function buildFreshRecipeSummaries(materialId, recipes, materialsById) {
+  return getRecipesUsingMaterial(materialId, recipes)
+    .map((recipe, index) => ({ recipe, index }))
+    .sort((first, second) => (
+      Number(getMaterialReadiness(first.recipe, materialsById) !== 'on-hand') -
+        Number(getMaterialReadiness(second.recipe, materialsById) !== 'on-hand') ||
+      getRecipeRatingRank(first.recipe) - getRecipeRatingRank(second.recipe) ||
+      getRecipeLeadHours(first.recipe) - getRecipeLeadHours(second.recipe) ||
+      String(second.recipe.createdAt || '').localeCompare(String(first.recipe.createdAt || '')) ||
+      first.index - second.index
+    ))
+    .map(({ recipe }, index) => ({
+      id: recipe.id,
+      name: recipe.name,
+      rating: recipe.tried === true && RATINGS.includes(recipe.rating) ? recipe.rating : '',
+      preparationLabel: formatRecipePreparation(recipe),
+      materialAmountLabel: formatRecipeMaterialAmount(recipe, materialId),
+      recommended: index === 0
+    }))
+}
+
+function buildFreshCard(card, recipes, materialsById) {
+  const relatedRecipes = buildFreshRecipeSummaries(card.id, recipes, materialsById)
+  const visibleInventory = card.inventoryLabel === '当前在手头' ? '' : card.inventoryLabel
+  return {
+    ...card,
+    purchaseDateLabel: typeof card.purchasedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(card.purchasedAt)
+      ? card.purchasedAt.slice(5)
+      : '',
+    freshMeta: [visibleInventory, card.expiryLabel].filter(Boolean).join(' · '),
+    recommendedRecipe: relatedRecipes[0] || null,
+    relatedRecipes
+  }
+}
+
 function mergeCatalogTemplates(cards) {
   const byIdentity = new Map(cards.map((card) => [getMaterialIdentityKey(card.category, card.name), card]))
   const matchedIds = new Set()
@@ -149,7 +239,9 @@ function buildMaterialLibrary(materials = [], recipes = [], options = {}) {
   const query = String(options.search || '').trim().toLocaleLowerCase()
   const acquisition = options.acquisition || 'all'
   const cards = safeMaterials.map((material) => buildCard(material, safeRecipes, materialsById, options.now))
-  const freshShelf = cards.filter((card) => card.isFreshShelf)
+  const freshShelf = cards
+    .filter((card) => card.isFreshShelf)
+    .map((card) => buildFreshCard(card, safeRecipes, materialsById))
   const libraryCards = options.includeCatalog === true ? mergeCatalogTemplates(cards) : cards
   const categoryFilter = MATERIAL_LIBRARY_TABS.some((item) => item.key === options.categoryFilter) ? options.categoryFilter : 'all'
   const filtered = libraryCards.filter((card) => {

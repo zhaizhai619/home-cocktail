@@ -10,47 +10,45 @@
     <view class="hero-card">
       <view class="hero-heading"><text class="recipe-name">{{detail.name}}</text><text wx:if="{{detail.rating}}" class="rating-badge">{{detail.rating}}</text></view>
       <text wx:if="{{detail.source}}" class="muted">来源：{{detail.source}}</text>
-      <view class="prep-list">
+      <view class="detail-meta">
         <view wx:for="{{detail.preparations}}" wx:key="type" class="prep-item">
           <text class="prep-badge">{{item.label}}</text>
           <text wx:if="{{item.note}}" class="prep-note">{{item.note}}</text>
         </view>
-      </view>
-      <view class="summary-grid">
-        <view class="summary-item"><text class="summary-label">预估酒精度</text><text class="summary-value">{{detail.abv.valueLabel}}</text></view>
-        <view class="summary-item"><text class="summary-label">预计总体积</text><text class="summary-value">{{detail.abv.liquidVolumeLabel}}</text><text wx:if="{{detail.abv.knownLiquidVolumeText}}" class="known-volume">{{detail.abv.knownLiquidVolumeText}}</text></view>
-      </view>
-      <text class="capacity-summary {{detail.capacity.status}}">{{detail.capacity.message}}</text>
-      <text wx:if="{{detail.capacity.status === 'over'}}" class="capacity-warning">容量提醒：预计超出 {{detail.capacity.differenceMl}}ml</text>
-      <view wx:if="{{detail.abv.issueLines.length || detail.abv.ignoredText}}" class="calculation-notice">
-        <text wx:for="{{detail.abv.issueLines}}" wx:key="kind" class="calculation-line {{item.kind}}">{{item.text}}</text>
-        <text wx:if="{{detail.abv.ignoredText}}" class="calculation-line ignored">{{detail.abv.ignoredText}}</text>
-        <button wx:if="{{detail.abv.editMaterialId}}" class="inline-edit-button" bindtap="onEditMissingAbv">去编辑补全</button>
-        <button wx:elif="{{detail.abv.needsEditing}}" class="inline-edit-button" bindtap="onEdit">编辑配方</button>
+        <text class="abv-badge" bindtap="onOpenManualAbv" aria-role="button" aria-label="酒精度 {{detail.abvBadgeLabel}}，点按编辑">{{detail.abvBadgeLabel}}</text>
       </view>
     </view>
 
     <view class="section">
-      <text class="section-title">材料</text>
+      <view class="section-heading">
+        <text class="section-title">材料</text>
+        <text wx:if="{{detail.glassware}}" class="material-glassware">{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text>
+      </view>
       <view class="ingredient-list">
-        <view wx:for="{{detail.ingredients}}" wx:key="index" class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
-          <view class="ingredient-main"><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍</text><text class="ingredient-name">{{item.name}}</text></view>
-          <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text><text wx:if="{{!item.prepared}}" class="row-arrow" aria-hidden="true">›</text></view>
-        </view>
+        <block wx:for="{{detail.ingredients}}" wx:key="index">
+          <view class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
+            <view class="ingredient-main"><text class="ingredient-name">{{item.name}}</text><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍️</text></view>
+            <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text></view>
+          </view>
+          <view wx:if="{{item.preparation}}" class="advance-inline">
+            <view class="advance-inline-ingredients">
+              <view wx:for="{{item.preparation.ingredients}}" wx:for-item="preparedIngredient" wx:key="index" class="advance-ingredient-row {{preparedIngredient.state}}" data-id="{{preparedIngredient.materialId}}" bindtap="onOpenMaterial" aria-label="{{preparedIngredient.accessibilityLabel}}">
+                <text class="ingredient-name">{{preparedIngredient.name}}</text>
+                <text class="ingredient-amount">{{preparedIngredient.amountLabel}}</text>
+              </view>
+            </view>
+            <view wx:if="{{item.preparation.hasSteps}}" class="advance-steps-toggle" data-preparation-id="{{item.preparation.id}}" bindtap="onTogglePreparationSteps" aria-role="button" aria-label="{{expandedPreparationIds[item.preparation.id] ? '收起' : '展开'}}制作步骤">
+              {{expandedPreparationIds[item.preparation.id] ? '▼' : '▶'}} 制作步骤
+            </view>
+            <view wx:if="{{expandedPreparationIds[item.preparation.id]}}" class="advance-steps">
+              <view wx:for="{{item.preparation.steps}}" wx:for-item="advanceStep" wx:key="index" class="advance-step">
+                <text class="advance-step-index">{{index + 1}}.</text>
+                <text class="advance-step-copy">{{advanceStep}}</text>
+              </view>
+            </view>
+          </view>
+        </block>
       </view>
-    </view>
-
-    <view wx:for="{{detail.advancePreparations}}" wx:for-item="preparation" wx:key="id" class="section">
-      <text class="section-title">提前准备 · {{preparation.outputName}}</text>
-      <view class="ingredient-list"><view wx:for="{{preparation.ingredients}}" wx:for-item="ingredient" wx:key="index" class="ingredient-row {{ingredient.state}}" data-id="{{ingredient.materialId}}" bindtap="onOpenMaterial"><text class="ingredient-name">{{ingredient.name}}</text><text class="ingredient-amount">{{ingredient.amountLabel}}</text></view></view>
-      <view wx:if="{{preparation.steps.length}}" class="steps"><view wx:for="{{preparation.steps}}" wx:for-item="step" wx:key="index" class="step"><text class="step-index">{{index + 1}}</text><text class="step-copy">{{step}}</text></view></view>
-    </view>
-
-    <view class="section">
-      <text class="section-title">酒杯与用具</text>
-      <view wx:if="{{detail.glassware}}" class="glass-card {{detail.glassware.orphaned ? 'orphaned' : ''}}"><image wx:if="{{detail.glassware.imagePath}}" class="glass-image" src="{{detail.glassware.imagePath}}" mode="aspectFill" /><view class="glass-copy"><view class="equipment-line"><text>酒杯</text><text>{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text></view><text wx:if="{{detail.glassware.notes}}" class="muted">{{detail.glassware.notes}}</text><text wx:if="{{detail.glassware.orphaned}}" class="orphan-label">资料缺失，请编辑配方重新选择</text></view></view>
-      <view wx:if="{{detail.tools.length}}" class="tool-list"><text wx:for="{{detail.tools}}" wx:key="id" class="tool-chip {{item.orphaned ? 'orphaned' : ''}}">{{item.name}}<text wx:if="{{item.orphaned}}"> · 资料缺失</text></text></view>
-      <text wx:if="{{!detail.glassware && !detail.tools.length}}" class="muted">暂未记录酒杯和用具</text>
     </view>
 
     <view class="section">
@@ -81,4 +79,10 @@
     <view class="bottom-space"></view>
     <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
   </block>
+  <view wx:if="{{showManualAbvEditor}}" class="abv-sheet-mask" bindtap="onCloseManualAbv"><view class="abv-sheet" catchtap="noop">
+    <text class="abv-sheet-title">整杯酒精度</text>
+    <view class="abv-input"><input type="digit" value="{{manualAbvDraft}}" bindinput="onManualAbvInput" placeholder="例如 12.5"/><text>%</text></view>
+    <text wx:if="{{manualAbvError}}" class="form-error">{{manualAbvError}}</text>
+    <view class="abv-sheet-actions"><button wx:if="{{detail.manualAbv !== null}}" class="clear-abv" bindtap="onClearManualAbv">恢复自动计算</button><button class="save-abv" bindtap="onSaveManualAbv">保存</button></view>
+  </view></view>
 </view>

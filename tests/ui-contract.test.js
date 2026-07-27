@@ -109,6 +109,71 @@ test('materials catalog uses compact scrollable tabs and an aligned two-column c
   assert.match(css, /\.library-card\.state-missing-long-term[^}]*{[^}]*border:/)
 })
 
+test('fresh shelf defaults to purchase rows and expands one inline recipe list', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/materials/index.js'))
+  const wxml = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxss'), 'utf8')
+  const context = {
+    data: { ...page.data },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  assert.equal(page.data.freshShelfExpanded, true)
+  assert.equal(page.data.expandedFreshMaterialId, '')
+  page.onToggleFreshItem.call(context, { currentTarget: { dataset: { id: 'mint' } } })
+  assert.equal(context.data.expandedFreshMaterialId, 'mint')
+  page.onToggleFreshItem.call(context, { currentTarget: { dataset: { id: 'lime' } } })
+  assert.equal(context.data.expandedFreshMaterialId, 'lime')
+  page.onToggleFreshItem.call(context, { currentTarget: { dataset: { id: 'lime' } } })
+  assert.equal(context.data.expandedFreshMaterialId, '')
+  page.onToggleFreshItem.call(context, { currentTarget: { dataset: { id: 'mint' } } })
+  page.onToggleFreshShelf.call(context)
+  assert.equal(context.data.freshShelfExpanded, false)
+  assert.equal(context.data.expandedFreshMaterialId, '')
+  page.onToggleFreshShelf.call(context)
+  assert.equal(context.data.freshShelfExpanded, true)
+
+  assert.match(wxml, /class="section-head fresh-section-head"[^>]*bindtap="onToggleFreshShelf"/)
+  assert.match(wxml, /wx:if="{{freshShelfExpanded}}"[^>]*class="fresh-list"/)
+  assert.match(wxml, /class="fresh-summary"[^>]*bindtap="onToggleFreshItem"/)
+  assert.match(wxml, /购买日期 \{\{item\.purchaseDateLabel\}\}/)
+  assert.match(wxml, /未记录购买日期/)
+  assert.match(wxml, /catchtap="onUseUp"/)
+  assert.doesNotMatch(wxml, /优先用掉，少一点浪费/)
+  assert.doesNotMatch(wxml, /fresh-summary-actions|expandedFreshMaterialId === item\.id \? '⌃' : '⌄'/)
+  assert.match(wxml, /wx:if="{{expandedFreshMaterialId === item\.id}}"[^>]*class="fresh-recipes"/)
+  assert.match(wxml, /wx:for="{{item\.relatedRecipes}}"[^>]*class="fresh-recipe-row"[^>]*bindtap="onOpenRecipe"/)
+  assert.match(wxml, /{{recipe\.rating \|\| '未调过'}}/)
+  assert.match(wxml, /{{recipe\.materialAmountLabel}}/)
+  assert.doesNotMatch(wxml, /fresh-recipe-recommended|>推荐</)
+  assert.match(wxml, /酒单中暂时没有使用这个材料/)
+  assert.doesNotMatch(wxml, /{{item\.recommendedRecipe\.name}}|onOpenFreshRecipes|recipeSheetOpen|看能做什么/)
+  assert.doesNotMatch(wxml, /scroll-x[^>]*class="fresh-scroll"/)
+  assert.doesNotMatch(wxml, /fresh-name-row"[^>]*bindtap="onOpenMaterial"/)
+  assert.match(css, /\.fresh-list\s*{[^}]*display:\s*grid/)
+  assert.match(css, /\.fresh-card\s*{[^}]*width:\s*100%/)
+  assert.match(css, /\.fresh-summary\s*{[^}]*display:\s*grid[^}]*grid-template-columns:/)
+  assert.match(css, /\.fresh-purchase-date\s*{[^}]*text-align:\s*center/)
+  assert.match(css, /\.use-up\s*{[^}]*width:\s*72rpx/)
+  assert.match(css, /\.fresh-recipe-row\s*{[^}]*display:\s*grid[^}]*grid-template-columns:/)
+  assert.doesNotMatch(css, /\.fresh-card\s*{[^}]*width:\s*520rpx/)
+})
+
+test('expanded fresh recipe rows navigate directly to recipe detail without a sheet', () => {
+  let navigation = null
+  const page = registeredDefinition(path.join(MINI, 'pages/materials/index.js'), {
+    navigateTo(options) { navigation = options.url }
+  })
+  const wxml = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxml'), 'utf8')
+  page.onOpenRecipe.call({}, { currentTarget: { dataset: { id: 'r1' } } })
+  assert.equal(navigation, '/pages/recipe-detail/index?id=r1')
+
+  assert.equal(page.data.recipeSheetOpen, undefined)
+  assert.equal(page.onOpenFreshRecipes, undefined)
+  assert.equal(page.onCloseFreshRecipes, undefined)
+  assert.doesNotMatch(wxml, /class="sheet recipe-sheet"|recipeSheetRecipes|recipeSheetMaterialName/)
+})
+
 test('catalog template cards resolve a material id and open the same detail page as saved cards', () => {
   const materialsPage = fs.readFileSync(path.join(MINI, 'pages/materials/index.js'), 'utf8')
   assert.match(materialsPage, /ensureLibraryMaterial\(repository\(\), \{ id, name, category \}\)/)
@@ -150,6 +215,14 @@ test('bar page swipes between material and two-column glass libraries without eq
   assert.match(bar, /catchtap="onRequestDeleteGlassware"/)
   assert.match(barCss, /\.glass-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
   assert.doesNotMatch(profile, /酒杯|固定用具|自定义用具|onAddTool|onEditTool|onRequestDeleteTool/)
+})
+
+test('glassware delete confirmation reports recipe usage without blocking deletion', () => {
+  const barScript = fs.readFileSync(path.join(MINI, 'pages/materials/index.js'), 'utf8')
+  assert.match(barScript, /check\.usageCount\s*>\s*0/)
+  assert.match(barScript, /\$\{check\.usageCount\}\s*款酒正在使用这个酒杯/)
+  assert.doesNotMatch(barScript, /正在被配方使用的酒杯不能删除/)
+  assert.match(barScript, /orchestrateGlasswareMediaDelete\(\{[^}]*confirmed:\s*true/)
 })
 
 test('recipe editor opens a dedicated two-column glassware selection page with inline add', () => {
@@ -207,13 +280,42 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(editorCss, /\.material-stage-switch\s*\{[^}]*border-bottom:\s*1rpx solid #ddd6cf/)
   assert.match(editorCss, /\.material-stage\.selected::before\s*\{[^}]*height:\s*4rpx[^}]*background:\s*#24211f/)
   assert.doesNotMatch(editorCss, /\.material-stage\.selected\s*\{[^}]*background:\s*#(?:6c594a|24211f)/)
-  assert.match(detail, /wx:for="{{detail\.advancePreparations}}"/)
-  assert.match(detail, />提前准备 ·/)
+  assert.match(detail, /wx:for="{{detail\.ingredients}}"/)
+  assert.match(detail, /wx:if="{{item\.preparation}}"[^>]*class="advance-inline"/)
+  assert.doesNotMatch(detail, /wx:for="{{detail\.advancePreparations}}"|>提前准备 ·/)
   assert.match(editorCss, /\.advance-card\s*\{[^}]*background:\s*#f8ead4/)
   assert.match(editorCss, /\.advance-name\s*\{[^}]*height:\s*52rpx[^}]*padding:\s*0 8rpx/)
   assert.match(editorCss, /\.advance-add-material\s*\{[^}]*display:\s*inline-flex[^}]*min-height:\s*40rpx[^}]*padding:\s*0 6rpx/)
   assert.match(editorCss, /\.advance-card-delete\s*\{[^}]*width:\s*52rpx[^}]*min-height:\s*32rpx/)
   assert.match(editorCss, /\.add-advance\s*\{[^}]*display:\s*inline-flex[^}]*width:\s*auto[^}]*min-height:\s*38rpx[^}]*padding:\s*0 6rpx/)
+})
+
+test('recipe detail nests advance materials and independently toggles non-empty steps', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'))
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
+  const context = {
+    data: { ...page.data, expandedPreparationIds: {} },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  assert.deepEqual(JSON.parse(JSON.stringify(page.data.expandedPreparationIds)), {})
+  page.onTogglePreparationSteps.call(context, { currentTarget: { dataset: { preparationId: 'prep-a' } } })
+  assert.equal(context.data.expandedPreparationIds['prep-a'], true)
+  page.onTogglePreparationSteps.call(context, { currentTarget: { dataset: { preparationId: 'prep-b' } } })
+  assert.equal(context.data.expandedPreparationIds['prep-a'], true)
+  assert.equal(context.data.expandedPreparationIds['prep-b'], true)
+  page.onTogglePreparationSteps.call(context, { currentTarget: { dataset: { preparationId: 'prep-a' } } })
+  assert.equal(context.data.expandedPreparationIds['prep-a'], false)
+  assert.equal(context.data.expandedPreparationIds['prep-b'], true)
+
+  assert.match(template, /wx:for="{{item\.preparation\.ingredients}}"/)
+  assert.match(template, /wx:if="{{item\.preparation\.hasSteps}}"[^>]*class="advance-steps-toggle"[^>]*bindtap="onTogglePreparationSteps"/)
+  assert.match(template, /\{\{expandedPreparationIds\[item\.preparation\.id\] \? '▼' : '▶'\}\} 制作步骤/)
+  assert.match(template, /wx:if="{{expandedPreparationIds\[item\.preparation\.id\]}}"[^>]*class="advance-steps"/)
+  assert.match(css, /\.advance-inline\s*{[^}]*background:\s*#f7f3ed[^}]*border:\s*1rpx solid #e9dfd3/)
+  assert.doesNotMatch(css, /\.advance-inline\s*{[^}]*background:\s*#f8e4d7/)
+  assert.match(css, /\.advance-steps-toggle\s*{[^}]*font-size:\s*23rpx/)
 })
 
 test('all preparation copy uses 预调 while retaining only one internal legacy alias', () => {
@@ -429,61 +531,122 @@ test('all material availability and optional tracking are controlled from detail
   assert.match(editorCss, /\.form-actions \.delete\s*{[^}]*flex:\s*1/)
 })
 
-test('home exposes exactly three all-capable dropdown filters plus one compact sort trigger', () => {
-  const recipes = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
-  assert.match(recipes, /<button[^>]*data-filter="preparation"[^>]*aria-label="制作方式/)
-  assert.match(recipes, /<button[^>]*data-filter="material"[^>]*aria-label="材料条件/)
-  assert.match(recipes, /<button[^>]*data-filter="rating"[^>]*aria-label="评价/)
-  assert.match(recipes, /<view[^>]*class="sort-hit"[^>]*aria-role="button"[^>]*aria-label="排序/)
-  assert.doesNotMatch(recipes, /class="prep-scroll"/)
-  assert.doesNotMatch(recipes, /class="sort-scroll"/)
-})
-
-test('home renders three compact non-overlapping filter cards aligned with its card list', () => {
-  const recipes = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
-  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
-  assert.match(recipes, /class="filter-heading"/)
-  assert.match(recipes, /class="filter-grid"/)
-  assert.equal((recipes.match(/class="filter-card/g) || []).length, 3)
-  assert.doesNotMatch(recipes, /class="filter-scroll"/)
-  assert.match(css, /\.filter-grid\s*{[^}]*display:\s*flex[^}]*box-sizing:\s*border-box[^}]*width:\s*100%/)
-  assert.match(css, /\.filter-hit\s*{[^}]*flex:\s*1 1 0[^}]*width:\s*0[^}]*min-width:\s*0[^}]*padding:\s*10rpx 8rpx 10rpx 12rpx/)
-  assert.match(css, /\.sort-hit\s*{[^}]*display:\s*block[^}]*flex:\s*1[^}]*margin:\s*0[^}]*padding:\s*0[^}]*text-align:\s*right/)
-  assert.match(css, /\.card-list\s*{[^}]*box-sizing:\s*border-box[^}]*width:\s*100%/)
-})
-
-test('home places a compact untried-only switch below the three filters on the right', () => {
+test('home collapses every filter group behind one all trigger', () => {
   const page = registeredDefinition(path.join(MINI, 'pages/recipes/index.js'))
   const recipes = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
-  assert.equal(page.data.untriedOnly, false)
-  assert.match(recipes, /class="untried-filter-row"[\s\S]*class="untried-toggle[^>]*aria-role="switch"[^>]*aria-checked="{{untriedOnly}}"/)
-  assert.match(recipes, />仅看未调过</)
-  assert.match(css, /\.untried-filter-row\s*{[^}]*display:\s*flex[^}]*justify-content:\s*flex-end/)
-  assert.match(css, /\.untried-toggle[^}]*{[^}]*min-height:\s*88rpx[^}]*font-size:\s*22rpx/)
-  assert.match(css, /\.toggle-track\s*{[^}]*border-radius:\s*999rpx/)
+
+  assert.equal(page.data.filterPanelOpen, false)
+  assert.match(recipes, /<view class="filter-trigger"[^>]*bindtap="toggleFilterPanel"[^>]*aria-role="button"[^>]*aria-expanded="{{filterPanelOpen}}"/)
+  assert.match(recipes, /class="filter-trigger-label">全部</)
+  assert.match(recipes, /class="filter-symbol \{\{prepType !== 'all' \|\| materialCondition !== 'all' \|\| rating !== 'all' \|\| untriedOnly \|\| sortKey !== 'prep-time' \? 'active' : ''\}\}"[\s\S]*class="filter-symbol-line/)
+  assert.match(recipes, /class="filter-panel \{\{filterPanelOpen \? 'open' : ''\}\}"[^>]*aria-hidden="{{!filterPanelOpen}}"/)
+  for (const title of ['排序依据', '制作方式', '材料条件', '评价', '调酒状态']) {
+    assert.match(recipes, new RegExp(`class="filter-group-title">${title}<`))
+  }
+  for (const kind of ['sort', 'preparation', 'material', 'rating', 'status']) {
+    assert.match(recipes, new RegExp(`data-kind="${kind}"`))
+  }
+  assert.match(recipes, /class="filter-reset"[^>]*bindtap="resetFilterPanel"[^>]*>重置</)
+  assert.match(recipes, /class="filter-collapse"[^>]*bindtap="collapseFilterPanel"[^>]*>收起</)
+  assert.doesNotMatch(recipes, /filter-grid|untried-filter-row|sheet-mask|openSortSheet|openFilter|onSelectSheet/)
+  assert.equal(page.data.sortOptions[0].shortLabel, '准备最短')
+  assert.equal(page.data.sortOptions.find((option) => option.key === 'recent').shortLabel, '最近')
+  assert.equal(page.data.sortOptions.find((option) => option.key === 'rating').shortLabel, '评价')
+  assert.equal(page.data.sortOptions.find((option) => option.key === 'name').shortLabel, '名称')
+  assert.equal(page.data.prepOptions.find((option) => option.key === '低温慢煮').shortLabel, '低温')
+  assert.equal(page.data.prepOptions.find((option) => option.key === '其他预调').shortLabel, '其他')
+  assert.equal(page.data.statusOptions.find((option) => option.key === 'untried').shortLabel, '未调过')
+  assert.match(recipes, /wx:for="{{sortOptions}}"[\s\S]*class="filter-option-label">\{\{option\.shortLabel \|\| option\.label\}\}<\/text><\/view>/)
+  assert.match(css, /\.recipes-page\s*{[^}]*position:\s*relative/)
+  assert.match(recipes, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*class="add-hit"/)
+  assert.doesNotMatch(recipes, /class="topbar"|class="page-title">我的酒单</)
+  assert.match(css, /\.filter-bar\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*width:\s*100%/)
+  assert.match(css, /\.filter-trigger\s*{[^}]*justify-content:\s*flex-start[^}]*flex:\s*1[^}]*width:\s*auto[^}]*margin-left:\s*0[^}]*text-align:\s*left/)
+  assert.match(css, /\.filter-symbol\.active \.filter-symbol-line\s*{[^}]*background:\s*#b86f29/)
+  assert.match(css, /\.filter-panel\s*{[^}]*position:\s*absolute[^}]*z-index:\s*10[^}]*right:\s*32rpx[^}]*left:\s*32rpx[^}]*max-width:\s*calc\(100vw - 64rpx\)[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*hidden[^}]*background:/)
+  assert.match(css, /\.filter-option-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)[^}]*gap:\s*8rpx/)
+  assert.match(css, /\.filter-option\s*{[^}]*min-width:\s*0[^}]*overflow:\s*hidden/)
+  assert.match(css, /\.filter-option\.selected\s*{[^}]*color:[^}]*background:/)
 })
 
-test('home untried switch toggles the filter and clear filters turns it off', () => {
+test('home shows a non-interactive two-line seasonal fruit hint below search', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipes/index.js'))
+  const script = fs.readFileSync(path.join(MINI, 'pages/recipes/index.js'), 'utf8')
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
+  const searchIndex = template.indexOf('class="search-box"')
+  const hintIndex = template.indexOf('class="seasonal-fruit-tip"')
+  const filtersIndex = template.indexOf('class="filter-trigger"')
+
+  assert.equal(page.data.seasonalFruitMessage, '')
+  assert.match(script, /require\(['"]\.\.\/\.\.\/domain\/seasonal-fruits['"]\)/)
+  assert.match(script, /buildSeasonalFruitMessage\(new Date\(\)\.getMonth\(\) \+ 1\)/)
+  assert.ok(searchIndex >= 0 && hintIndex > searchIndex && filtersIndex > hintIndex)
+  assert.match(template, /<text wx:if="{{seasonalFruitMessage}}" class="seasonal-fruit-tip">{{seasonalFruitMessage}}<\/text>/)
+  assert.doesNotMatch(template.match(/<text wx:if="{{seasonalFruitMessage}}"[^>]*>/)[0], /bindtap|catchtap/)
+  assert.match(css, /\.seasonal-fruit-tip\s*{[^}]*font-size:\s*22rpx[^}]*line-height:\s*1\.55[^}]*-webkit-line-clamp:\s*2/)
+})
+
+test('home filter panel applies grouped options immediately and stays open', () => {
   const page = registeredDefinition(path.join(MINI, 'pages/recipes/index.js'))
   const context = {
-    data: { untriedOnly: false },
+    data: { ...page.data },
     refreshCount: 0,
     setData(value) { Object.assign(this.data, value) },
     refreshCards() { this.refreshCount += 1 }
   }
-  page.onToggleUntried.call(context)
+
+  page.toggleFilterPanel.call(context)
+  assert.equal(context.data.filterPanelOpen, true)
+  page.onSelectFilterOption.call(context, { currentTarget: { dataset: { kind: 'preparation', key: '冷冻' } } })
+  assert.equal(context.data.prepType, '冷冻')
+  assert.equal(context.data.filterPanelOpen, true)
+  page.onSelectFilterOption.call(context, { currentTarget: { dataset: { kind: 'status', key: 'untried' } } })
   assert.equal(context.data.untriedOnly, true)
-  assert.equal(context.refreshCount, 1)
-  page.clearFilters.call(context)
-  assert.equal(context.data.untriedOnly, false)
   assert.equal(context.refreshCount, 2)
+  page.resetFilterPanel.call(context)
+  assert.equal(context.data.prepType, 'all')
+  assert.equal(context.data.untriedOnly, false)
+  assert.equal(context.data.filterPanelOpen, true)
+  assert.equal(context.refreshCount, 3)
+  page.collapseFilterPanel.call(context)
+  assert.equal(context.data.filterPanelOpen, false)
+})
+
+test('expanded home filter overlays the visible recipe list while locking page scrolling', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
+
+  assert.match(template, /class="page recipes-page \{\{filterPanelOpen \? 'filter-open' : ''\}\}"/)
+  assert.match(template, /wx:if="{{filterPanelOpen}}"[^>]*class="filter-scroll-lock"[^>]*catchtap="collapseFilterPanel"[^>]*catchtouchmove="noop"[^>]*aria-label="点击空白处收起筛选"/)
+  assert.match(template, /class="filter-panel \{\{filterPanelOpen \? 'open' : ''\}\}"[^>]*catchtouchmove="noop"[^>]*aria-hidden="{{!filterPanelOpen}}"/)
+  assert.doesNotMatch(template, /wx:if="{{filterPanelOpen}}"[^>]*class="filter-panel"/)
+  assert.match(template, /wx:if="{{recipes\.length}}"[^>]*class="card-list"/)
+  assert.match(template, /wx:elif="{{hasRecipes}}"[^>]*class="empty no-results"/)
+  assert.match(template, /wx:else[^>]*class="empty"/)
+  assert.doesNotMatch(template, /!filterPanelOpen && (?:recipes\.length|hasRecipes)/)
+  assert.doesNotMatch(template, /scroll-x|scroll-y/)
+  assert.match(css, /\.filter-scroll-lock\s*{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*inset:\s*0/)
+  assert.match(css, /\.recipes-page\.filter-open\s*{[^}]*height:\s*100vh[^}]*overflow:\s*hidden/)
+  assert.match(css, /\.filter-bar\s*{[^}]*position:\s*relative[^}]*z-index:\s*11/)
+  assert.match(css, /\.filter-panel\s*{[^}]*opacity:\s*0[^}]*visibility:\s*hidden[^}]*pointer-events:\s*none[^}]*transform:[^;}]*translateY\([^)]*\)[^}]*transition:/)
+  assert.match(css, /\.filter-panel\.open\s*{[^}]*opacity:\s*1[^}]*visibility:\s*visible[^}]*pointer-events:\s*auto[^}]*transform:\s*translateY\(0\)\s*scale\(\s*1\s*\)/)
+})
+
+test('home filter option labels stay inside their own narrow-screen grid cells', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
+
+  assert.match(template, /<view wx:for="{{sortOptions}}"[^>]*class="filter-option[^>]*aria-role="button"[^>]*>[\s\S]*?<text class="filter-option-label">\{\{option\.shortLabel \|\| option\.label\}\}<\/text><\/view>/)
+  assert.doesNotMatch(template, /<button wx:for="{{(?:sort|prep|material|rating|status)Options}}"[^>]*class="filter-option/)
+  assert.match(css, /\.filter-option-label\s*{[^}]*box-sizing:\s*border-box[^}]*display:\s*block[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden[^}]*font-size:\s*20rpx[^}]*white-space:\s*nowrap[^}]*text-align:\s*center/)
 })
 
 test('home aligns the visible add circle with the shared right content edge', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
-  assert.match(css, /\.topbar\s*{[^}]*display:\s*flex[^}]*box-sizing:\s*border-box[^}]*width:\s*100%/)
-  assert.match(css, /\.page-title\s*{[^}]*flex:\s*1/)
+  assert.match(template, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*class="add-hit"/)
   assert.match(css, /\.add-hit\s*{[^}]*justify-content:\s*flex-end[^}]*flex:\s*none[^}]*width:\s*88rpx[^}]*margin:\s*0[^}]*padding:\s*0/)
 })
 
@@ -540,6 +703,7 @@ test('recipe page builds a null-prototype material lookup for legacy-safe ids', 
 test('home distinguishes a genuinely empty collection from filtered no-results and can clear filters', () => {
   const recipes = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
   assert.match(recipes, /wx:elif="{{hasRecipes}}" class="empty no-results"/)
+  assert.match(recipes, /wx:else class="empty"/)
   assert.match(recipes, /bindtap="clearFilters"/)
   assert.match(recipes, /没有符合条件的酒/)
 })
@@ -682,13 +846,19 @@ test('compact horizontal controls retain the existing 88rpx touch target contrac
   const homeCss = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
   const ingredientCss = fs.readFileSync(path.join(MINI, 'components/ingredient-row/index.wxss'), 'utf8')
   const prepCss = fs.readFileSync(path.join(MINI, 'components/prep-editor/index.wxss'), 'utf8')
-  const filterHeight = Number(homeCss.match(/\.filter-hit[^}]*min-height:\s*(\d+)rpx/)[1])
-  const sortHeight = Number(homeCss.match(/\.sort-hit[^}]*min-height:\s*(\d+)rpx/)[1])
+  const filterHeight = Number(homeCss.match(/\.filter-trigger[^}]*min-height:\s*(\d+)rpx/)[1])
+  const sortHeight = Number(homeCss.match(/\.filter-option[^}]*min-height:\s*(\d+)rpx/)[1])
   assert.ok(filterHeight >= 88)
-  assert.ok(sortHeight >= 88)
+  assert.ok(sortHeight >= 56)
   assert.match(ingredientCss, /\.remove\.remove\s*{[^}]*width:\s*44rpx[^}]*height:\s*44rpx[^}]*min-height:\s*44rpx/)
   assert.match(prepCss, /\.chips\s*{[^}]*column-gap:\s*10rpx[^}]*row-gap:\s*8rpx/)
   assert.match(prepCss, /\.chip\.chip\s*{[^}]*flex:\s*0 0 calc\(\(100% - 20rpx\) \/ 3\)[^}]*width:\s*auto[^}]*min-height:\s*56rpx[^}]*padding:\s*0 12rpx/)
+})
+
+test('mini program templates do not render the down-chevron glyph', () => {
+  for (const relative of walk(MINI, '.wxml')) {
+    assert.doesNotMatch(fs.readFileSync(relative, 'utf8'), /⌄/, relative)
+  }
 })
 
 test('every editable form exposes validation feedback inside the form', () => {
@@ -713,18 +883,19 @@ test('recipe detail ingredient rows navigate to their material detail', () => {
   assert.match(detail, /class="ingredient-row[^>]*data-id="{{item\.materialId}}"[^>]*bindtap="onOpenMaterial"/)
 })
 
-test('recipe detail missing ABV action opens the corresponding material editor', () => {
-  const routes = []
-  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'), {
-    navigateTo(options) { routes.push(options.url) }
-  })
-  const context = { data: { detail: { status: 'ok', abv: { editMaterialId: 'coconut liqueur' } } } }
-
-  page.onEditMissingAbv.call(context)
-
-  assert.deepEqual(routes, ['/pages/material-edit/index?id=coconut%20liqueur'])
+test('recipe detail uses compact meta tags and folds glassware into the material heading', () => {
   const wxml = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
-  assert.match(wxml, /wx:if="{{detail\.abv\.editMaterialId}}"[^>]*bindtap="onEditMissingAbv"/)
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
+  assert.match(wxml, /<text class="abv-badge"[^>]*bindtap="onOpenManualAbv"[^>]*>{{detail\.abvBadgeLabel}}<\/text>/)
+  assert.match(wxml, /class="section-heading"[\s\S]*class="section-title">材料<\/text>[\s\S]*class="material-glassware"/)
+  assert.match(wxml, /class="ingredient-name">{{item\.name}}<\/text><text wx:if="{{item\.state === 'quick-buy'}}" class="quick-buy-icon"[^>]*>🛍️<\/text>/)
+  assert.doesNotMatch(wxml, /class="row-arrow"|>酒杯与用具</)
+  assert.doesNotMatch(css, /\.ingredient-row\.quick-buy\s*{[^}]*background/)
+  assert.match(css, /\.abv-badge\s*{[^}]*min-height:\s*48rpx[^}]*padding:\s*0 18rpx[^}]*border:\s*0/)
+  assert.match(wxml, /bindinput="onManualAbvInput"/)
+  assert.match(wxml, /bindtap="onSaveManualAbv"/)
+  assert.match(wxml, /bindtap="onClearManualAbv"/)
+  assert.doesNotMatch(wxml, /预估酒精度|预计总体积|总体积信息不完整|detail\.capacity|calculation-notice|onEditMissingAbv/)
 })
 
 test('material observations can be recorded repeatedly from material detail while recipe entry remains available', () => {
@@ -736,6 +907,22 @@ test('material observations can be recorded repeatedly from material detail whil
   assert.doesNotMatch(material, /还没有关于这个材料的品尝记录/)
   assert.match(recipe, /class="observation-form"/)
   assert.match(recipe, /bindtap="onSaveObservation"/)
+})
+
+test('material detail loads once on first entry and refreshes only after returning to it', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/material-detail/index.js'))
+  const context = {
+    materialId: '',
+    reloadCount: 0,
+    reload() { this.reloadCount += 1 }
+  }
+
+  page.onLoad.call(context, { id: 'gin' })
+  page.onShow.call(context)
+  assert.equal(context.reloadCount, 1)
+
+  page.onShow.call(context)
+  assert.equal(context.reloadCount, 2)
 })
 
 test('recipe detail bottom bar keeps only edit and delete inside a safe two-column layout', () => {

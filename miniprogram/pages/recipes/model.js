@@ -37,6 +37,8 @@ function buildRecipeCard(recipe, materialsById = {}) {
   }, Object.create(null))
   const safeMaterials = materialsById && typeof materialsById === 'object' ? materialsById : {}
   const abv = advancePreparations.length ? { status: 'prepared' } : calculateAbv(recipeIngredientsForAbv(source, safeMaterials))
+  const manualAbvNumber = Number(source.manualAbv)
+  const hasManualAbv = source.manualAbv !== null && source.manualAbv !== undefined && String(source.manualAbv).trim() !== '' && Number.isFinite(manualAbvNumber) && manualAbvNumber >= 0 && manualAbvNumber <= 100
   const tried = source.tried === true
 
   return {
@@ -48,7 +50,7 @@ function buildRecipeCard(recipe, materialsById = {}) {
     rating: tried && typeof source.rating === 'string' ? source.rating : '',
     ...(tried ? {} : { untriedLabel: '未调过' }),
     preparationLabel: formatPreparation(getPrimaryPreparation(source.preparations)),
-    abvLabel: abv.status === 'ok' ? `${abv.abv}%` : '',
+    abvLabel: hasManualAbv ? `${manualAbvNumber}%` : (abv.status === 'ok' ? `${abv.abv}%` : ''),
     ingredients: ingredients.reduce((items, ingredient) => {
       if (ingredient && ingredient.kind === 'prepared-output') {
         const preparation = preparationsById[ingredient.preparationId]

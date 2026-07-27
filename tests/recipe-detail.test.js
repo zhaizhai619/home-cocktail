@@ -10,6 +10,8 @@ const {
   validateObservation,
   orchestrateObservationSave,
   orchestrateRatingToggle,
+  validateManualAbv,
+  orchestrateManualAbvSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('../miniprogram/pages/recipe-detail/model')
@@ -99,10 +101,61 @@ test('recipe detail renders multiple prepared outputs as normal serving rows wit
   assert.deepEqual(detail.ingredients.slice(0, 2).map(({ name, amountLabel }) => ({ name, amountLabel })), [
     { name: '菠萝朗姆', amountLabel: '40ml' }, { name: '澄清果汁', amountLabel: '20ml' }
   ])
+  assert.deepEqual(detail.ingredients[0].preparation, {
+    id: 'prep-rum',
+    ingredients: [{
+      materialId: 'rum',
+      name: '白朗姆',
+      amount: 500,
+      unit: 'ml',
+      amountLabel: '500ml',
+      state: 'owned',
+      accessibilityLabel: '白朗姆，材料已在手头，500ml',
+      orphaned: false
+    }],
+    steps: ['浸泡后过滤'],
+    hasSteps: true
+  })
+  assert.equal(detail.ingredients[1].preparation.hasSteps, true)
+  assert.equal(detail.ingredients[2].preparation, undefined)
   assert.equal(detail.advancePreparations[0].ingredients[0].name, '白朗姆')
   assert.equal(detail.advancePreparations[1].ingredients[0].name, '苹果汁')
   assert.equal(detail.abv.valueLabel, '--')
   assert.equal(detail.abv.issueLines[0].text, '含本配方预调成品，暂不计算酒精度')
+  assert.equal(detail.abvBadgeLabel, '编辑酒精度')
+})
+
+test('recipe detail marks an empty advance preparation as having no collapsible steps', () => {
+  const detail = buildRecipeDetail({
+    id: 'no-steps',
+    name: '无步骤预调',
+    ingredients: [{ kind: 'prepared-output', preparationId: 'prep-tea', amount: 60, unit: 'ml' }],
+    advancePreparations: [{
+      id: 'prep-tea',
+      outputName: '冷泡茶',
+      ingredients: [{ materialId: 'tea', amount: 9, unit: 'g' }],
+      steps: ['', '   ']
+    }]
+  }, [{ id: 'tea', name: '红茶', acquisition: 'long-term', owned: true, alcoholic: false }])
+
+  assert.deepEqual(detail.ingredients[0].preparation.steps, [])
+  assert.equal(detail.ingredients[0].preparation.hasSteps, false)
+})
+
+test('recipe detail manual ABV overrides calculation and can be saved or cleared', () => {
+  const fixture = createDetailFixture()
+  const manual = buildRecipeDetail({ ...fixture.recipe, manualAbv: 12.5 }, fixture.materials, fixture.glassware, fixture.tools)
+  assert.equal(manual.abvBadgeLabel, '12.5%')
+  assert.equal(buildRecipeDetail(fixture.recipe, fixture.materials, fixture.glassware, fixture.tools).abvBadgeLabel, '7.2%')
+  assert.deepEqual(validateManualAbv(' 18.6 '), { valid: true, value: 18.6, message: '' })
+  assert.deepEqual(validateManualAbv(''), { valid: true, value: null, message: '' })
+  assert.equal(validateManualAbv('101').valid, false)
+
+  const repository = createRepository(createMemoryAdapter(), { idFactory: () => 'manual-recipe', now: () => '2026-07-23T00:00:00.000Z' })
+  repository.initialize()
+  const recipe = repository.upsertRecipe({ name: '手动酒精度', ingredients: [] })
+  assert.equal(orchestrateManualAbvSave({ repository, recipe, value: '18.6' }).recipe.manualAbv, 18.6)
+  assert.equal(orchestrateManualAbvSave({ repository, recipe: repository.getRecipe(recipe.id), value: '' }).recipe.manualAbv, null)
 })
 
 test('recipe detail uses the short syrup name for ingredients, observations and ingredient options', () => {
@@ -509,9 +562,8 @@ test('mini program registers the detail route and wires recipe selection to a st
   }
   assert.doesNotMatch(detailTemplate, /stateLabel|手头有|随买随用|暂时没有/)
   assert.match(detailTemplate, /aria-label="\{\{item\.accessibilityLabel\}\}"/)
-  assert.match(detailTemplate, /detail\.abv\.issueLines/)
-  assert.match(detailTemplate, /detail\.abv\.ignoredText/)
-  assert.match(detailTemplate, /去编辑补全/)
+  assert.match(detailTemplate, /detail\.abvBadgeLabel/)
+  assert.doesNotMatch(detailTemplate, /detail\.abv\.issueLines|detail\.abv\.ignoredText|去编辑补全/)
   assert.match(detailController, /decodeRecipeId\(query && query\.id\)/)
   assert.doesNotMatch(detailController, /decodeURIComponent/)
 })

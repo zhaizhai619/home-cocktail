@@ -4,6 +4,7 @@ const {
   validateObservation,
   orchestrateObservationSave,
   orchestrateRatingToggle,
+  orchestrateManualAbvSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('./model')
@@ -23,7 +24,11 @@ Page({
     observationMaterialIndex: 0,
     observationMaterialLabel: '选择材料',
     observationNote: '',
-    observationError: ''
+    observationError: '',
+    showManualAbvEditor: false,
+    manualAbvDraft: '',
+    manualAbvError: '',
+    expandedPreparationIds: {}
   },
   onLoad(query) {
     this.recipeId = decodeRecipeId(query && query.id)
@@ -92,11 +97,31 @@ Page({
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
   },
-  onEditMissingAbv() {
-    const detail = this.data.detail
-    const id = detail && detail.status === 'ok' && detail.abv && detail.abv.editMaterialId
-    if (id) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(id)}` })
+  onTogglePreparationSteps(event) {
+    const preparationId = event.currentTarget.dataset.preparationId
+    if (!preparationId) return
+    this.setData({
+      expandedPreparationIds: {
+        ...this.data.expandedPreparationIds,
+        [preparationId]: !this.data.expandedPreparationIds[preparationId]
+      }
+    })
   },
+  onOpenManualAbv() {
+    const value = this.data.detail.status === 'ok' ? this.data.detail.manualAbv : null
+    this.setData({ showManualAbvEditor: true, manualAbvDraft: value === null ? '' : String(value), manualAbvError: '' })
+  },
+  onCloseManualAbv() { this.setData({ showManualAbvEditor: false, manualAbvError: '' }) },
+  onManualAbvInput(event) { this.setData({ manualAbvDraft: event.detail.value || '', manualAbvError: '' }) },
+  saveManualAbv(value) {
+    const result = orchestrateManualAbvSave({ repository: getRepository(), recipe: this.recipe, value, notify: toast })
+    if (!result.saved) return this.setData({ manualAbvError: result.message })
+    this.setData({ showManualAbvEditor: false, manualAbvError: '' })
+    this.loadDetail()
+  },
+  onSaveManualAbv() { this.saveManualAbv(this.data.manualAbvDraft) },
+  onClearManualAbv() { this.saveManualAbv('') },
+  noop() {},
   onEdit() {
     if (!this.recipeId) return toast('无法编辑这款酒')
     wx.navigateTo({ url: `/pages/recipe-edit/index?id=${encodeURIComponent(this.recipeId)}` })

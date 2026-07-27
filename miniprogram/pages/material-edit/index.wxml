@@ -5,10 +5,10 @@
 
     <view class="form-card">
       <text class="label">材料名称 *</text><input class="input {{errors.name ? 'error' : ''}}" value="{{form.name}}" bindinput="onNameInput" placeholder="例如：西瓜"/><text wx:if="{{errors.name}}" class="error-text">{{errors.name}}</text>
-      <text class="label">分类 *</text><picker range="{{categoryLabels}}" value="{{categoryIndex}}" bindchange="onCategoryChange"><view class="picker">{{categoryLabels[categoryIndex]}}<text>⌄</text></view></picker><text wx:if="{{errors.category}}" class="error-text">{{errors.category}}</text>
+      <text class="label">分类 *</text><picker range="{{categoryLabels}}" value="{{categoryIndex}}" bindchange="onCategoryChange"><view class="picker">{{categoryLabels[categoryIndex]}}</view></picker><text wx:if="{{errors.category}}" class="error-text">{{errors.category}}</text>
       <view class="two-columns">
-        <view><text class="label">获取方式 *</text><picker range="{{acquisitionLabels}}" value="{{acquisitionIndex}}" bindchange="onAcquisitionChange"><view class="picker">{{acquisitionLabels[acquisitionIndex]}}<text>⌄</text></view></picker></view>
-        <view><text class="label">默认用量单位 *</text><picker range="{{unitLabels}}" value="{{unitIndex}}" bindchange="onUnitChange"><view class="picker">{{unitLabels[unitIndex]}}<text>⌄</text></view></picker></view>
+        <view><text class="label">获取方式 *</text><picker range="{{acquisitionLabels}}" value="{{acquisitionIndex}}" bindchange="onAcquisitionChange"><view class="picker">{{acquisitionLabels[acquisitionIndex]}}</view></picker></view>
+        <view><text class="label">默认用量单位 *</text><picker range="{{unitLabels}}" value="{{unitIndex}}" bindchange="onUnitChange"><view class="picker">{{unitLabels[unitIndex]}}</view></picker></view>
       </view>
     </view>
 

@@ -77,7 +77,7 @@ test('custom tool CRUD protects built-ins and duplicate names while retaining st
   assert.equal(repository.deleteTool('quick-tool-1'), false)
 })
 
-test('equipment deletion is blocked by recipe references and reports the usage count separately', () => {
+test('glassware deletion clears recipe references while tool deletion remains blocked', () => {
   const { repository } = repositoryFixture()
   const glass = repository.upsertGlassware({ name: '海波杯', capacityMl: 300 })
   const tool = repository.upsertTool({ name: '喷枪' })
@@ -86,9 +86,10 @@ test('equipment deletion is blocked by recipe references and reports the usage c
 
   assert.equal(repository.getGlasswareUsageCount(glass.id), 2)
   assert.equal(repository.getToolUsageCount(tool.id), 2)
-  assert.equal(repository.deleteGlassware(glass.id), false)
+  assert.equal(repository.deleteGlassware(glass.id), true)
   assert.equal(repository.deleteTool(tool.id), false)
-  assert.ok(repository.getGlassware(glass.id))
+  assert.equal(repository.getGlassware(glass.id), null)
+  assert.deepEqual(repository.listRecipes().map(({ glasswareId }) => glasswareId), [null, null])
   assert.ok(repository.getTool(tool.id))
 })
 
@@ -169,8 +170,21 @@ test('settings model groups built-ins, validates forms, orchestrates writes, and
   const calls = []; const messages = []
   assert.equal(orchestrateGlasswareSave({ repository: { upsertGlassware(value) { calls.push(value); return { id: 'g1' } }, }, form: { name: ' 杯 ', capacityMl: '120' }, notify: (m) => messages.push(m) }).saved, true)
   assert.equal(orchestrateToolSave({ repository: { upsertTool(value) { calls.push(value); return { id: 't1' } } }, form: { name: ' 喷枪 ' }, notify: (m) => messages.push(m) }).saved, true)
-  assert.equal(orchestrateEquipmentDelete({ repository: { getGlasswareUsageCount: () => 2 }, type: 'glassware', id: 'g1', notify: (m) => messages.push(m) }).needsConfirmation, false)
-  assert.match(messages.at(-1), /2 款酒/)
+  let glassDeleted = false
+  const referencedGlassware = {
+    getGlasswareUsageCount: () => 2,
+    deleteGlassware() { glassDeleted = true; return true }
+  }
+  assert.deepEqual(
+    orchestrateEquipmentDelete({ repository: referencedGlassware, type: 'glassware', id: 'g1', notify: (m) => messages.push(m) }),
+    { deleted: false, needsConfirmation: true, usageCount: 2 }
+  )
+  assert.equal(glassDeleted, false)
+  assert.equal(
+    orchestrateEquipmentDelete({ repository: referencedGlassware, type: 'glassware', id: 'g1', confirmed: true, notify: (m) => messages.push(m) }).deleted,
+    true
+  )
+  assert.equal(glassDeleted, true)
 })
 
 test('recipe editor and detail hydrate latest equipment, retain orphans, and use one capacity helper', () => {
@@ -207,7 +221,7 @@ test('settings and recipe pages expose the expected route events and non-color s
   assert.doesNotMatch(settings, /固定用具|自定义用具/)
   assert.doesNotMatch(editor, /preview\.capacity\.message/)
   assert.doesNotMatch(editor, /资料缺失/)
-  assert.match(detail, /detail\.capacity\.message/)
+  assert.doesNotMatch(detail, /detail\.capacity\.message/)
   assert.match(bar, /disabled="{{savingGlass}}"/)
   assert.match(bar, /loading="{{savingGlass}}"/)
 })

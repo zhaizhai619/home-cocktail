@@ -57,6 +57,7 @@ test('recipe card hides ABV when the recipe contains an embedded prepared output
     advancePreparations: [{ id: 'prep-1', outputName: '菠萝朗姆', ingredients: [{ materialId: 'rum', amount: 500, unit: 'ml' }] }]
   }, { soda: { name: '苏打水', alcoholic: false, acquisition: 'long-term', owned: true } })
   assert.equal(card.abvLabel, '')
+  assert.equal(buildRecipeCard({ ...card, id: 'manual-prepared', name: '手动预调', manualAbv: 18, advancePreparations: [{ id: 'prep' }], ingredients: [] }, {}).abvLabel, '18%')
 })
 
 test('recipe cards shorten ordinary syrup while keeping flavored syrup names explicit', () => {

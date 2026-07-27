@@ -1,4 +1,5 @@
 const { RATINGS } = require('../../domain/constants')
+const { buildSeasonalFruitMessage } = require('../../domain/seasonal-fruits')
 const { filterAndSortRecipeCards } = require('./model')
 
 const PREP_OPTIONS = [
@@ -7,8 +8,8 @@ const PREP_OPTIONS = [
   { key: '冷冻', label: '冷冻' },
   { key: '冷泡/浸泡', label: '冷泡/浸泡', shortLabel: '冷泡' },
   { key: '奶洗', label: '奶洗' },
-  { key: '低温慢煮', label: '低温慢煮' },
-  { key: '其他预调', label: '其他预调' }
+  { key: '低温慢煮', label: '低温慢煮', shortLabel: '低温' },
+  { key: '其他预调', label: '其他预调', shortLabel: '其他' }
 ]
 const MATERIAL_OPTIONS = [
   { key: 'all', label: '全部' },
@@ -17,16 +18,31 @@ const MATERIAL_OPTIONS = [
 ]
 const RATING_OPTIONS = [{ key: 'all', label: '全部' }, ...RATINGS.map((rating) => ({ key: rating, label: rating }))]
 const SORT_OPTIONS = [
-  { key: 'prep-time', label: '准备时间最短' },
-  { key: 'recent', label: '最近添加' },
-  { key: 'rating', label: '评价档位' },
-  { key: 'name', label: '名称排序' }
+  { key: 'prep-time', label: '准备时间最短', shortLabel: '准备最短' },
+  { key: 'recent', label: '最近添加', shortLabel: '最近' },
+  { key: 'rating', label: '评价档位', shortLabel: '评价' },
+  { key: 'name', label: '名称排序', shortLabel: '名称' }
 ]
-const SHEETS = {
+const STATUS_OPTIONS = [
+  { key: 'all', label: '全部' },
+  { key: 'untried', label: '仅看未调过', shortLabel: '未调过' }
+]
+const FILTERS = {
   preparation: { title: '制作方式', options: PREP_OPTIONS, value: 'prepType', label: 'prepTypeLabel' },
   material: { title: '材料条件', options: MATERIAL_OPTIONS, value: 'materialCondition', label: 'materialConditionLabel' },
   rating: { title: '评价', options: RATING_OPTIONS, value: 'rating', label: 'ratingLabel' },
   sort: { title: '排序方式', options: SORT_OPTIONS, value: 'sortKey', label: 'sortLabel' }
+}
+const DEFAULT_FILTERS = {
+  prepType: 'all',
+  prepTypeLabel: '全部',
+  materialCondition: 'all',
+  materialConditionLabel: '全部',
+  rating: 'all',
+  ratingLabel: '全部',
+  untriedOnly: false,
+  sortKey: 'prep-time',
+  sortLabel: '准备时间最短'
 }
 
 function repositoryData() {
@@ -47,6 +63,7 @@ Page({
   data: {
     recipes: [],
     search: '',
+    seasonalFruitMessage: '',
     prepType: 'all',
     prepTypeLabel: '全部',
     materialCondition: 'all',
@@ -57,17 +74,21 @@ Page({
     sortKey: 'prep-time',
     sortLabel: '准备时间最短',
     hasRecipes: false,
-    sheetOpen: false,
-    sheetKind: '',
-    sheetTitle: '',
-    sheetOptions: [],
-    sheetValue: ''
+    filterPanelOpen: false,
+    prepOptions: PREP_OPTIONS,
+    materialOptions: MATERIAL_OPTIONS,
+    ratingOptions: RATING_OPTIONS,
+    sortOptions: SORT_OPTIONS,
+    statusOptions: STATUS_OPTIONS
   },
   onShow() {
     const source = repositoryData()
     this.recipesSource = source.recipes
     this.materialsById = source.materialsById
-    this.setData({ hasRecipes: source.recipes.length > 0 })
+    this.setData({
+      hasRecipes: source.recipes.length > 0,
+      seasonalFruitMessage: buildSeasonalFruitMessage(new Date().getMonth() + 1)
+    })
     this.refreshCards()
   },
   refreshCards() {
@@ -77,52 +98,35 @@ Page({
     this.setData({ search: event.detail.value || '' })
     this.refreshCards()
   },
-  onToggleUntried() {
-    this.setData({ untriedOnly: !this.data.untriedOnly })
-    this.refreshCards()
+  toggleFilterPanel() {
+    this.setData({ filterPanelOpen: !this.data.filterPanelOpen })
   },
-  openFilter(event) {
-    const kind = event.currentTarget.dataset.filter
-    const config = SHEETS[kind]
-    if (!config) return
-    this.setData({
-      sheetOpen: true,
-      sheetKind: kind,
-      sheetTitle: config.title,
-      sheetOptions: config.options,
-      sheetValue: this.data[config.value]
-    })
+  collapseFilterPanel() {
+    this.setData({ filterPanelOpen: false })
   },
-  openSortSheet() {
-    const config = SHEETS.sort
-    this.setData({
-      sheetOpen: true,
-      sheetKind: 'sort',
-      sheetTitle: config.title,
-      sheetOptions: config.options,
-      sheetValue: this.data.sortKey
-    })
-  },
-  closeSheet() { this.setData({ sheetOpen: false }) },
-  onSelectSheet(event) {
-    const config = SHEETS[this.data.sheetKind]
-    const key = event.currentTarget.dataset.key
+  onSelectFilterOption(event) {
+    const { kind, key } = event.currentTarget.dataset
+    if (kind === 'status') {
+      if (!STATUS_OPTIONS.some((option) => option.key === key)) return
+      this.setData({ untriedOnly: key === 'untried' })
+      this.refreshCards()
+      return
+    }
+    const config = FILTERS[kind]
     const option = config && config.options.find((item) => item.key === key)
     if (!config || !option) return
-    this.setData({ [config.value]: option.key, [config.label]: option.shortLabel || option.label, sheetOpen: false })
+    this.setData({ [config.value]: option.key, [config.label]: option.shortLabel || option.label })
+    this.refreshCards()
+  },
+  resetFilterPanel() {
+    this.setData({ ...DEFAULT_FILTERS, filterPanelOpen: true })
     this.refreshCards()
   },
   clearFilters() {
     this.setData({
       search: '',
-      prepType: 'all',
-      prepTypeLabel: '全部',
-      materialCondition: 'all',
-      materialConditionLabel: '全部',
-      rating: 'all',
-      ratingLabel: '全部',
-      untriedOnly: false,
-      sheetOpen: false
+      ...DEFAULT_FILTERS,
+      filterPanelOpen: false
     })
     this.refreshCards()
   },

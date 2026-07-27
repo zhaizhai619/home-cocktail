@@ -130,19 +130,19 @@ function orchestrateEquipmentDelete({ repository, type, id, confirmed = false, n
   const usageMethod = isGlassware ? 'getGlasswareUsageCount' : 'getToolUsageCount'
   const deleteMethod = isGlassware ? 'deleteGlassware' : 'deleteTool'
   const usageCount = repository && typeof repository[usageMethod] === 'function' ? repository[usageMethod](id) : 0
-  if (usageCount > 0) {
+  if (!isGlassware && usageCount > 0) {
     notify(`有 ${usageCount} 款酒正在使用，暂不能删除`)
     return { deleted: false, needsConfirmation: false, usageCount }
   }
-  if (!confirmed) return { deleted: false, needsConfirmation: true, usageCount: 0 }
+  if (!confirmed) return { deleted: false, needsConfirmation: true, usageCount }
   try {
     const deleted = repository && repository[deleteMethod](id)
     if (!deleted) throw new Error('not deleted')
     notify('已删除')
-    return { deleted: true, needsConfirmation: false, usageCount: 0 }
+    return { deleted: true, needsConfirmation: false, usageCount }
   } catch (_) {
     notify('删除失败，请重试')
-    return { deleted: false, needsConfirmation: false, usageCount: 0 }
+    return { deleted: false, needsConfirmation: false, usageCount }
   }
 }
 

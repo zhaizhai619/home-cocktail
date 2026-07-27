@@ -3,7 +3,7 @@
     <view class="drag-handle" bindlongpress="onDragStart" catchtouchmove="onDragMove" bindtouchend="onDragEnd" bindtouchcancel="onDragEnd" aria-role="button" aria-label="长按拖动调整{{item.nameLabel}}顺序">≡</view>
     <button size="mini" class="name readonly-name" bindtap="onNameTap">{{item.nameLabel}}</button>
     <input wx:if="{{item.unit !== 'to-taste' && item.unit !== 'top-up'}}" class="amount" data-field="amount" value="{{item.amount}}" type="text" placeholder="用量" bindinput="onInput" />
-    <picker class="unit-picker" range="{{units}}" range-key="label" value="{{item.unitIndex}}" bindchange="onUnit"><view class="unit">{{item.unitLabel}}⌄</view></picker>
+    <picker class="unit-picker" range="{{units}}" range-key="label" value="{{item.unitIndex}}" bindchange="onUnit"><view class="unit">{{item.unitLabel}}</view></picker>
     <button size="mini" class="remove" bindtap="onRemove" aria-label="删除{{item.nameLabel}}">×</button>
   </view>
 </view>

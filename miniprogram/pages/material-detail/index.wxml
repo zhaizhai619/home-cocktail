@@ -34,7 +34,7 @@
 
   <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm"><view class="sheet" catchtap="noop">
     <view class="sheet-handle"></view><text class="sheet-title">更新追踪信息</text>
-    <block wx:if="{{freshDraft.trackFreshness}}"><text class="field-label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker">{{unitLabels[freshUnitIndex]}}⌄</view></picker></view>
+    <block wx:if="{{freshDraft.trackFreshness}}"><text class="field-label">还剩多少（选填）</text><view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker">{{unitLabels[freshUnitIndex]}}</view></picker></view>
       <text class="field-label">预计过期日（选填）</text><picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="picker full">{{freshDraft.expiresAt || '选择日期'}}</view></picker></block>
     <text wx:if="{{freshError}}" class="form-error">{{freshError}}</text><button class="primary" bindtap="onConfirmTracking">保存追踪信息</button>
   </view></view>

@@ -315,6 +315,79 @@ test('library view model separates tracked fresh shelf and supports final filter
   assert.equal(buildMaterialLibrary([{ id: 'raw', name: '旧西瓜', acquisition: 'on-demand', trackFreshness: true, freshOnHand: false, expiresAt: '2026-07-22' }], [], { now: '2026-07-21' }).materials[0].expiryLabel, '')
 })
 
+test('fresh shelf recommends usable recipes before rating and shorter preparation time', () => {
+  const materials = [
+    { id: 'fruit', name: '西瓜', category: 'fruit', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true, trackFreshness: false },
+    { id: 'violet', name: '紫罗兰利口酒', category: 'liqueur', acquisition: 'long-term', owned: false, trackFreshness: false }
+  ]
+  const recipes = [
+    { id: 'available-npc', name: '清爽西瓜', tried: true, rating: 'NPC', ingredients: [{ materialId: 'fruit' }, { materialId: 'gin' }], preparations: [{ type: '即调' }] },
+    { id: 'missing-best', name: '紫罗兰西瓜', tried: true, rating: '夯', ingredients: [{ materialId: 'fruit' }, { materialId: 'violet' }], preparations: [{ type: '即调' }] },
+    { id: 'available-best-long', name: '慢泡西瓜', tried: true, rating: '夯', ingredients: [{ materialId: 'fruit' }, { materialId: 'gin' }], preparations: [{ type: '冷泡/浸泡', durationText: '24小时' }] },
+    { id: 'available-unrated', name: '随手西瓜', tried: false, ingredients: [{ materialId: 'fruit' }, { materialId: 'gin' }], preparations: [{ type: '即调' }] },
+    { id: 'available-best-fast', name: '今晚西瓜', tried: true, rating: '夯', ingredients: [{ materialId: 'fruit' }, { materialId: 'gin' }], preparations: [{ type: '即调' }] }
+  ]
+
+  const fresh = buildMaterialLibrary(materials, recipes).freshShelf[0]
+
+  assert.equal(fresh.recommendedRecipe.id, 'available-best-fast')
+  assert.deepEqual(fresh.relatedRecipes.map(({ id }) => id), [
+    'available-best-fast',
+    'available-best-long',
+    'available-npc',
+    'available-unrated',
+    'missing-best'
+  ])
+  assert.deepEqual(fresh.relatedRecipes.map(({ recommended }) => recommended), [true, false, false, false, false])
+  assert.equal(fresh.relatedRecipes[1].preparationLabel, '冷泡/浸泡 · 提前24小时')
+})
+
+test('fresh shelf omits redundant on-hand copy and tolerates materials without recipes', () => {
+  const noAmount = buildMaterialLibrary([
+    { id: 'mint', name: '薄荷', category: 'other-solid', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true }
+  ], []).freshShelf[0]
+  const tracked = buildMaterialLibrary([
+    { id: 'lime', name: '青柠', category: 'citrus', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true, remainingAmount: 2, remainingUnit: 'piece', expiresAt: '2026-07-28' }
+  ], [], { now: '2026-07-26' }).freshShelf[0]
+
+  assert.equal(noAmount.freshMeta, '')
+  assert.equal(noAmount.recommendedRecipe, null)
+  assert.deepEqual(noAmount.relatedRecipes, [])
+  assert.equal(tracked.freshMeta, '还剩约 2个 · 2 天后到期')
+})
+
+test('fresh shelf shows purchase date and aggregates target use across serving and advance ingredients', () => {
+  const materials = [
+    { id: 'cucumber', name: '黄瓜', category: 'fruit', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true, purchasedAt: '2026-07-26' }
+  ]
+  const recipes = [
+    {
+      id: 'combined', name: '黄瓜双用', tried: true, rating: '夯',
+      ingredients: [
+        { materialId: 'cucumber', amount: 20, unit: 'ml' },
+        { materialId: 'cucumber', amount: 10, unit: 'ml' }
+      ],
+      advancePreparations: [
+        { id: 'prep', ingredients: [{ materialId: 'cucumber', amount: 5, unit: 'ml' }] }
+      ]
+    },
+    {
+      id: 'mixed', name: '黄瓜拼配', tried: false,
+      ingredients: [{ materialId: 'cucumber', amount: 30, unit: 'g' }],
+      advancePreparations: [
+        { id: 'prep', ingredients: [{ materialId: 'cucumber', amount: '半', unit: 'piece' }] }
+      ]
+    }
+  ]
+
+  const fresh = buildMaterialLibrary(materials, recipes).freshShelf[0]
+
+  assert.equal(fresh.purchaseDateLabel, '07-26')
+  assert.equal(fresh.relatedRecipes.find(({ id }) => id === 'combined').materialAmountLabel, '35ml')
+  assert.equal(fresh.relatedRecipes.find(({ id }) => id === 'mixed').materialAmountLabel, '30g + 半个')
+})
+
 test('complete catalog merges templates with real materials and filters by the eight approved tabs', () => {
   assert.deepEqual(MATERIAL_LIBRARY_TABS.map(({ key, label }) => ({ key, label })), [
     { key: 'all', label: '全部' },

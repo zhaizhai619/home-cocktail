@@ -67,7 +67,25 @@ function buildIngredient(ingredient, materialsById, preparationsById = {}) {
     const preparation = preparationsById[source.preparationId]
     const name = String(preparation && preparation.outputName || '预调成品').trim() || '预调成品'
     const amountLabel = formatAmount(source)
-    return { materialId: '', preparationId: source.preparationId || '', name, amount: source.amount, unit: source.unit || '', amountLabel, state: 'prepared', accessibilityLabel: [name, amountLabel].filter(Boolean).join('，'), prepared: true }
+    return {
+      materialId: '',
+      preparationId: source.preparationId || '',
+      name,
+      amount: source.amount,
+      unit: source.unit || '',
+      amountLabel,
+      state: 'prepared',
+      accessibilityLabel: [name, amountLabel].filter(Boolean).join('，'),
+      prepared: true,
+      ...(preparation ? {
+        preparation: {
+          id: preparation.id,
+          ingredients: preparation.ingredients,
+          steps: preparation.steps,
+          hasSteps: preparation.steps.length > 0
+        }
+      } : {})
+    }
   }
   const material = materialsById[source.materialId]
   const amountLabel = formatAmount(source)
@@ -163,6 +181,34 @@ function buildAbv(recipe, materialsById) {
   }
 }
 
+function manualAbvValue(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric >= 0 && numeric <= 100 ? numeric : null
+}
+
+function validateManualAbv(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return { valid: true, value: null, message: '' }
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) return { valid: false, value: null, message: '酒精度需在 0% 到 100% 之间' }
+  return { valid: true, value: numeric, message: '' }
+}
+
+function orchestrateManualAbvSave({ repository, recipe, value, notify = () => {} } = {}) {
+  const validation = validateManualAbv(value)
+  if (!validation.valid) { notify(validation.message); return { saved: false, recipe: null, message: validation.message } }
+  try {
+    const savedRecipe = repository && recipe && repository.upsertRecipe({ ...recipe, manualAbv: validation.value })
+    if (!savedRecipe) throw new Error('not saved')
+    notify(validation.value === null ? '已恢复自动计算' : '酒精度已更新')
+    return { saved: true, recipe: savedRecipe, message: '' }
+  } catch (_) {
+    const message = '保存失败，请重试'
+    notify(message)
+    return { saved: false, recipe: null, message }
+  }
+}
+
 function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
   if (!recipe || typeof recipe !== 'object' || !recipe.id) {
     return { status: 'missing', message: '没有找到这款酒，它可能已被删除' }
@@ -189,20 +235,22 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     return items
   }, [])
   const advanceSources = Array.isArray(recipe.advancePreparations) ? recipe.advancePreparations : []
-  const preparationsById = advanceSources.reduce((lookup, preparation) => {
-    if (preparation && preparation.id) lookup[preparation.id] = preparation
-    return lookup
-  }, Object.create(null))
   const advancePreparations = advanceSources.map((advanceSource) => ({
     id: advanceSource.id,
     outputName: String(advanceSource.outputName || '').trim(),
     ingredients: (Array.isArray(advanceSource.ingredients) ? advanceSource.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById)),
     steps: (Array.isArray(advanceSource.steps) ? advanceSource.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim())
   }))
+  const preparationsById = advancePreparations.reduce((lookup, preparation) => {
+    if (preparation && preparation.id) lookup[preparation.id] = preparation
+    return lookup
+  }, Object.create(null))
   const steps = (Array.isArray(recipe.steps) ? recipe.steps : []).filter((step) => typeof step === 'string' && step.trim()).map((step) => step.trim())
   const legacyTastingNote = typeof recipe.tastingNote === 'string' ? recipe.tastingNote.trim() : ''
   if (legacyTastingNote && !steps.includes(legacyTastingNote)) steps.push(legacyTastingNote)
 
+  const abv = buildAbv(recipe, materialsById)
+  const manualAbv = manualAbvValue(recipe.manualAbv)
   return {
     status: 'ok', id: recipe.id, name: typeof recipe.name === 'string' ? recipe.name : '',
     imagePath: typeof recipe.imagePath === 'string' ? recipe.imagePath : '', source: typeof recipe.source === 'string' ? recipe.source : '',
@@ -223,7 +271,7 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     }),
     steps,
     rating: RATINGS.includes(recipe.rating) ? recipe.rating : '', ratings: RATINGS.map((label) => ({ label, selected: label === recipe.rating })),
-    observations, abv: buildAbv(recipe, materialsById), capacity: calculateGlassCapacity(recipeIngredientsForAbv(recipe, materialsById), selectedGlass || null)
+    observations, abv, manualAbv, abvBadgeLabel: manualAbv !== null ? `${manualAbv}%` : (abv.status === 'ok' ? abv.valueLabel : '编辑酒精度'), capacity: calculateGlassCapacity(recipeIngredientsForAbv(recipe, materialsById), selectedGlass || null)
   }
 }
 
@@ -303,6 +351,8 @@ module.exports = {
   validateObservation,
   orchestrateObservationSave,
   orchestrateRatingToggle,
+  validateManualAbv,
+  orchestrateManualAbvSave,
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 }

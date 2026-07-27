@@ -1,28 +1,58 @@
-<view class="page recipes-page">
-  <view class="topbar">
-    <text class="page-title">我的酒单</text>
-    <button class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒"><view class="add-button">＋</view></button>
-  </view>
-
+<view class="page recipes-page {{filterPanelOpen ? 'filter-open' : ''}}">
   <view class="search-box">
     <text class="search-icon" aria-hidden="true">⌕</text>
     <input class="search-input" placeholder="搜索酒名或材料" value="{{search}}" bindinput="onSearchInput" aria-label="搜索酒名或材料" />
   </view>
+  <text wx:if="{{seasonalFruitMessage}}" class="seasonal-fruit-tip">{{seasonalFruitMessage}}</text>
 
-  <view class="filter-heading">
-    <text class="filter-heading-title">筛选酒单</text>
-    <view class="sort-hit" aria-role="button" aria-label="排序，当前{{sortLabel}}" hover-class="sort-hit--pressed" bindtap="openSortSheet"><text>排序：{{sortLabel}}</text><text class="sort-icon">⇅</text></view>
+  <view class="filter-bar">
+    <view class="filter-trigger" bindtap="toggleFilterPanel" aria-role="button" aria-expanded="{{filterPanelOpen}}" aria-label="全部筛选，当前{{filterPanelOpen ? '已展开' : '已收起'}}">
+      <text class="filter-trigger-label">全部</text>
+      <view class="filter-symbol {{prepType !== 'all' || materialCondition !== 'all' || rating !== 'all' || untriedOnly || sortKey !== 'prep-time' ? 'active' : ''}}" aria-hidden="true">
+        <view class="filter-symbol-line line-long"></view>
+        <view class="filter-symbol-line line-medium"></view>
+        <view class="filter-symbol-line line-short"></view>
+      </view>
+    </view>
+    <button class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒"><view class="add-button">＋</view></button>
   </view>
-  <view class="filter-grid">
-    <button class="filter-card filter-hit {{prepType !== 'all' ? 'active' : ''}}" data-filter="preparation" bindtap="openFilter" aria-label="制作方式，当前{{prepTypeLabel}}"><text class="filter-name">制作方式</text><view class="filter-value"><text class="filter-value-text">{{prepTypeLabel}}</text><text class="chevron">⌄</text></view></button>
-    <button class="filter-card filter-hit {{materialCondition !== 'all' ? 'active' : ''}}" data-filter="material" bindtap="openFilter" aria-label="材料条件，当前{{materialConditionLabel}}"><text class="filter-name">材料条件</text><view class="filter-value"><text class="filter-value-text {{materialCondition !== 'all' ? 'long' : ''}}">{{materialConditionLabel}}</text><text class="chevron">⌄</text></view></button>
-    <button class="filter-card filter-hit {{rating !== 'all' ? 'active' : ''}}" data-filter="rating" bindtap="openFilter" aria-label="评价，当前{{ratingLabel}}"><text class="filter-name">评价</text><view class="filter-value"><text class="filter-value-text">{{ratingLabel}}</text><text class="chevron">⌄</text></view></button>
-  </view>
-  <view class="untried-filter-row">
-    <button size="mini" class="untried-toggle {{untriedOnly ? 'active' : ''}}" bindtap="onToggleUntried" aria-role="switch" aria-checked="{{untriedOnly}}" aria-label="仅看未调过，当前{{untriedOnly ? '已开启' : '已关闭'}}">
-      <text>仅看未调过</text>
-      <view class="toggle-track"><view class="toggle-thumb"></view></view>
-    </button>
+
+  <view wx:if="{{filterPanelOpen}}" class="filter-scroll-lock" catchtap="collapseFilterPanel" catchtouchmove="noop" aria-role="button" aria-label="点击空白处收起筛选"></view>
+  <view class="filter-panel {{filterPanelOpen ? 'open' : ''}}" catchtouchmove="noop" aria-hidden="{{!filterPanelOpen}}">
+    <view class="filter-group">
+      <text class="filter-group-title">排序依据</text>
+      <view class="filter-option-grid">
+        <view wx:for="{{sortOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{sortKey === option.key ? 'selected' : ''}}" data-kind="sort" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}{{sortKey === option.key ? '，已选择' : ''}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
+      </view>
+    </view>
+    <view class="filter-group">
+      <text class="filter-group-title">制作方式</text>
+      <view class="filter-option-grid">
+        <view wx:for="{{prepOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{prepType === option.key ? 'selected' : ''}}" data-kind="preparation" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}{{prepType === option.key ? '，已选择' : ''}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
+      </view>
+    </view>
+    <view class="filter-group">
+      <text class="filter-group-title">材料条件</text>
+      <view class="filter-option-grid">
+        <view wx:for="{{materialOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{materialCondition === option.key ? 'selected' : ''}}" data-kind="material" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}{{materialCondition === option.key ? '，已选择' : ''}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
+      </view>
+    </view>
+    <view class="filter-group">
+      <text class="filter-group-title">评价</text>
+      <view class="filter-option-grid">
+        <view wx:for="{{ratingOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{rating === option.key ? 'selected' : ''}}" data-kind="rating" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}{{rating === option.key ? '，已选择' : ''}}"><text class="filter-option-label">{{option.label}}</text></view>
+      </view>
+    </view>
+    <view class="filter-group">
+      <text class="filter-group-title">调酒状态</text>
+      <view class="filter-option-grid">
+        <view wx:for="{{statusOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{(!untriedOnly && option.key === 'all') || (untriedOnly && option.key === 'untried') ? 'selected' : ''}}" data-kind="status" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
+      </view>
+    </view>
+    <view class="filter-actions">
+      <button class="filter-reset" bindtap="resetFilterPanel">重置</button>
+      <button class="filter-collapse" bindtap="collapseFilterPanel">收起</button>
+    </view>
   </view>
 
   <view wx:if="{{recipes.length}}" class="card-list">
@@ -37,15 +67,5 @@
     <text class="empty-title">还没有收藏的酒</text>
     <text class="empty-copy">从第一款常喝的酒开始，慢慢搭建自己的酒单。</text>
     <button class="empty-button" bindtap="onAddRecipe">录入我的第一款酒</button>
-  </view>
-
-  <view wx:if="{{sheetOpen}}" class="sheet-mask" bindtap="closeSheet">
-    <view class="sheet" catchtap="noop">
-      <view class="sheet-handle"></view>
-      <text class="sheet-title">{{sheetTitle}}</text>
-      <button wx:for="{{sheetOptions}}" wx:key="key" data-key="{{item.key}}" bindtap="onSelectSheet" class="sheet-option {{sheetValue === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{sheetValue === item.key ? '，已选择' : ''}}">
-        <text>{{item.label}}</text><text wx:if="{{sheetValue === item.key}}" class="check">✓</text>
-      </button>
-    </view>
   </view>
 </view>

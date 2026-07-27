@@ -22,7 +22,11 @@ Page({
     undo: null
   },
   onLoad(query) { this.materialId = decodeMaterialId(query && query.id); this.reload() },
-  onShow() { if (this.materialId) this.reload() },
+  onShow() {
+    if (this.hasShown) {
+      if (this.materialId) this.reload()
+    } else this.hasShown = true
+  },
   onUnload() { if (this.undoTimer) clearTimeout(this.undoTimer) },
   reload() {
     const repo = repository()

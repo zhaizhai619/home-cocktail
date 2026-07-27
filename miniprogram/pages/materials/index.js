@@ -25,6 +25,8 @@ Page({
     search: '',
     categoryFilter: 'all',
     freshShelf: [],
+    freshShelfExpanded: true,
+    expandedFreshMaterialId: '',
     materials: [],
     glassware: [],
     glassEditorOpen: false,
@@ -43,7 +45,10 @@ Page({
   reload() {
     const repo = repository()
     const view = buildMaterialLibrary(repo ? repo.listMaterials() : [], repo ? repo.listRecipes() : [], { ...this.data, includeCatalog: true })
-    this.setData({ ...view, glassware: buildGlasswareCards(repo ? repo.listGlassware() : []) })
+    const expandedFreshMaterialId = view.freshShelf.some(({ id }) => id === this.data.expandedFreshMaterialId)
+      ? this.data.expandedFreshMaterialId
+      : ''
+    this.setData({ ...view, expandedFreshMaterialId, glassware: buildGlasswareCards(repo ? repo.listGlassware() : []) })
   },
   onSelectBarTab(event) {
     const index = Number(event.currentTarget.dataset.index)
@@ -52,6 +57,21 @@ Page({
   onBarSwiperChange(event) { this.setData({ barTabIndex: Number(event.detail.current) === 1 ? 1 : 0 }) },
   onSearchInput(event) { this.setData({ search: event.detail.value || '' }); this.reload() },
   onSelectCategory(event) { this.setData({ categoryFilter: event.currentTarget.dataset.key || 'all' }); this.reload() },
+  onToggleFreshShelf() {
+    const freshShelfExpanded = !this.data.freshShelfExpanded
+    this.setData({
+      freshShelfExpanded,
+      ...(freshShelfExpanded ? {} : { expandedFreshMaterialId: '' })
+    })
+  },
+  onToggleFreshItem(event) {
+    const id = event.currentTarget.dataset.id
+    this.setData({ expandedFreshMaterialId: this.data.expandedFreshMaterialId === id ? '' : id })
+  },
+  onOpenRecipe(event) {
+    const id = event.currentTarget.dataset.id
+    if (id) wx.navigateTo({ url: `/pages/recipe-detail/index?id=${encodeURIComponent(id)}` })
+  },
   onOpenMaterial(event) {
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
@@ -105,8 +125,11 @@ Page({
     const repo = repository()
     const check = orchestrateEquipmentDelete({ repository: repo, type: 'glassware', id, notify: toast })
     if (!check.needsConfirmation || typeof wx === 'undefined' || !wx.showModal) return
+    const content = check.usageCount > 0
+      ? `当前有 ${check.usageCount} 款酒正在使用这个酒杯。删除后，这些酒单将不再关联酒杯，且无法恢复。`
+      : '删除后无法恢复。'
     wx.showModal({
-      title: '删除酒杯？', content: '删除后无法恢复。正在被配方使用的酒杯不能删除。', confirmText: '删除', confirmColor: '#a54d36',
+      title: '删除酒杯？', content, confirmText: '删除', confirmColor: '#a54d36',
       success: async ({ confirm }) => {
         if (!confirm) return
         const result = await orchestrateGlasswareMediaDelete({ repository: repo, mediaFiles: mediaFiles(), id, confirmed: true, notify: toast, warn: toast })

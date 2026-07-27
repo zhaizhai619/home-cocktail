@@ -438,7 +438,13 @@ function createRepository(adapter, options = {}) {
       return atomicStateUpdate((nextState) => {
         const index = nextState.glassware.findIndex((item) => item.id === id)
         if (index === -1) return { changed: false, value: false }
-        if (nextState.recipes.some((item) => item && item.glasswareId === id)) return { changed: false, value: false }
+        const timestamp = now()
+        for (const recipe of nextState.recipes) {
+          if (recipe && recipe.glasswareId === id) {
+            recipe.glasswareId = null
+            recipe.updatedAt = timestamp
+          }
+        }
         nextState.glassware.splice(index, 1)
         return { changed: true, value: true }
       })
