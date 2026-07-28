@@ -75,6 +75,26 @@ test('pages access persistence only through the repository service', () => {
   for (const file of walk(path.join(MINI, 'components'), '.js')) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), forbidden, file)
 })
 
+test('profile page stays minimal and makes only avatar and nickname editable', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/settings/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/settings/index.wxss'), 'utf8')
+  const script = fs.readFileSync(path.join(MINI, 'pages/settings/index.js'), 'utf8')
+
+  assert.match(template, /class="avatar-shell"[\s\S]*class="avatar-picker"[^>]*open-type="chooseAvatar"[^>]*bindchooseavatar="onChooseAvatar"/)
+  assert.match(template, /class="nickname-input"[^>]*type="nickname"[^>]*bindblur="onNicknameCommit"/)
+  assert.match(template, /\{\{profile\.nickname\}\}/)
+  assert.match(template, />数据同步时间</)
+  assert.match(template, /\{\{syncTimeLabel\}\}/)
+  assert.match(template, />点击头像和名字即可编辑</)
+  assert.doesNotMatch(template, /数据概览|数据安全|帮助与关于|使用帮助|意见反馈|隐私政策|关于小程序/)
+  assert.match(css, /\.avatar-shell\s*{[^}]*position:\s*relative[^}]*width:\s*144rpx[^}]*height:\s*144rpx[^}]*overflow:\s*hidden[^}]*border-radius:\s*50%/)
+  assert.match(css, /\.avatar-picker\s*{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*width:\s*100%[^}]*height:\s*100%[^}]*opacity:\s*0/)
+  assert.match(css, /\.avatar-image,\s*\.avatar-fallback\s*{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*border-radius:\s*50%/)
+  assert.match(css, /\.sync-row\s*{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/)
+  assert.match(script, /mediaFiles\.isManagedProfilePath\(previousPath\)/)
+  assert.doesNotMatch(script, /mediaFiles\.isManagedPath\(previousPath\)/)
+})
+
 test('static navigation targets point only to routes declared in app.json', () => {
   const app = JSON.parse(fs.readFileSync(path.join(MINI, 'app.json'), 'utf8'))
   const routes = new Set(app.pages.map((route) => `/${route}`))

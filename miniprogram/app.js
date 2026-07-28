@@ -1,11 +1,15 @@
 const { createRepository, createWxStorageAdapter } = require('./services/repository')
 const { createWxMediaFileService } = require('./services/media-files')
+const { createProfileRepository } = require('./services/profile-repository')
 
 App({
   onLaunch() {
-    const repository = createRepository(createWxStorageAdapter(wx))
+    const storage = createWxStorageAdapter(wx)
+    const repository = createRepository(storage)
+    const profileRepository = createProfileRepository(storage)
     repository.initialize()
-    this.globalData = { ...(this.globalData || {}), repository, mediaFiles: createWxMediaFileService(wx) }
+    profileRepository.initialize()
+    this.globalData = { ...(this.globalData || {}), repository, profileRepository, mediaFiles: createWxMediaFileService(wx) }
   },
   globalData: {}
 })

@@ -300,6 +300,25 @@ test('media service persists recipe images in a separate managed directory', asy
   assert.equal(service.isManagedPath(result.path), true)
 })
 
+test('media service persists profile avatars in a separate managed directory', async () => {
+  const copied = []
+  const fileSystem = {
+    mkdir({ success }) { success() },
+    saveFile({ tempFilePath, filePath, success }) { copied.push([tempFilePath, filePath]); success({ savedFilePath: filePath }) },
+    copyFile({ fail }) { fail(new Error('profile avatars should use saveFile')) },
+    unlink({ success }) { success() }
+  }
+  const service = createMediaFileService({ fileSystem, userDataPath: '/user', idFactory: () => 'profile-image' })
+  const result = await service.persistProfileImage('/tmp/avatar.png')
+
+  assert.deepEqual(result, { path: '/user/cocktail-profile/profile-image.png', created: true })
+  assert.deepEqual(copied, [['/tmp/avatar.png', '/user/cocktail-profile/profile-image.png']])
+  assert.equal(service.isManagedPath(result.path), true)
+  assert.equal(service.isManagedProfilePath(result.path), true)
+  assert.equal(service.isManagedProfilePath('/user/cocktail-recipes/recipe-image.png'), false)
+  assert.equal(service.isManagedProfilePath('/user/cocktail-glassware/glass-image.png'), false)
+})
+
 test('glassware media save coordinates copy, repository commit, replacement cleanup and rollback cleanup', async () => {
   const events = []; const warnings = []; const notices = []
   const mediaFiles = {

@@ -1,49 +1,93 @@
 .profile-page {
   box-sizing: border-box;
   min-height: 100vh;
-  padding: 48rpx 28rpx 160rpx;
+  padding: 96rpx 40rpx 160rpx;
   background: #f7f1e8;
 }
 
-.profile-heading {
-  padding: 0 6rpx 28rpx;
+.identity {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
 }
 
-.profile-title,
-.profile-subtitle,
-.profile-card-title,
-.profile-card-note {
-  display: block;
+.avatar-shell {
+  position: relative;
+  display: flex;
+  width: 144rpx;
+  height: 144rpx;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fffaf4;
+  background: #342f2b;
+  border-radius: 50%;
 }
 
-.profile-title {
+.avatar-picker {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+
+.avatar-picker::after {
+  border: 0;
+}
+
+.avatar-image,
+.avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+}
+
+.nickname-input {
+  width: 420rpx;
+  height: 72rpx;
+  margin-top: 24rpx;
   color: #342f2b;
-  font-size: 46rpx;
-  font-weight: 700;
+  font-size: 36rpx;
+  font-weight: 650;
+  line-height: 72rpx;
+  text-align: center;
 }
 
-.profile-subtitle {
-  margin-top: 8rpx;
-  color: #847a70;
-  font-size: 24rpx;
-}
-
-.profile-card {
-  padding: 28rpx;
+.sync-row {
+  display: flex;
+  max-width: 560rpx;
+  min-height: 92rpx;
+  margin: 72rpx auto 0;
+  padding: 0 28rpx;
+  align-items: center;
+  justify-content: space-between;
+  color: #4a4038;
   background: #fffdf8;
   border: 1rpx solid #e8ddcf;
-  border-radius: 24rpx;
+  border-radius: 22rpx;
+  font-size: 27rpx;
 }
 
-.profile-card-title {
-  color: #493d32;
-  font-size: 29rpx;
-  font-weight: 650;
-}
-
-.profile-card-note {
-  margin-top: 10rpx;
+.sync-value {
   color: #8b8178;
-  font-size: 23rpx;
-  line-height: 1.6;
+}
+
+.edit-hint {
+  display: block;
+  margin-top: 28rpx;
+  color: #948980;
+  font-size: 22rpx;
+  text-align: center;
 }

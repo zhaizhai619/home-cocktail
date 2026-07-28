@@ -1,4 +1,17 @@
 <view class="profile-page">
-  <view class="profile-heading"><text class="profile-title">我的</text><text class="profile-subtitle">个人数据与同步设置</text></view>
-  <view class="profile-card"><text class="profile-card-title">数据保存在当前设备</text><text class="profile-card-note">云端同步、备份与账号功能后续在这里补充。</text></view>
+  <view class="identity">
+    <view class="avatar-shell">
+      <image wx:if="{{profile.avatarPath}}" class="avatar-image" src="{{profile.avatarPath}}" mode="aspectFill" />
+      <view wx:else class="avatar-fallback"><text>头像</text></view>
+      <button class="avatar-picker" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" disabled="{{savingAvatar}}" aria-label="编辑头像"></button>
+    </view>
+    <input class="nickname-input" type="nickname" value="{{profile.nickname}}" maxlength="20" confirm-type="done" bindblur="onNicknameCommit" bindconfirm="onNicknameCommit" aria-label="编辑名字" />
+  </view>
+
+  <view class="sync-row">
+    <text class="sync-label">数据同步时间</text>
+    <text class="sync-value">{{syncTimeLabel}}</text>
+  </view>
+
+  <text class="edit-hint">点击头像和名字即可编辑</text>
 </view>
