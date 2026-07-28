@@ -603,6 +603,7 @@ test('material detail keeps summary statistics and observations without hydratin
   assert.equal(detail.expiryLabel, '')
   assert.equal(Object.hasOwn(detail, 'relatedRecipes'), false)
   assert.equal(detail.observations[0].note, '冰一点更好')
+  assert.equal(detail.observations[0].createdAtLabel, '2026-07-20')
 })
 
 test('material detail exposes one availability switch and optional tracking for every acquisition type', () => {

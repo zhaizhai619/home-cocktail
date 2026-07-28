@@ -1,23 +1,25 @@
 .detail-page{padding:32rpx 28rpx 160rpx}
-.hero{padding:32rpx 32rpx 18rpx;background:linear-gradient(145deg,#fffaf0,#f0dcc0);border:1rpx solid #e5c99f;border-radius:32rpx}
-.hero-top,.availability-row,.tracking-row,.status-actions,.inventory,.purchase-row,.purchase-actions,.numbers,.amount-row{display:flex;align-items:center}
+.hero{padding:28rpx 28rpx 18rpx;background:linear-gradient(145deg,#fffaf0,#f0dcc0);border:1rpx solid #e5c99f;border-radius:32rpx}
+.hero-top,.availability-row,.tracking-row,.status-actions,.inventory,.purchase-row,.purchase-actions,.numbers,.amount-row,.observation-heading{display:flex;align-items:center}
 .hero-top,.availability-row,.tracking-row,.purchase-row{justify-content:space-between}
-.eyebrow{display:block;font-size:19rpx;letter-spacing:4rpx;color:#a96826}
-.title{display:block;margin-top:8rpx;font-size:46rpx;font-weight:700}
+.title{display:block;font-size:42rpx;font-weight:700}
 .edit.edit{width:auto;height:64rpx;min-height:64rpx;margin:0;padding:0 20rpx;color:#fff;background:#342f2b;border-radius:999rpx;font-size:23rpx;line-height:64rpx}
-.availability-row,.tracking-row{margin-top:26rpx;padding-top:22rpx;border-top:1rpx solid rgba(121,85,42,.15)}
+.hero-divider{height:2rpx;margin:18rpx 12rpx;background:#b87329;border-radius:2rpx}
+.settings-panel{padding:18rpx 20rpx;background:#f6ead9;border-radius:20rpx}
+.availability-row{min-height:76rpx}
+.tracking-row{min-height:76rpx;margin-top:12rpx;padding-top:12rpx;border-top:1rpx solid rgba(121,85,42,.15)}
 .availability-row>view,.tracking-row>view{flex:1;min-width:0;padding-right:16rpx}
 .availability-row switch,.tracking-row switch{flex:none}
 .availability-title,.availability-note{display:block}
 .availability-title{font-size:27rpx;font-weight:600}
 .availability-note{margin-top:5rpx;color:#7f6d58;font-size:21rpx}
-.status-actions{gap:14rpx;margin-top:28rpx}
+.status-actions{gap:14rpx;margin-top:14rpx}
 .status{margin:0;line-height:64rpx;border-radius:999rpx;font-size:24rpx;background:#ede6dd;color:#746a61;padding:0 28rpx}
 .status.active{background:#dfe9dc;color:#456042}
 .status.warm{background:#e9c68e;color:#6f4618}
 .status.danger{background:#fff7f3;color:#9a4c38;border:1rpx solid #dbb3a6}
-.inventory{justify-content:space-between;margin-top:24rpx;padding-top:22rpx;border-top:1rpx solid rgba(121,85,42,.15);font-size:25rpx;color:#6f5b43}
-.purchase-row{margin-top:20rpx;padding-top:18rpx;border-top:1rpx solid rgba(121,85,42,.15)}
+.inventory{justify-content:space-between;margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid rgba(121,85,42,.15);font-size:25rpx;color:#6f5b43}
+.purchase-row{min-height:66rpx;padding:4rpx 8rpx 0}
 .purchase-label{font-size:24rpx;color:#6f5b43}
 .purchase-actions{gap:8rpx;margin-left:auto;justify-content:flex-end}
 .purchase-value{padding:10rpx 6rpx;text-align:right;font-size:24rpx;font-weight:600;color:#342f2b}
@@ -28,7 +30,7 @@
 .number,.number-label{display:block}
 .number{font-size:44rpx;font-weight:700;color:#f1bd78}
 .number-label{font-size:22rpx;color:#d3ccc4;margin-top:5rpx}
-.section{margin-top:40rpx}
+.section{margin-top:32rpx}
 .section-title{display:block;font-size:34rpx;font-weight:700}
 .note-card{margin-top:18rpx;padding:26rpx;background:#fffdf8;border:1rpx solid #e8ddcf;border-radius:25rpx}
 .note{display:block;font-size:27rpx;line-height:1.6}
@@ -51,8 +53,11 @@
 .undo-bar{position:fixed;z-index:20;left:28rpx;right:28rpx;bottom:40rpx;padding:16rpx 18rpx 16rpx 26rpx;display:flex;align-items:center;justify-content:space-between;background:#342f2b;color:#fff;border-radius:22rpx}
 .undo-bar button{margin:0;color:#f2bd78;background:transparent;font-size:25rpx}
 .detail-page button::after{border:0}
+.observation-heading{justify-content:flex-start;gap:14rpx}
+.add-observation.add-observation{width:auto;height:58rpx;min-height:58rpx;margin:0;padding:0 18rpx;background:#342f2b;color:#fff;border-radius:999rpx;font-size:22rpx;line-height:58rpx}
 .material-observation-form{margin-top:18rpx;padding:18rpx;background:#fffdf8;border:1rpx solid #e8ddcf;border-radius:22rpx}
 .material-observation-form textarea{box-sizing:border-box;width:100%;height:120rpx;min-height:120rpx;padding:14rpx 16rpx;background:#fff;border:1rpx solid #e5d8c7;border-radius:16rpx;font-size:25rpx}
 .observation-form-footer{min-height:58rpx;margin-top:10rpx;display:flex;align-items:center;justify-content:flex-end;gap:12rpx}
 .observation-form-footer .form-error{flex:1;color:#a94f3b;font-size:21rpx}
+.cancel-observation.cancel-observation{width:auto;height:58rpx;min-height:58rpx;margin:0;padding:0 18rpx;color:#6f6258;background:#efe6dc;border-radius:16rpx;font-size:23rpx;line-height:58rpx}
 .save-observation{margin:0;min-width:142rpx;height:58rpx;line-height:58rpx;padding:0 20rpx;border-radius:16rpx;background:#b87329;color:#fff;font-size:23rpx}

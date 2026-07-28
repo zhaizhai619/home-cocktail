@@ -40,7 +40,10 @@ function buildMaterialDetail(material, sources = {}) {
     canToggleAvailable: true,
     canToggleTracking: currentlyAvailable,
     canEditTracking: currentlyAvailable && material.trackFreshness === true,
-    observations: getMaterialPreferenceNotes(material.id, recipes, material.observations)
+    observations: getMaterialPreferenceNotes(material.id, recipes, material.observations).map((item) => ({
+      ...item,
+      createdAtLabel: formatDateInput(item.createdAt)
+    }))
   }
 }
 

@@ -942,13 +942,33 @@ test('recipe detail uses compact meta tags and folds glassware into the material
 
 test('material observations can be recorded repeatedly from material detail while recipe entry remains available', () => {
   const material = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxml'), 'utf8')
+  const materialScript = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.js'), 'utf8')
   const recipe = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
+  assert.match(material, /class="observation-heading"[\s\S]*class="section-title">我的材料观察<\/text>[\s\S]*class="add-observation"[^>]*bindtap="onOpenObservation"[^>]*>＋ 添加<\/button>/)
+  assert.match(material, /wx:if="{{showObservationForm}}"[^>]*class="material-observation-form"/)
   assert.match(material, /<textarea[^>]*value="{{observationNote}}"[^>]*bindinput="onObservationInput"/)
   assert.match(material, /bindtap="onSaveObservation"[^>]*>保存观察<\/button>/)
+  assert.match(material, /bindtap="onCancelObservation"[^>]*>取消<\/button>/)
   assert.match(material, /wx:if="{{observationError}}"[^>]*>{{observationError}}/)
+  assert.match(material, /\{\{item\.createdAtLabel \|\| '未记录日期'\}\}/)
+  assert.doesNotMatch(material, /\{\{item\.createdAt \|\| '未记录日期'\}\}/)
   assert.doesNotMatch(material, /还没有关于这个材料的品尝记录/)
+  assert.match(materialScript, /this\.setData\(\{\s*observationNote:\s*'',\s*observationError:\s*'',\s*showObservationForm:\s*false\s*\}\)/)
   assert.match(recipe, /class="observation-form"/)
   assert.match(recipe, /bindtap="onSaveObservation"/)
+})
+
+test('material observation add control expands and cancels its inline form', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/material-detail/index.js'))
+  const context = {
+    data: { showObservationForm: false, observationNote: '待清空', observationError: '待清空' },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  page.onOpenObservation.call(context)
+  assert.equal(context.data.showObservationForm, true)
+  page.onCancelObservation.call(context)
+  assert.deepEqual(context.data, { showObservationForm: false, observationNote: '', observationError: '' })
 })
 
 test('material detail loads once on first entry and refreshes only after returning to it', () => {
@@ -970,11 +990,19 @@ test('material detail loads once on first entry and refreshes only after returni
 test('material detail uses compact edit and purchase date actions', () => {
   const detail = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxss'), 'utf8')
-  assert.match(css, /\.hero\s*{[^}]*padding:\s*32rpx 32rpx 18rpx/)
+  assert.doesNotMatch(detail, /class="eyebrow"|>MATERIAL</)
+  assert.match(detail, /class="hero-top"[\s\S]*class="title">\{\{detail\.name\}\}<\/text>[\s\S]*class="edit"[^>]*>编辑<\/button>/)
+  assert.match(detail, /class="hero-divider"/)
+  assert.match(detail, /class="settings-panel"[\s\S]*class="availability-row"[\s\S]*class="tracking-row"/)
+  assert.match(detail, /class="settings-panel"[\s\S]*<\/view>\s*<view wx:if="\{\{detail\.canEditPurchasedAt\}\}" class="purchase-row"/)
+  assert.match(css, /\.hero\s*{[^}]*background:\s*linear-gradient\(145deg,#fffaf0,#f0dcc0\)[^}]*border:\s*1rpx solid #e5c99f/)
+  assert.match(css, /\.settings-panel\s*{[^}]*background:\s*#f6ead9/)
   assert.match(css, /\.edit\.edit\s*{[^}]*width:\s*auto[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx[^}]*padding:\s*0 20rpx/)
   assert.match(detail, /class="purchase-actions"><picker[\s\S]*?class="purchase-value"[\s\S]*?<\/picker><button[^>]*class="purchase-clear"[^>]*>清除<\/button><\/view>/)
   assert.doesNotMatch(detail, /class="purchase-value"[^>]*>[^<]*›/)
   assert.match(css, /\.purchase-clear\.purchase-clear\s*{[^}]*height:\s*40rpx[^}]*min-height:\s*40rpx[^}]*border:\s*1rpx solid[^}]*border-radius:\s*10rpx/)
+  assert.match(css, /\.add-observation\.add-observation\s*{[^}]*background:\s*#342f2b[^}]*color:\s*#fff/)
+  assert.doesNotMatch(css, /#(?:0b5f7d|126788|176d8d)/i)
 })
 
 test('recipe detail bottom bar keeps only edit and delete inside a safe two-column layout', () => {

@@ -17,6 +17,7 @@ Page({
     freshDraft: { trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     freshError: '',
+    showObservationForm: false,
     observationNote: '',
     observationError: '',
     undo: null
@@ -62,6 +63,8 @@ Page({
   },
   onPurchaseDateChange(event) { this.savePurchaseDate(event.detail.value || null) },
   onClearPurchaseDate() { this.savePurchaseDate(null) },
+  onOpenObservation() { this.setData({ showObservationForm: true, observationError: '' }) },
+  onCancelObservation() { this.setData({ showObservationForm: false, observationNote: '', observationError: '' }) },
   onObservationInput(event) { this.setData({ observationNote: event.detail.value, observationError: '' }) },
   onSaveObservation() {
     const result = orchestrateMaterialObservationSave({ repository: repository(), materialId: this.materialId, note: this.data.observationNote, notify: toast })
@@ -69,7 +72,7 @@ Page({
       this.setData({ observationError: result.message })
       return
     }
-    this.setData({ observationNote: '', observationError: '' })
+    this.setData({ observationNote: '', observationError: '', showObservationForm: false })
     this.reload()
   },
   onOpenTrackingForm() {
