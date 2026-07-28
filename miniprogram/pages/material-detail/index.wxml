@@ -9,7 +9,7 @@
       <view wx:if="{{detail.inventoryLabel || detail.expiryLabel}}" class="inventory"><text>{{detail.inventoryLabel}}</text><text wx:if="{{detail.expiryLabel}}">{{detail.expiryLabel}}</text></view>
       <view wx:if="{{detail.canEditPurchasedAt}}" class="purchase-row">
         <text class="purchase-label">购买日期</text>
-        <view class="purchase-actions"><button wx:if="{{detail.purchasedAtDate && !detail.trackFreshness}}" class="purchase-clear" bindtap="onClearPurchaseDate">清除</button><picker mode="date" value="{{detail.purchasedAtDate}}" bindchange="onPurchaseDateChange"><view class="purchase-value">{{detail.purchasedAtDate || '未填写'}} ›</view></picker></view>
+        <view class="purchase-actions"><picker mode="date" value="{{detail.purchasedAtDate}}" bindchange="onPurchaseDateChange"><view class="purchase-value">{{detail.purchasedAtDate || '未填写'}}</view></picker><button wx:if="{{detail.purchasedAtDate && !detail.trackFreshness}}" class="purchase-clear" bindtap="onClearPurchaseDate">清除</button></view>
       </view>
     </view>
 

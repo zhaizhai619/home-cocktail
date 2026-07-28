@@ -1,6 +1,6 @@
 .chips { display: flex; flex-wrap: wrap; column-gap: 10rpx; row-gap: 8rpx; margin-top: 10rpx; }
 .chip.chip { display: inline-flex; box-sizing: border-box; flex: 0 0 calc((100% - 20rpx) / 3); align-items: center; justify-content: center; width: auto; min-height: 56rpx; margin: 0; padding: 0 12rpx; color: #5f554c; background: #efe6dc; border: 1rpx solid transparent; border-radius: 999rpx; font-size: 22rpx; line-height: 56rpx; }
-.chip.selected { color: #fffaf4; background: #6a5849; }
+.chip.selected { color: #4d433b; background: #fffaf4; border-color: #d8c9b9; box-shadow: 0 7rpx 16rpx rgba(72, 52, 36, .16); }
 .chip::after { border: 0; }
 .prep-row { display: flex; align-items: center; box-sizing: border-box; width: 100%; min-height: 68rpx; gap: 6rpx; border-bottom: 1rpx solid #eee3d8; }
 .prep-name { flex: 1; min-width: 0; color: #4d433b; font-size: 22rpx; font-weight: 600; }

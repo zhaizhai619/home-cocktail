@@ -1,6 +1,6 @@
 <scroll-view scroll-y="true" class="glass-select-page" enhanced="true" show-scrollbar="false">
   <view class="page-content">
-    <view class="page-head"><text class="page-note">点击酒杯后立即返回配方</text><button class="page-add" bindtap="onAddGlassware">＋</button></view>
+    <view class="page-head"><button size="mini" class="page-add" bindtap="onAddGlassware">＋ 新增</button></view>
     <view wx:if="{{orphanedSelection}}" class="orphan-warning">当前选择的酒杯资料已缺失，请重新选择或清空。</view>
     <view class="glass-grid">
       <view class="glass-card clear-card {{!selectedId ? 'selected' : ''}}" data-id="" bindtap="onSelectGlassware" aria-role="button" aria-label="暂不选择酒杯{{!selectedId ? '，已选择' : ''}}">

@@ -44,7 +44,7 @@
           </view>
 
           <view class="section library-section">
-            <view class="section-head"><view><text class="section-title">完整材料库</text><text class="section-note">状态会同步到所有酒款</text></view></view>
+            <view class="section-head"><text class="section-title">完整材料库</text></view>
             <scroll-view scroll-x="true" class="catalog-tabs" enhanced="true" show-scrollbar="false">
               <view class="catalog-tab-track">
                 <button wx:for="{{categoryTabs}}" wx:key="key" size="mini" class="catalog-tab {{categoryFilter === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{categoryFilter === item.key ? '，已选择' : ''}}" bindtap="onSelectCategory" data-key="{{item.key}}">{{item.label}}</button>

@@ -11,5 +11,5 @@
 .amount { flex: none; width: 88rpx; padding: 0 6rpx; background: #fff; border: 1rpx solid #d8c9b9; }
 .unit-picker { display: flex; flex: none; align-items: center; height: 60rpx; min-height: 60rpx; }
 .unit { display: flex; align-items: center; justify-content: center; width: 72rpx; height: 60rpx; min-height: 60rpx; padding: 0 4rpx; color: #685d54; background: #f0e7dd; }
-.remove.remove { flex: none; width: 44rpx; height: 44rpx; min-height: 44rpx; margin: 0; padding: 0; color: #995040; background: #f5e5df; font-size: 26rpx; line-height: 42rpx; }
+.remove.remove { flex: none; width: 44rpx; height: 60rpx; min-height: 60rpx; margin: 0; padding: 0; color: #995040; background: #f5e5df; font-size: 26rpx; line-height: 58rpx; }
 .name::after, .remove::after { border: 0; }
