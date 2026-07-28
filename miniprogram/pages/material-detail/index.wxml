@@ -3,13 +3,10 @@
   <block wx:else>
     <view class="hero">
       <view class="hero-top"><text class="title">{{detail.name}}</text><button class="edit" bindtap="onEdit">编辑</button></view>
-      <view class="hero-divider"></view>
-      <view class="settings-panel">
-        <view class="availability-row"><view><text class="availability-title">当前我有</text><text class="availability-note">关闭后，酒单中的相关材料会显示为缺少</text></view><switch checked="{{detail.available}}" bindchange="onToggleAvailable" color="#6d8666"/></view>
-        <view wx:if="{{detail.canToggleTracking}}" class="tracking-row"><view><text class="availability-title">追踪数量与保质期</text><text class="availability-note">可以记录余量、购买日期和预计过期日</text></view><switch checked="{{detail.trackFreshness}}" bindchange="onToggleTracking" color="#a96826"/></view>
-        <view class="status-actions"><button wx:if="{{detail.canEditTracking}}" class="status warm" bindtap="onOpenTrackingForm">更新追踪信息</button></view>
-        <view wx:if="{{detail.inventoryLabel || detail.expiryLabel}}" class="inventory"><text>{{detail.inventoryLabel}}</text><text wx:if="{{detail.expiryLabel}}">{{detail.expiryLabel}}</text></view>
-      </view>
+      <view class="availability-row"><view><text class="availability-title">当前我有</text><text class="availability-note">关闭后，酒单中的相关材料会显示为缺少</text></view><switch checked="{{detail.available}}" bindchange="onToggleAvailable" color="#6d8666"/></view>
+      <view wx:if="{{detail.canToggleTracking}}" class="tracking-row"><view><text class="availability-title">追踪数量与保质期</text><text class="availability-note">可以记录余量、购买日期和预计过期日</text></view><switch checked="{{detail.trackFreshness}}" bindchange="onToggleTracking" color="#a96826"/></view>
+      <view class="status-actions"><button wx:if="{{detail.canEditTracking}}" class="status warm" bindtap="onOpenTrackingForm">更新追踪信息</button></view>
+      <view wx:if="{{detail.inventoryLabel || detail.expiryLabel}}" class="inventory"><text>{{detail.inventoryLabel}}</text><text wx:if="{{detail.expiryLabel}}">{{detail.expiryLabel}}</text></view>
       <view wx:if="{{detail.canEditPurchasedAt}}" class="purchase-row">
         <text class="purchase-label">购买日期</text>
         <view class="purchase-actions"><picker mode="date" value="{{detail.purchasedAtDate}}" bindchange="onPurchaseDateChange"><view class="purchase-value">{{detail.purchasedAtDate || '未填写'}}</view></picker><button wx:if="{{detail.purchasedAtDate && !detail.trackFreshness}}" class="purchase-clear" bindtap="onClearPurchaseDate">清除</button></view>
@@ -29,7 +26,7 @@
       </view>
       <view wx:if="{{detail.observations.length}}">
         <view wx:for="{{detail.observations}}" wx:key="index" class="note-card">
-          <text class="note">“{{item.note}}”</text><text wx:if="{{item.direct}}" class="note-source">记录于 {{item.createdAtLabel || '未记录日期'}}</text><text wx:else class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAtLabel || '未记录日期'}}</text>
+          <text class="note">{{item.note}}</text><text wx:if="{{item.direct}}" class="note-source">{{item.createdAtLabel || '未记录日期'}}</text><text wx:else class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAtLabel || '未记录日期'}}</text>
         </view>
       </view>
     </view>
