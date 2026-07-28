@@ -23,7 +23,6 @@ function categoryFilterForIngredient(row) {
 }
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
-function imageMediaFiles() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.mediaFiles }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
 function displayIngredient(row) {
   if (row && row.kind === 'prepared-output') return { ...row, nameLabel: row.name || '预调成品', isPrepared: true, ...unitView(row.unit) }
@@ -48,7 +47,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingImage: false, savingRecipe: false, imageError: '', formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
   onLoad(query) {
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
@@ -234,25 +233,7 @@ Page({
   onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.data.tools[Number(index)]).filter(Boolean).map((tool) => tool.id) }) },
   onRating(event) { this.sync({ ...this.data.form, rating: event.currentTarget.dataset.rating }) },
   noop() {},
-  onChooseImage() {
-    if (this.data.savingImage || typeof wx === 'undefined' || !wx.chooseMedia) return
-    wx.chooseMedia({ count: 1, mediaType: ['image'], success: async (result) => {
-      const selected = result.tempFiles && result.tempFiles[0] && result.tempFiles[0].tempFilePath
-      if (!selected) return
-      this.setData({ savingImage: true, imageError: '' })
-      try {
-        const mediaFiles = imageMediaFiles()
-        if (!mediaFiles || typeof mediaFiles.persistRecipeImage !== 'function') throw new Error('media unavailable')
-        const persisted = await mediaFiles.persistRecipeImage(selected)
-        this.sync({ ...this.data.form, imagePath: persisted.path })
-      } catch (_) {
-        this.setData({ imageError: '图片保存失败，请重新选择' })
-        wx.showToast({ title: '图片保存失败，请重试', icon: 'none' })
-      } finally { this.setData({ savingImage: false }) }
-    } })
-  },
   onSave() {
-    if (this.data.savingImage) return wx.showToast({ title: '图片处理中，请稍候', icon: 'none' })
     if (this._savingRecipe) return
     this._savingRecipe = true
     this.setData({ savingRecipe: true, formError: '' })

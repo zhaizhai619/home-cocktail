@@ -13,17 +13,12 @@
       </view>
     </scroll-view>
     <view class="basic-grid">
-      <button class="image-button" disabled="{{savingImage}}" loading="{{savingImage}}" bindtap="onChooseImage" aria-label="选择配方图片">
-        <image wx:if="{{form.imagePath}}" class="recipe-image" src="{{form.imagePath}}" mode="aspectFill" />
-        <view wx:else class="image-placeholder"><text class="image-plus">＋</text><text>图片</text></view>
-      </button>
       <view class="basic-fields">
         <input class="basic-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
         <input class="basic-input" data-field="source" value="{{form.source}}" placeholder="来源（可选）" bindinput="onBasicInput" />
       </view>
     </view>
     <text wx:if="{{errors.name}}" class="error">{{errors.name}}</text>
-    <text wx:if="{{imageError}}" class="error">{{imageError}}</text>
   </view>
 
   <view class="section ingredient-section">
@@ -87,6 +82,5 @@
 
 <view class="save-bar">
   <text wx:if="{{formError}}" class="error save-error" aria-live="assertive">{{formError}}</text>
-  <button class="save-button {{savingImage || savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingImage || savingRecipe}}" loading="{{savingImage || savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button>
+  <button class="save-button {{savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingRecipe}}" loading="{{savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button>
 </view>
-<view wx:if="{{savingImage}}" class="operation-mask" catchtap="noop" aria-label="图片处理中"><text>图片处理中…</text></view>

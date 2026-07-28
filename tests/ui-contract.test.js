@@ -825,15 +825,15 @@ test('all user-facing mini-program copy calls glassware 酒杯 instead of 杯具
   }
 })
 
-test('recipe entry uses compact section, image and control dimensions', () => {
+test('recipe entry uses compact section and full-width basic fields', () => {
   const editorCss = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
   const ingredientCss = fs.readFileSync(path.join(MINI, 'components/ingredient-row/index.wxss'), 'utf8')
   const prepCss = fs.readFileSync(path.join(MINI, 'components/prep-editor/index.wxss'), 'utf8')
   assert.match(editorCss, /\.section\s*{[^}]*padding:\s*14rpx 12rpx/)
   assert.match(editorCss, /\.section-heading\s*{[^}]*width:\s*100%/)
   assert.match(editorCss, /\.tried-toggle\s*{[^}]*flex:\s*none[^}]*margin-left:\s*auto/)
-  assert.match(editorCss, /\.basic-grid\s*{[^}]*grid-template-columns:\s*120rpx minmax\(0,\s*1fr\)/)
-  assert.match(editorCss, /\.image-button\s*{[^}]*width:\s*120rpx[^}]*height:\s*128rpx/)
+  assert.match(editorCss, /\.basic-fields\s*{[^}]*width:\s*100%/)
+  assert.doesNotMatch(editorCss, /\.image-button|\.image-placeholder|\.image-plus/)
   const ingredientHeight = Number(ingredientCss.match(/\.name,[^}]*min-height:\s*(\d+)rpx/)[1])
   const prepHeight = Number(prepCss.match(/\.chip\.chip\s*{[^}]*min-height:\s*(\d+)rpx/)[1])
   assert.ok(ingredientHeight <= 64)
@@ -899,10 +899,14 @@ test('every editable form exposes validation feedback inside the form', () => {
   for (const [relative, marker] of expected) assert.match(fs.readFileSync(path.join(MINI, relative), 'utf8'), marker, relative)
 })
 
-test('optional recipe images are persisted before their managed path enters the form', () => {
+test('recipe entry omits image selection while preserving legacy image data', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.js'), 'utf8')
-  assert.match(editor, /mediaFiles\.persistRecipeImage\(/)
-  assert.match(editor, /savingImage/)
+  const model = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/model.js'), 'utf8')
+  assert.doesNotMatch(template, /image-button|recipe-image|image-placeholder|选择配方图片|图片处理中/)
+  assert.doesNotMatch(editor, /chooseMedia|onChooseImage|persistRecipeImage|savingImage|imageError/)
+  assert.match(model, /imagePath:\s*''/)
+  assert.match(model, /imagePath:\s*form\.imagePath\s*\|\|\s*''/)
 })
 
 test('recipe detail ingredient rows navigate to their material detail', () => {
@@ -976,8 +980,9 @@ test('recipe material rows use icons and aria without visible availability words
   assert.doesNotMatch(appCss, /missing-long-term[^}]*dashed/)
 })
 
-test('recipe save button is guarded by both image and recipe operations', () => {
+test('recipe save button is guarded by recipe operations', () => {
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
-  assert.match(editor, /class="save[^>]*disabled="{{savingImage \|\| savingRecipe}}"[^>]*loading="{{savingImage \|\| savingRecipe}}"/)
+  assert.match(editor, /class="save[^>]*disabled="{{savingRecipe}}"[^>]*loading="{{savingRecipe}}"/)
+  assert.doesNotMatch(editor, /savingImage/)
   assert.match(editor, /formError/)
 })
