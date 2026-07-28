@@ -643,11 +643,14 @@ test('home filter option labels stay inside their own narrow-screen grid cells',
   assert.match(css, /\.filter-option-label\s*{[^}]*box-sizing:\s*border-box[^}]*display:\s*block[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*max-width:\s*100%[^}]*overflow:\s*hidden[^}]*font-size:\s*20rpx[^}]*white-space:\s*nowrap[^}]*text-align:\s*center/)
 })
 
-test('home aligns the visible add circle with the shared right content edge', () => {
+test('home uses the same labeled dark pill add button as the bar page', () => {
   const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
-  assert.match(template, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*class="add-hit"/)
-  assert.match(css, /\.add-hit\s*{[^}]*justify-content:\s*flex-end[^}]*flex:\s*none[^}]*width:\s*88rpx[^}]*margin:\s*0[^}]*padding:\s*0/)
+  assert.match(template, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*<button size="mini" class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒">＋ 新增<\/button>/)
+  assert.doesNotMatch(template, /class="add-button"/)
+  assert.match(css, /\.add-hit\s*{[^}]*flex:\s*none[^}]*width:\s*auto[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx[^}]*margin:\s*0[^}]*padding:\s*0 20rpx[^}]*color:\s*#fff[^}]*background:\s*#342f2b[^}]*border-radius:\s*999rpx[^}]*font-size:\s*21rpx[^}]*line-height:\s*64rpx/)
+  assert.match(css, /\.add-hit::after[^}]*{[^}]*border:\s*0/)
+  assert.doesNotMatch(css, /linear-gradient\(145deg,\s*#bd7b31,\s*#9d5f22\)/)
 })
 
 test('recipe cards place a distinct ABV badge after the preparation badge', () => {

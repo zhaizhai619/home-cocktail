@@ -1,7 +1,6 @@
 .recipes-page { position: relative; box-sizing: border-box; min-height: 100vh; padding: 48rpx 32rpx 72rpx; background: #f8f2e9; }
 .recipes-page.filter-open { height: 100vh; overflow: hidden; }
-.add-hit { display: flex; align-items: center; justify-content: flex-end; flex: none; width: 88rpx; height: 88rpx; min-height: 88rpx; margin: 0; padding: 0; background: transparent; border-radius: 50%; }
-.add-button { display: flex; align-items: center; justify-content: center; width: 76rpx; height: 76rpx; color: #fffaf4; background: linear-gradient(145deg, #bd7b31, #9d5f22); border-radius: 50%; font-size: 48rpx; font-weight: 300; line-height: 1; box-shadow: 0 10rpx 24rpx rgba(151, 91, 31, .2); }
+.add-hit { flex: none; width: auto; height: 64rpx; min-height: 64rpx; margin: 0; padding: 0 20rpx; color: #fff; background: #342f2b; border-radius: 999rpx; font-size: 21rpx; line-height: 64rpx; }
 .add-hit::after, .filter-trigger::after, .filter-option::after, .filter-reset::after, .filter-collapse::after, .empty-button::after { border: 0; }
 .search-box { display: flex; align-items: center; height: 88rpx; margin-top: 0; padding: 0 24rpx; background: rgba(255, 253, 249, .9); border: 1rpx solid #e1d5c7; border-radius: 20rpx; box-shadow: 0 6rpx 18rpx rgba(75, 56, 40, .04); }
 .search-input { flex: 1; height: 88rpx; min-height: 88rpx; color: #39312b; font-size: 27rpx; }

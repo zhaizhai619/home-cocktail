@@ -14,7 +14,7 @@
         <view class="filter-symbol-line line-short"></view>
       </view>
     </view>
-    <button class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒"><view class="add-button">＋</view></button>
+    <button size="mini" class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒">＋ 新增</button>
   </view>
 
   <view wx:if="{{filterPanelOpen}}" class="filter-scroll-lock" catchtap="collapseFilterPanel" catchtouchmove="noop" aria-role="button" aria-label="点击空白处收起筛选"></view>
