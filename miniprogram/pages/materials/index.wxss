@@ -23,7 +23,8 @@
 
 .fresh-section-head { min-height: 74rpx; }
 .fresh-section-state { display: flex; align-items: center; gap: 14rpx; }
-.disclosure { width: 32rpx; color: #8b8178; font-size: 30rpx; text-align: center; }
+.fresh-disclosure-chevron { box-sizing: border-box; width: 16rpx; height: 16rpx; margin: -7rpx 8rpx 0 2rpx; border-right: 4rpx solid #756d65; border-bottom: 4rpx solid #756d65; border-radius: 1rpx; transform: rotate(45deg); transition: transform 180ms ease; }
+.fresh-disclosure-chevron.is-expanded { margin-top: 7rpx; transform: rotate(-135deg); }
 .fresh-list { display: grid; gap: 10rpx; margin-top: 16rpx; }
 .fresh-card { box-sizing: border-box; width: 100%; overflow: hidden; background: #fffdf8; border: 1rpx solid #e5ddd4; border-radius: 20rpx; }
 .fresh-summary { display: grid; min-height: 82rpx; padding: 12rpx 16rpx; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12rpx; }

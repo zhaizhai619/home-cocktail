@@ -16,7 +16,7 @@
           <view class="section fresh-section">
             <view class="section-head fresh-section-head" bindtap="onToggleFreshShelf" aria-role="button" aria-label="手头鲜材，{{freshShelfExpanded ? '收起' : '展开'}}">
               <text class="section-title">手头鲜材</text>
-              <view class="fresh-section-state"><text class="count">{{freshShelf.length}}</text><text class="disclosure">{{freshShelfExpanded ? '收起' : '展开'}}</text></view>
+              <view class="fresh-section-state"><text class="count">{{freshShelf.length}}</text><view class="fresh-disclosure-chevron {{freshShelfExpanded ? 'is-expanded' : ''}}" aria-hidden="true"></view></view>
             </view>
             <view wx:if="{{freshShelfExpanded}}" class="fresh-list">
               <block wx:if="{{freshShelf.length}}">

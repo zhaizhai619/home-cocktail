@@ -154,6 +154,8 @@ test('fresh shelf defaults to purchase rows and expands one inline recipe list',
   assert.equal(context.data.freshShelfExpanded, true)
 
   assert.match(wxml, /class="section-head fresh-section-head"[^>]*bindtap="onToggleFreshShelf"/)
+  assert.match(wxml, /class="fresh-disclosure-chevron \{\{freshShelfExpanded \? 'is-expanded' : ''\}\}"/)
+  assert.doesNotMatch(wxml, /class="disclosure"[^>]*>\{\{freshShelfExpanded \? '收起' : '展开'\}\}/)
   assert.match(wxml, /wx:if="{{freshShelfExpanded}}"[^>]*class="fresh-list"/)
   assert.match(wxml, /class="fresh-summary"[^>]*bindtap="onToggleFreshItem"/)
   assert.match(wxml, /购买日期 \{\{item\.purchaseDateLabel\}\}/)
@@ -171,6 +173,8 @@ test('fresh shelf defaults to purchase rows and expands one inline recipe list',
   assert.doesNotMatch(wxml, /scroll-x[^>]*class="fresh-scroll"/)
   assert.doesNotMatch(wxml, /fresh-name-row"[^>]*bindtap="onOpenMaterial"/)
   assert.match(css, /\.fresh-list\s*{[^}]*display:\s*grid/)
+  assert.match(css, /\.fresh-disclosure-chevron\s*{[^}]*border-right:[^;}]+solid[^}]*border-bottom:[^;}]+solid[^}]*transform:\s*rotate\(45deg\)/)
+  assert.match(css, /\.fresh-disclosure-chevron\.is-expanded\s*{[^}]*transform:\s*rotate\(-135deg\)/)
   assert.match(css, /\.fresh-card\s*{[^}]*width:\s*100%/)
   assert.match(css, /\.fresh-summary\s*{[^}]*display:\s*grid[^}]*grid-template-columns:/)
   assert.match(css, /\.fresh-purchase-date\s*{[^}]*text-align:\s*center/)
