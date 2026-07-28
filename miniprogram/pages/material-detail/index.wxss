@@ -53,9 +53,10 @@
 .observation-heading{justify-content:flex-start;gap:14rpx}
 .observations .section-title{font-weight:400}
 .add-observation.add-observation{width:auto;height:58rpx;min-height:58rpx;margin:0;padding:0 18rpx;background:#342f2b;color:#fff;border-radius:999rpx;font-size:22rpx;line-height:58rpx}
-.material-observation-form{margin-top:18rpx;padding:18rpx;background:#fffdf8;border:1rpx solid #e8ddcf;border-radius:22rpx}
-.material-observation-form textarea{box-sizing:border-box;width:100%;height:120rpx;min-height:120rpx;padding:14rpx 16rpx;background:#fff;border:1rpx solid #e5d8c7;border-radius:16rpx;font-size:25rpx}
-.observation-form-footer{min-height:58rpx;margin-top:10rpx;display:flex;align-items:center;justify-content:flex-end;gap:12rpx}
+.material-observation-form{box-sizing:border-box;margin-top:16rpx;padding:14rpx;background:#fffaf3;border:1rpx solid #e5d8c7;border-radius:18rpx}
+.material-observation-form textarea{box-sizing:border-box;width:100%;height:96rpx;min-height:96rpx;padding:8rpx 4rpx;background:transparent;border:0;border-radius:0;font-size:24rpx;line-height:1.5}
+.observation-form-footer{min-height:52rpx;margin-top:12rpx;display:flex;align-items:center;justify-content:flex-end;gap:12rpx}
 .observation-form-footer .form-error{flex:1;color:#a94f3b;font-size:21rpx}
-.cancel-observation.cancel-observation{width:auto;height:58rpx;min-height:58rpx;margin:0;padding:0 18rpx;color:#6f6258;background:#efe6dc;border-radius:16rpx;font-size:23rpx;line-height:58rpx}
-.save-observation{margin:0;min-width:142rpx;height:58rpx;line-height:58rpx;padding:0 20rpx;border-radius:16rpx;background:#b87329;color:#fff;font-size:23rpx}
+.cancel-observation.cancel-observation,.save-observation.save-observation{box-sizing:border-box;width:104rpx;height:52rpx;min-height:52rpx;margin:0;padding:0;border-radius:999rpx;font-size:22rpx;line-height:52rpx}
+.cancel-observation.cancel-observation{color:#6f6258;background:#efe6dc}
+.save-observation.save-observation{color:#fff;background:#342f2b}

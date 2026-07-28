@@ -22,7 +22,7 @@
       <view class="observation-heading"><text class="section-title">我的材料观察</text><button class="add-observation" bindtap="onOpenObservation">＋ 添加</button></view>
       <view wx:if="{{showObservationForm}}" class="material-observation-form">
         <textarea value="{{observationNote}}" maxlength="300" placeholder="记录这个材料的新发现" bindinput="onObservationInput"/>
-        <view class="observation-form-footer"><text wx:if="{{observationError}}" class="form-error">{{observationError}}</text><button class="cancel-observation" bindtap="onCancelObservation">取消</button><button class="save-observation" bindtap="onSaveObservation">保存观察</button></view>
+        <view class="observation-form-footer"><text wx:if="{{observationError}}" class="form-error">{{observationError}}</text><button class="cancel-observation" bindtap="onCancelObservation">取消</button><button class="save-observation" bindtap="onSaveObservation">保存</button></view>
       </view>
       <view wx:if="{{detail.observations.length}}">
         <view wx:for="{{detail.observations}}" wx:key="index" class="note-card">
