@@ -5,6 +5,6 @@
 .prep-row { display: flex; align-items: center; box-sizing: border-box; width: 100%; min-height: 68rpx; gap: 6rpx; border-bottom: 1rpx solid #eee3d8; }
 .prep-name { flex: 1; min-width: 0; color: #4d433b; font-size: 22rpx; font-weight: 600; }
 .prep-duration-control { display: flex; flex: none; align-items: stretch; box-sizing: border-box; width: 300rpx; max-width: 64%; gap: 6rpx; }
-.prep-duration-text { box-sizing: border-box; flex: 1; width: 0; min-height: 58rpx; padding: 0 10rpx; color: #5b5047; background: #fff; border: 1rpx solid #d9caba; border-radius: 9rpx; font-size: 21rpx; }
+.prep-duration-text { box-sizing: border-box; flex: none; width: 50%; min-height: 58rpx; padding: 0 10rpx; color: #5b5047; background: #fff; border: 1rpx solid #d9caba; border-radius: 9rpx; font-size: 21rpx; }
 .prep-duration-unit { display: flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box; width: 88rpx; min-height: 58rpx; color: #5b5047; background: #efe6dc; border-radius: 9rpx; font-size: 21rpx; }
 .prep-duration-unit text { line-height: 58rpx; }

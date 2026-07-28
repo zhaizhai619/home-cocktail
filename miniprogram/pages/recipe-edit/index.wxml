@@ -65,7 +65,7 @@
 
   <view class="section calculation-section">
     <text class="title">酒杯与酒精度</text>
-    <view class="select" bindtap="onOpenGlasswareSelect" aria-role="button" aria-label="选择酒杯，当前{{glasswareLabel}}"><text>{{glasswareLabel}}</text><text>›</text></view>
+    <view class="select" bindtap="onOpenGlasswareSelect" aria-role="button" aria-label="选择酒杯，当前{{glasswareLabel}}"><text>{{glasswareLabel}}</text></view>
     <view class="calculation-card">
       <view class="abv-row"><text>预估酒精度</text><text class="abv-value">{{preview.abvLabel}}{{preview.status === 'ok' ? '%' : ''}}</text></view>
       <text wx:if="{{preview.abvHint}}" class="abv-hint">{{preview.abvHint}}</text>

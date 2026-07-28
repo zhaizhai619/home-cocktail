@@ -361,8 +361,11 @@ test('all preparation copy uses 预调 while retaining only one internal legacy 
 
 test('preparation editor uses one duration field with a compact hour or day unit picker', () => {
   const prep = fs.readFileSync(path.join(MINI, 'components/prep-editor/index.wxml'), 'utf8')
+  const prepCss = fs.readFileSync(path.join(MINI, 'components/prep-editor/index.wxss'), 'utf8')
   assert.equal((prep.match(/<input/g) || []).length, 1)
-  assert.match(prep, /class="prep-duration-text"[^>]*data-field="durationValue"[^>]*placeholder="例如 3–7"/)
+  assert.match(prep, /class="prep-duration-text"[^>]*data-field="durationValue"/)
+  assert.doesNotMatch(prep, /class="prep-duration-text"[^>]*placeholder=/)
+  assert.match(prepCss, /\.prep-duration-text\s*\{[^}]*flex:\s*none[^}]*width:\s*50%/)
   assert.match(prep, /<picker[^>]*range="{{item\.units}}"[^>]*range-key="label"[^>]*bindchange="unit"/)
   assert.doesNotMatch(prep, /data-field="amount"|data-field="amountEnd"|最短|最长/)
 })
@@ -816,6 +819,7 @@ test('recipe preparation, equipment and notes show only the requested compact fi
   assert.match(prepCss, /\.chip\.selected\s*{[^}]*box-shadow:/)
   assert.doesNotMatch(editor, /tool-scroll|capacity-line|preview\.capacity|class="warning"/)
   assert.match(editor, /class="select"/)
+  assert.doesNotMatch(editor, /class="select"[^>]*>[\s\S]*?›[\s\S]*?<\/view>/)
   assert.match(editor, /class="abv-row"/)
   assert.match(editor, /wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint"/)
   assert.equal((editor.match(/<textarea\b/g) || []).length, 2)
