@@ -1,21 +1,21 @@
-.glass-select-page { height: 100vh; background: #f7f1e8; }
+.glass-select-page { height: 100vh; background: #f8f5ee; }
 .page-content { box-sizing: border-box; min-height: 100%; padding: 28rpx 28rpx 0; padding-bottom: calc(40rpx + env(safe-area-inset-bottom)); }
 .page-head { display: flex; align-items: center; justify-content: flex-end; }
-.page-add { width: auto; height: 64rpx; min-height: 64rpx; margin: 0; padding: 0 20rpx; color: #fff; background: #342f2b; border-radius: 999rpx; font-size: 23rpx; line-height: 64rpx; }
+.page-add { width: auto; height: 64rpx; min-height: 64rpx; margin: 0; padding: 0 20rpx; color: #ffffff; background: #242321; border-radius: 999rpx; font-size: 23rpx; line-height: 64rpx; }
 .page-add::after, .sheet-close::after, .save-glass::after { border: 0; }
-.orphan-warning { margin-top: 18rpx; padding: 18rpx; color: #914c36; background: #f4e4dd; border-radius: 16rpx; font-size: 23rpx; line-height: 1.5; }
+.orphan-warning { margin-top: 18rpx; padding: 18rpx; color: #985a54; background: #f5ebe9; border-radius: 16rpx; font-size: 23rpx; line-height: 1.5; }
 .glass-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 14rpx 12rpx; margin-top: 22rpx; }
-.glass-card { display: flex; box-sizing: border-box; min-width: 0; min-height: 176rpx; padding: 20rpx 16rpx; align-items: center; justify-content: center; background: #fbf8f3; border: 2rpx solid #ded5ca; border-radius: 22rpx; box-shadow: 0 7rpx 18rpx rgba(65, 51, 39, .045); }
-.glass-card.selected { background: #ead7bd; border-color: #b87836; box-shadow: 0 8rpx 20rpx rgba(166, 103, 39, .12); }
-.clear-card { color: #756b62; }
-.glass-label { display: block; max-width: 100%; overflow: hidden; color: #332e2a; font-size: 27rpx; font-weight: 650; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.empty-hint { margin-top: 24rpx; padding: 28rpx 20rpx; color: #8b8178; background: rgba(255, 253, 248, .7); border: 1rpx dashed #ddcfbc; border-radius: 20rpx; font-size: 23rpx; text-align: center; }
-.sheet-mask { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; background: rgba(34, 28, 23, .36); }
-.sheet { width: 100%; padding: 28rpx 28rpx calc(30rpx + env(safe-area-inset-bottom)); border-radius: 30rpx 30rpx 0 0; background: #fffaf3; box-sizing: border-box; }
+.glass-card { display: flex; box-sizing: border-box; min-width: 0; min-height: 176rpx; padding: 20rpx 16rpx; align-items: center; justify-content: center; background: #ffffff; border: 2rpx solid #e7e4dd; border-radius: 22rpx; box-shadow: 0 7rpx 18rpx rgba(0, 0, 0, .045); }
+.glass-card.selected { background: #f1f0ec; border-color: #242321; box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, .12); }
+.clear-card { color: #6f6c66; }
+.glass-label { display: block; max-width: 100%; overflow: hidden; color: #242321; font-size: 27rpx; font-weight: 650; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.empty-hint { margin-top: 24rpx; padding: 28rpx 20rpx; color: #6f6c66; background: rgba(255, 255, 255, .7); border: 1rpx dashed #e7e4dd; border-radius: 20rpx; font-size: 23rpx; text-align: center; }
+.sheet-mask { position: fixed; z-index: 20; inset: 0; display: flex; align-items: flex-end; background: rgba(0, 0, 0, .36); }
+.sheet { width: 100%; padding: 28rpx 28rpx calc(30rpx + env(safe-area-inset-bottom)); border-radius: 30rpx 30rpx 0 0; background: #ffffff; box-sizing: border-box; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20rpx; }
 .sheet-title { font-size: 31rpx; font-weight: 700; }
-.sheet-close { width: 48rpx; height: 48rpx; margin: 0; padding: 0; line-height: 46rpx; background: #eee5da; border-radius: 50%; }
-.field-label { display: block; margin: 18rpx 0 8rpx; color: #655b53; font-size: 23rpx; }
-.glass-input { height: 72rpx; padding: 0 18rpx; border: 1rpx solid #ddcdbc; border-radius: 16rpx; background: #fff; font-size: 27rpx; }
-.form-error { display: block; margin-top: 12rpx; color: #a34835; font-size: 23rpx; }
-.save-glass { height: 76rpx; margin-top: 24rpx; color: #fff; background: #b87329; border-radius: 18rpx; font-size: 28rpx; line-height: 76rpx; }
+.sheet-close { width: 48rpx; height: 48rpx; margin: 0; padding: 0; line-height: 46rpx; background: #f1f0ec; border-radius: 50%; }
+.field-label { display: block; margin: 18rpx 0 8rpx; color: #6f6c66; font-size: 23rpx; }
+.glass-input { height: 72rpx; padding: 0 18rpx; border: 1rpx solid #e7e4dd; border-radius: 16rpx; background: #ffffff; font-size: 27rpx; }
+.form-error { display: block; margin-top: 12rpx; color: #985a54; font-size: 23rpx; }
+.save-glass { height: 76rpx; margin-top: 24rpx; color: #ffffff; background: #242321; border-radius: 18rpx; font-size: 28rpx; line-height: 76rpx; }

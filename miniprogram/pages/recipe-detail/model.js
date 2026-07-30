@@ -1,7 +1,7 @@
 const { RATINGS, UNITS } = require('../../domain/constants')
 const { analyzeLiquidVolume, calculateAbv, recipeIngredientsForAbv } = require('../../domain/abv')
 const { getMaterialDisplayName, getMaterialVisualState } = require('../../domain/material')
-const { getPreparationDurationText, normalizePrepSelections } = require('../../domain/recipe')
+const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
 const { isValidGlassCapacity } = require('../../domain/equipment-invariants')
 
@@ -217,15 +217,20 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
   const glasswareById = asLookup(glassware)
   const toolsById = asLookup(tools)
   const selectedGlass = glasswareById[recipe.glasswareId]
+  const sourceIngredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
+  const displayedIngredients = recipe.ingredientOrderCustomized === true
+    ? sourceIngredients.slice()
+    : sortIngredientsByDefault(sourceIngredients, materialsById)
   const preparations = normalizePrepSelections(recipe.preparations).map((preparation) => ({
     ...preparation, label: formatPreparation(preparation), note: typeof preparation.note === 'string' ? preparation.note : ''
   }))
-  const observations = (Array.isArray(recipe.materialObservations) ? recipe.materialObservations : []).reduce((items, observation) => {
+  const observations = (Array.isArray(recipe.materialObservations) ? recipe.materialObservations : []).reduce((items, observation, observationIndex) => {
     if (!observation || typeof observation.note !== 'string' || !observation.note.trim()) return items
     const material = materialsById[observation.materialId]
     items.push({
       materialId: observation.materialId || '', materialName: material ? getMaterialDisplayName(material.category, material.name) : '缺失材料',
-      note: observation.note.trim(), createdAtLabel: formatDate(observation.createdAt)
+      note: observation.note.trim(), createdAtLabel: formatDate(observation.createdAt),
+      observationIndex, renderKey: `recipe:${recipe.id}:${observationIndex}`
     })
     return items
   }, [])
@@ -255,7 +260,7 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
     status: 'ok', id: recipe.id, name: typeof recipe.name === 'string' ? recipe.name : '',
     imagePath: typeof recipe.imagePath === 'string' ? recipe.imagePath : '', source: typeof recipe.source === 'string' ? recipe.source : '',
     tried: recipe.tried === true, preparations,
-    ingredients: (Array.isArray(recipe.ingredients) ? recipe.ingredients : []).map((ingredient) => buildIngredient(ingredient, materialsById, preparationsById)),
+    ingredients: displayedIngredients.map((ingredient) => buildIngredient(ingredient, materialsById, preparationsById)),
     advancePreparations,
     ingredientOptions,
     glassware: selectedGlass ? {
@@ -333,6 +338,18 @@ function orchestrateRecipeCopy({ repository, recipeId, notify = () => {} }) {
   }
 }
 
+function orchestrateObservationDelete({ repository, recipeId, observationIndex, notify = () => {} } = {}) {
+  try {
+    const recipe = repository && repository.deleteRecipeObservation(recipeId, observationIndex)
+    if (!recipe) throw new Error('Observation not deleted')
+    notify('记录已删除')
+    return { deleted: true, recipe }
+  } catch (_) {
+    notify('删除失败，请重试')
+    return { deleted: false, recipe: null }
+  }
+}
+
 function orchestrateRecipeDelete({ repository, recipeId, notify = () => {} }) {
   try {
     const deleted = repository && repository.deleteRecipe(recipeId)
@@ -350,6 +367,7 @@ module.exports = {
   formatDate,
   validateObservation,
   orchestrateObservationSave,
+  orchestrateObservationDelete,
   orchestrateRatingToggle,
   validateManualAbv,
   orchestrateManualAbvSave,

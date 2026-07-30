@@ -23,9 +23,15 @@
                 <view wx:for="{{freshShelf}}" wx:key="id" class="fresh-card">
                   <view class="fresh-summary" bindtap="onToggleFreshItem" data-id="{{item.id}}" aria-role="button" aria-label="{{item.name}}，{{expandedFreshMaterialId === item.id ? '收起' : '展开'}}">
                     <text class="fresh-name">{{item.name}}</text>
-                    <text wx:if="{{item.purchaseDateLabel}}" class="fresh-purchase-date">购买日期 {{item.purchaseDateLabel}}</text>
-                    <text wx:else class="fresh-purchase-date is-empty">未记录购买日期</text>
+                    <view class="fresh-remaining {{item.needsReminder ? 'is-alert' : ''}} {{item.remainingMissing ? 'is-empty' : ''}}" catchtap="onOpenRemainingEditor" data-id="{{item.id}}" aria-role="button" aria-label="{{item.remainingMissing ? '填写余量' : '编辑余量'}}">
+                      <text wx:if="{{item.needsReminder}}" class="fresh-alert-mark">!</text>
+                      <text class="fresh-remaining-label {{item.remainingMissing ? 'is-empty' : ''}}">{{item.needsReminder ? item.reminderLabel : item.remainingLabel}}</text>
+                    </view>
                     <button class="use-up" catchtap="onUseUp" data-id="{{item.id}}">用完</button>
+                  </view>
+                  <view wx:if="{{expandedFreshMaterialId === item.id}}" class="fresh-detail-meta">
+                    <text>购买日期 {{item.purchaseDateLabel || '未填写'}}</text>
+                    <text>预计到期 {{item.expiryDateLabel || '未填写'}}</text>
                   </view>
                   <view wx:if="{{expandedFreshMaterialId === item.id}}" class="fresh-recipes">
                     <block wx:if="{{item.relatedRecipes.length}}">
@@ -57,7 +63,7 @@
                 <text class="library-card-category">{{item.categoryLabel}}</text>
               </button>
             </view>
-            <view wx:else class="empty-list"><text>没有符合条件的材料</text><button bindtap="onAddMaterial">新增一种材料</button></view>
+            <view wx:else class="empty-materials"><text>没有符合要求的材料</text></view>
           </view>
         </view>
       </scroll-view>
@@ -77,6 +83,22 @@
       </scroll-view>
     </swiper-item>
   </swiper>
+
+  <view wx:if="{{remainingEditorOpen}}" class="sheet-mask remaining-editor-mask" bindtap="onCloseRemainingEditor">
+    <view class="sheet remaining-editor" catchtap="noop">
+      <text class="sheet-title">编辑余量 · {{remainingDraft.name}}</text>
+      <view class="amount-row">
+        <input type="digit" value="{{remainingDraft.remainingAmount}}" focus="{{remainingEditorOpen}}" bindinput="onRemainingAmountInput" placeholder="填写余量" />
+        <picker range="{{unitLabels}}" value="{{remainingUnitIndex}}" bindchange="onRemainingUnitChange"><view class="picker-value">{{unitLabels[remainingUnitIndex]}}</view></picker>
+      </view>
+      <text class="remaining-note">清空并保存可取消余量记录</text>
+      <text wx:if="{{remainingError}}" class="form-error" aria-live="assertive">{{remainingError}}</text>
+      <view class="remaining-actions">
+        <button class="remaining-cancel" bindtap="onCloseRemainingEditor">取消</button>
+        <button class="primary remaining-save" bindtap="onSaveRemaining">保存</button>
+      </view>
+    </view>
+  </view>
 
   <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm">
     <view class="sheet" catchtap="noop">

@@ -1,6 +1,6 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES } = require('../../domain/constants')
 const { createMaterialDefaults, getMaterialDisplayName, getMaterialIdentityKey } = require('../../domain/material')
-const { getPreparationDurationText, normalizePrepSelections } = require('../../domain/recipe')
+const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateAbv } = require('../../domain/abv')
 const { calculateGlassCapacity, formatGlasswareLabel } = require('../../domain/equipment')
 
@@ -62,6 +62,7 @@ function createEmptyRecipeForm() {
   return {
     id: '', name: '', imagePath: '', source: '', tried: true,
     ingredients: [EMPTY_INGREDIENT('citrus', '柠檬汁'), EMPTY_INGREDIENT('syrup', '糖浆')],
+    ingredientOrderCustomized: false,
     advancePreparations: [],
     preparations: [{ type: '即调', note: '' }],
     glasswareId: '', toolIds: [], steps: '', rating: '', tastingNote: '', materialObservations: []
@@ -99,6 +100,8 @@ function cloneForm(form) {
     const preparation = cloned.advancePreparations.find(({ id }) => id === row.preparationId)
     return { ...row, name: preparation && preparation.outputName || '预调成品', status: 'prepared' }
   })
+  cloned.ingredientOrderCustomized = cloned.ingredientOrderCustomized === true
+  if (!cloned.ingredientOrderCustomized) cloned.ingredients = sortIngredientsByDefault(cloned.ingredients)
   return cloned
 }
 
@@ -133,11 +136,8 @@ function selectExistingIngredient(form, index, material) {
   const next = cloneForm(form); const previous = next.ingredients[index]
   if (!previous || !material) return next
   next.ingredients[index] = { ...createIngredientDraft(null, null, material), renderKey: previous.renderKey, amount: previous.amount, observation: previous.observation || '' }
+  if (!next.ingredientOrderCustomized) next.ingredients = sortIngredientsByDefault(next.ingredients)
   return next
-}
-
-function isLeadingAlcoholCategory(row) {
-  return row && ['base-spirit', 'other-base-spirit', 'liqueur'].includes(row.category)
 }
 
 function applyMaterialSelection(form, index, material) {
@@ -156,14 +156,8 @@ function applyMaterialSelection(form, index, material) {
       amount: previous.amount,
       observation: previous.observation || ''
     }
-  } else {
-    if (isLeadingAlcoholCategory(selected)) {
-      const firstOtherIndex = next.ingredients.findIndex((row) => !isLeadingAlcoholCategory(row))
-      next.ingredients.splice(firstOtherIndex === -1 ? next.ingredients.length : firstOtherIndex, 0, selected)
-    } else {
-      next.ingredients.push(selected)
-    }
-  }
+  } else next.ingredients.push(selected)
+  if (!next.ingredientOrderCustomized) next.ingredients = sortIngredientsByDefault(next.ingredients)
   return next
 }
 
@@ -173,6 +167,7 @@ function reorderIngredient(form, fromIndex, toIndex) {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= next.ingredients.length || to >= next.ingredients.length || from === to) return next
   const [moved] = next.ingredients.splice(from, 1)
   next.ingredients.splice(to, 0, moved)
+  next.ingredientOrderCustomized = true
   return next
 }
 
@@ -181,8 +176,8 @@ function createAdvancePreparation(form) {
   const id = nextAdvancePreparationId(next.advancePreparations)
   const preparation = { id, outputName: '', ingredients: [], steps: '' }
   next.advancePreparations.push(preparation)
-  const lastPreparedIndex = next.ingredients.reduce((last, row, index) => isPreparedOutput(row) ? index : last, -1)
-  next.ingredients.splice(lastPreparedIndex + 1, 0, { renderKey: nextIngredientRenderKey(), kind: 'prepared-output', preparationId: id, name: '预调成品', amount: '', unit: 'ml', status: 'prepared', observation: '' })
+  next.ingredients.push({ renderKey: nextIngredientRenderKey(), kind: 'prepared-output', preparationId: id, name: '预调成品', amount: '', unit: 'ml', status: 'prepared', observation: '' })
+  if (!next.ingredientOrderCustomized) next.ingredients = sortIngredientsByDefault(next.ingredients)
   return next
 }
 
@@ -220,8 +215,9 @@ function applyQuickBase(form, spirit) {
   const next = cloneForm(form); const selected = findSpirit(spirit)
   const index = next.ingredients.findIndex((item) => item.category === 'base-spirit')
   const base = { ...createIngredientDraft('base-spirit', selected.name), ...(index === -1 ? {} : { renderKey: next.ingredients[index].renderKey }), abv: 40, alcoholic: true, unit: 'ml' }
-  if (index === -1) next.ingredients.unshift(base); else next.ingredients.splice(index, 1, base)
+  if (index === -1) next.ingredients.push(base); else next.ingredients.splice(index, 1, base)
   next.ingredients = next.ingredients.filter((item, itemIndex) => item.category !== 'base-spirit' || itemIndex === next.ingredients.findIndex((row) => row.category === 'base-spirit'))
+  if (!next.ingredientOrderCustomized) next.ingredients = sortIngredientsByDefault(next.ingredients)
   return next
 }
 
@@ -315,6 +311,7 @@ function buildRecipePayload(input) {
   return {
     recipe: {
       ...(form.id ? { id: form.id } : {}), name: form.name, imagePath: form.imagePath || '', source: form.source || '', tried: form.tried === true,
+      ingredientOrderCustomized: form.ingredientOrderCustomized === true,
       ingredients: ingredients.map((row) => isPreparedOutput(row)
         ? { kind: 'prepared-output', preparationId: row.preparationId, amount: ingredientAmount(row), unit: row.unit || 'ml' }
         : { materialId: row.materialId || '', ...(row.materialId ? {} : { draftKey: materialDraft(row).draftKey }), amount: ingredientAmount(row), unit: row.unit || 'ml' }),

@@ -56,6 +56,7 @@ test('migration is idempotent and gives invalid recipe dates the supplied timest
     imagePath: '',
     source: '',
     tried: false,
+    ingredientOrderCustomized: false,
     ingredients: [],
     advancePreparations: [],
     preparations: [],
@@ -75,7 +76,7 @@ test('migration is idempotent and gives invalid recipe dates the supplied timest
 test('migration preserves the full recipe shape, user fields, and uses steps canonically', () => {
   const now = '2026-07-20T00:00:00.000Z'
   const recipe = migrateState({ recipes: [{
-    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
+    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true, ingredientOrderCustomized: true,
     ingredients: [{ materialId: 'gin' }], advancePreparations: [], preparations: [{ type: '即调' }], glasswareId: 'coupe',
     toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
     materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
@@ -83,7 +84,7 @@ test('migration preserves the full recipe shape, user fields, and uses steps can
   }] }, now).recipes[0]
 
   assert.deepEqual(recipe, {
-    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true,
+    id: 'r1', name: 'Martini', imagePath: '/martini.jpg', source: 'book', tried: true, ingredientOrderCustomized: true,
     ingredients: [{ materialId: 'gin' }], advancePreparations: [], preparations: [{ type: '即调' }], glasswareId: 'coupe',
     toolIds: ['quick-tool-1'], steps: ['Stir'], rating: '顶尖', tastingNote: 'dry',
     materialObservations: [{ materialId: 'gin', note: 'good' }], customField: 'retain me',
@@ -107,6 +108,7 @@ test('recipe CRUD assigns IDs and timestamps and preserves createdAt on update',
 
   assert.deepEqual(created, {
     id: 'id-1', name: 'Negroni', imagePath: '', source: '', tried: false,
+    ingredientOrderCustomized: false,
     ingredients: [], advancePreparations: [], preparations: [], glasswareId: null, toolIds: [], steps: [],
     rating: null, tastingNote: '', materialObservations: [],
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z'

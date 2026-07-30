@@ -1,5 +1,11 @@
 const { UNITS } = require('../../domain/constants')
-const { buildMaterialDetail, decodeMaterialId, orchestrateMaterialObservationSave } = require('./model')
+const {
+  buildMaterialDetail,
+  decodeMaterialId,
+  orchestrateMaterialObservationSave,
+  orchestrateMaterialObservationUpdate,
+  orchestrateMaterialObservationDelete
+} = require('./model')
 const { buildFreshFormState, orchestrateFreshUseUp, orchestrateFreshUndo } = require('../materials/model')
 
 function repository() {
@@ -7,19 +13,26 @@ function repository() {
   return app && app.globalData && app.globalData.repository
 }
 function toast(title) { if (typeof wx !== 'undefined' && wx.showToast) wx.showToast({ title, icon: 'none' }) }
+function touchPoint(touch) {
+  return {
+    x: Number(touch && (touch.clientX ?? touch.pageX)) || 0,
+    y: Number(touch && (touch.clientY ?? touch.pageY)) || 0
+  }
+}
 
 Page({
   data: {
     detail: { status: 'loading' },
     units: UNITS,
     unitLabels: UNITS.map(({ label }) => label),
-    showFreshForm: false,
     freshDraft: { trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     freshError: '',
     showObservationForm: false,
     observationNote: '',
     observationError: '',
+    editingObservation: null,
+    openObservationKey: '',
     undo: null
   },
   onLoad(query) { this.materialId = decodeMaterialId(query && query.id); this.reload() },
@@ -35,7 +48,14 @@ Page({
     const detail = buildMaterialDetail(material, {
       materials: repo ? repo.listMaterials() : [], recipes: repo ? repo.listRecipes() : []
     })
-    this.setData({ detail })
+    const trackingState = buildFreshFormState(material || {})
+    this.setData({
+      detail,
+      freshDraft: trackingState.freshDraft,
+      freshUnitIndex: trackingState.freshUnitIndex,
+      freshError: '',
+      openObservationKey: ''
+    })
     if (detail.status === 'ok' && wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: detail.name || '材料详情' })
   },
   onBack() { wx.navigateBack() },
@@ -63,43 +83,130 @@ Page({
   },
   onPurchaseDateChange(event) { this.savePurchaseDate(event.detail.value || null) },
   onClearPurchaseDate() { this.savePurchaseDate(null) },
-  onOpenObservation() { this.setData({ showObservationForm: true, observationError: '' }) },
-  onCancelObservation() { this.setData({ showObservationForm: false, observationNote: '', observationError: '' }) },
+  onOpenObservation() {
+    this.setData({
+      showObservationForm: true,
+      observationNote: '',
+      observationError: '',
+      editingObservation: null,
+      openObservationKey: ''
+    })
+  },
+  onCancelObservation() {
+    this.setData({
+      showObservationForm: false,
+      observationNote: '',
+      observationError: '',
+      editingObservation: null,
+      openObservationKey: ''
+    })
+  },
   onObservationInput(event) { this.setData({ observationNote: event.detail.value, observationError: '' }) },
   onSaveObservation() {
-    const result = orchestrateMaterialObservationSave({ repository: repository(), materialId: this.materialId, note: this.data.observationNote, notify: toast })
+    const editing = this.data.editingObservation
+    const result = editing
+      ? orchestrateMaterialObservationUpdate({
+        repository: repository(),
+        materialId: this.materialId,
+        recipeId: editing.recipeId,
+        direct: editing.direct,
+        observationIndex: editing.observationIndex,
+        note: this.data.observationNote,
+        notify: toast
+      })
+      : orchestrateMaterialObservationSave({
+        repository: repository(),
+        materialId: this.materialId,
+        note: this.data.observationNote,
+        notify: toast
+      })
     if (!result.saved) {
       this.setData({ observationError: result.message })
       return
     }
-    this.setData({ observationNote: '', observationError: '', showObservationForm: false })
+    this.setData({
+      observationNote: '',
+      observationError: '',
+      showObservationForm: false,
+      editingObservation: null,
+      openObservationKey: ''
+    })
     this.reload()
   },
-  onOpenTrackingForm() {
-    const repo = repository()
-    const item = repo && this.materialId ? repo.getMaterial(this.materialId) : null
-    if (!item) return toast('没有找到这个材料')
-    this.setData(buildFreshFormState(item))
+  onEditObservation(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset : {}
+    this.setData({
+      showObservationForm: true,
+      observationNote: String(dataset.note || ''),
+      observationError: '',
+      editingObservation: {
+        renderKey: String(dataset.key || ''),
+        direct: dataset.direct === true || dataset.direct === 'true',
+        recipeId: dataset.recipeId || '',
+        observationIndex: Number(dataset.index)
+      },
+      openObservationKey: ''
+    })
   },
-  onCloseFreshForm() { this.setData({ showFreshForm: false, freshError: '' }) },
-  noop() {},
-  onFreshAmountInput(event) { this.setData({ 'freshDraft.remainingAmount': event.detail.value, freshError: '' }) },
-  onFreshUnitChange(event) {
-    const index = Number(event.detail.value)
-    const safe = Number.isInteger(index) && UNITS[index] ? index : 0
-    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
+  onObservationTouchStart(event) {
+    const touch = event && event.touches && event.touches[0]
+    this._observationTouch = {
+      key: String(event && event.currentTarget && event.currentTarget.dataset.key || ''),
+      ...touchPoint(touch)
+    }
   },
-  onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '', freshError: '' }) },
-  onConfirmTracking() {
-    const draft = this.data.freshDraft
-    const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
-    if (draft.trackFreshness && String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
+  onObservationTouchEnd(event) {
+    const start = this._observationTouch
+    const key = String(event && event.currentTarget && event.currentTarget.dataset.key || '')
+    const end = touchPoint(event && event.changedTouches && event.changedTouches[0])
+    this._observationTouch = null
+    if (!start || !key || start.key !== key) return
+    const deltaX = end.x - start.x
+    const deltaY = end.y - start.y
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return
+    this.setData({ openObservationKey: deltaX < 0 ? key : '' })
+  },
+  onDeleteObservation(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset : {}
+    const result = orchestrateMaterialObservationDelete({
+      repository: repository(),
+      materialId: this.materialId,
+      recipeId: dataset.recipeId || '',
+      direct: dataset.direct === true || dataset.direct === 'true',
+      observationIndex: Number(dataset.index),
+      notify: toast
+    })
+    if (result.deleted) this.reload()
+  },
+  saveTrackingFields(fields) {
     try {
       const saved = repository().updateMaterialInventory(this.materialId, fields)
       if (!saved) throw new Error('not saved')
-      this.setData({ showFreshForm: false })
-      this.reload(); toast('追踪信息已更新')
-    } catch (_) { this.setData({ freshError: '请检查余量和日期' }); toast('请检查余量和日期') }
+      this.reload()
+    } catch (_) {
+      this.setData({ freshError: '请检查剩余量和日期' })
+      toast('请检查剩余量和日期')
+    }
+  },
+  onTrackingAmountInput(event) {
+    this.setData({ 'freshDraft.remainingAmount': event.detail.value, freshError: '' })
+  },
+  onTrackingAmountBlur(event) {
+    const raw = String((event.detail && event.detail.value) ?? this.data.freshDraft.remainingAmount).trim()
+    if (!raw) return this.saveTrackingFields({ remainingAmount: null, remainingUnit: null })
+    this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: this.data.freshDraft.remainingUnit })
+  },
+  onTrackingUnitChange(event) {
+    const index = Number(event.detail.value)
+    const safe = Number.isInteger(index) && UNITS[index] ? index : 0
+    this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
+    const raw = String(this.data.freshDraft.remainingAmount).trim()
+    if (raw) this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: UNITS[safe].value })
+  },
+  onTrackingExpiryChange(event) {
+    const expiresAt = event.detail.value || ''
+    this.setData({ 'freshDraft.expiresAt': expiresAt, freshError: '' })
+    this.saveTrackingFields({ expiresAt: expiresAt || null })
   },
   onUseUp() {
     const undo = orchestrateFreshUseUp({ repository: repository(), materialId: this.materialId, notify: toast })

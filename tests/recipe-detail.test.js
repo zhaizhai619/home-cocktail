@@ -9,6 +9,7 @@ const {
   formatDate,
   validateObservation,
   orchestrateObservationSave,
+  orchestrateObservationDelete,
   orchestrateRatingToggle,
   validateManualAbv,
   orchestrateManualAbvSave,
@@ -125,6 +126,53 @@ test('recipe detail renders multiple prepared outputs as normal serving rows wit
   assert.equal(detail.abvBadgeLabel, '编辑酒精度')
 })
 
+test('recipe detail applies the default prepared, spirit, then other ingredient order', () => {
+  const recipe = {
+    id: 'default-order',
+    name: '默认顺序',
+    ingredients: [
+      { materialId: 'lemon', amount: 20, unit: 'ml' },
+      { materialId: 'liqueur', amount: 15, unit: 'ml' },
+      { kind: 'prepared-output', preparationId: 'prep-juice', amount: 40, unit: 'ml' },
+      { materialId: 'gin', amount: 30, unit: 'ml' }
+    ],
+    advancePreparations: [{
+      id: 'prep-juice',
+      outputName: '混合果汁',
+      ingredients: [{ materialId: 'cucumber', amount: 30, unit: 'g' }],
+      steps: []
+    }]
+  }
+  const materials = [
+    { id: 'lemon', name: '柠檬汁', category: 'citrus', acquisition: 'long-term', owned: true },
+    { id: 'liqueur', name: '君度', category: 'liqueur', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
+    { id: 'cucumber', name: '黄瓜', category: 'fruit', acquisition: 'on-demand', freshOnHand: true }
+  ]
+
+  assert.deepEqual(buildRecipeDetail(recipe, materials).ingredients.map(({ name }) => name), ['混合果汁', '君度', '金酒', '柠檬汁'])
+})
+
+test('recipe detail preserves an explicitly customized ingredient order', () => {
+  const recipe = {
+    id: 'custom-order',
+    name: '自定义顺序',
+    ingredientOrderCustomized: true,
+    ingredients: [
+      { materialId: 'lemon', amount: 20, unit: 'ml' },
+      { materialId: 'gin', amount: 30, unit: 'ml' },
+      { kind: 'prepared-output', preparationId: 'prep-juice', amount: 40, unit: 'ml' }
+    ],
+    advancePreparations: [{ id: 'prep-juice', outputName: '混合果汁', ingredients: [], steps: [] }]
+  }
+  const materials = [
+    { id: 'lemon', name: '柠檬汁', category: 'citrus', acquisition: 'long-term', owned: true },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 }
+  ]
+
+  assert.deepEqual(buildRecipeDetail(recipe, materials).ingredients.map(({ name }) => name), ['柠檬汁', '金酒', '混合果汁'])
+})
+
 test('recipe detail marks an empty advance preparation as having no collapsible steps', () => {
   const detail = buildRecipeDetail({
     id: 'no-steps',
@@ -216,7 +264,14 @@ test('buildRecipeDetail composes complete display data without mutating its inpu
   assert.deepEqual(detail.tools.map(({ name }) => name), ['摇酒壶', '滤冰器'])
   assert.deepEqual(detail.steps, ['摇和除汤力水外的材料', '滤入杯中并补满汤力水', '清爽，西瓜味很自然'])
   assert.deepEqual(detail.ratings, RATINGS.map((label) => ({ label, selected: label === '顶尖' })))
-  assert.deepEqual(detail.observations, [{ materialId: 'watermelon', materialName: '西瓜', note: '无籽西瓜更省事', createdAtLabel: '2026-07-19' }])
+  assert.deepEqual(detail.observations, [{
+    materialId: 'watermelon',
+    materialName: '西瓜',
+    note: '无籽西瓜更省事',
+    createdAtLabel: '2026-07-19',
+    observationIndex: 0,
+    renderKey: 'recipe:summer:0'
+  }])
   assert.deepEqual(fixture, snapshot)
 })
 
@@ -365,6 +420,28 @@ test('repository appends timestamped observations without overwriting history', 
   ])
 })
 
+test('repository deletes exactly one recipe observation by its source index', () => {
+  const repository = createRepository(createMemoryAdapter(), {
+    idFactory: () => 'recipe-1',
+    now: () => '2026-07-20T12:30:00.000Z'
+  })
+  repository.initialize()
+  const recipe = repository.upsertRecipe({
+    name: '金酒杯',
+    ingredients: [{ materialId: 'gin', amount: 45, unit: 'ml' }],
+    materialObservations: [
+      { materialId: 'gin', note: '保留第一条', createdAt: '2026-07-18T00:00:00.000Z' },
+      { materialId: 'gin', note: '删除这一条', createdAt: '2026-07-19T00:00:00.000Z' },
+      { materialId: 'gin', note: '保留最后一条', createdAt: '2026-07-20T00:00:00.000Z' }
+    ]
+  })
+
+  const saved = repository.deleteRecipeObservation(recipe.id, 1)
+  assert.deepEqual(saved.materialObservations.map(({ note }) => note), ['保留第一条', '保留最后一条'])
+  assert.equal(repository.deleteRecipeObservation(recipe.id, 8), null)
+  assert.deepEqual(repository.getRecipe(recipe.id).materialObservations.map(({ note }) => note), ['保留第一条', '保留最后一条'])
+})
+
 test('recipe observation, duplicate, and delete writes roll back memory and persistence on storage failure', () => {
   for (const operation of ['observation', 'duplicate', 'delete']) {
     const adapter = createFaultAdapter()
@@ -399,6 +476,34 @@ test('observation save orchestration handles validation, success, and repository
   assert.deepEqual(calls, [{ id: 'summer', value: { materialId: 'gin', note: '干爽' } }])
   assert.equal(orchestrateObservationSave({ repository: { appendRecipeObservation() { throw new Error('offline') } }, recipe, materialId: 'gin', note: 'x', notify: (value) => messages.push(value) }).saved, false)
   assert.equal(messages.at(-1), '保存失败，请重试')
+})
+
+test('observation delete orchestration reports success and storage failures', () => {
+  const calls = []
+  const messages = []
+  const repository = {
+    deleteRecipeObservation(recipeId, observationIndex) {
+      calls.push({ recipeId, observationIndex })
+      return { id: recipeId }
+    }
+  }
+
+  assert.equal(orchestrateObservationDelete({
+    repository,
+    recipeId: 'summer',
+    observationIndex: 2,
+    notify: (value) => messages.push(value)
+  }).deleted, true)
+  assert.deepEqual(calls, [{ recipeId: 'summer', observationIndex: 2 }])
+  assert.equal(messages.at(-1), '记录已删除')
+
+  assert.equal(orchestrateObservationDelete({
+    repository: { deleteRecipeObservation() { throw new Error('offline') } },
+    recipeId: 'summer',
+    observationIndex: 0,
+    notify: (value) => messages.push(value)
+  }).deleted, false)
+  assert.equal(messages.at(-1), '删除失败，请重试')
 })
 
 test('rating toggle saves directly and remembers when an untried recipe was promoted', () => {
@@ -556,10 +661,12 @@ test('mini program registers the detail route and wires recipe selection to a st
   assert.ok(app.pages.includes('pages/recipe-detail/index'))
   assert.match(listController, /event\.detail\.id/)
   assert.match(listController, /pages\/recipe-detail\/index\?id=/)
-  for (const handler of ['onEdit', 'onDelete', 'onSaveObservation', 'onObservationMaterialChange']) {
+  for (const handler of ['onEdit', 'onDelete']) {
     assert.match(detailTemplate, new RegExp(`bind(?:tap|change)="${handler}"`))
     assert.match(detailController, new RegExp(`${handler}\\(`))
   }
+  assert.doesNotMatch(detailTemplate, /材料观察|onSaveObservation|onObservationMaterialChange/)
+  assert.doesNotMatch(detailController, /onSaveObservation\(|onObservationMaterialChange\(/)
   assert.doesNotMatch(detailTemplate, /stateLabel|手头有|随买随用|暂时没有/)
   assert.match(detailTemplate, /aria-label="\{\{item\.accessibilityLabel\}\}"/)
   assert.match(detailTemplate, /detail\.abvBadgeLabel/)

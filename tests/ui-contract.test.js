@@ -4,6 +4,7 @@ const path = require('node:path')
 const test = require('node:test')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
+const { createHash } = require('node:crypto')
 
 const ROOT = path.resolve(__dirname, '..')
 const MINI = path.join(ROOT, 'miniprogram')
@@ -54,6 +55,38 @@ test('native tab bar provides local normal and selected icons for all three entr
     assert.match(item.selectedIconPath, /^assets\/tabbar\/[^/]+-active\.png$/)
     assert.equal(fs.existsSync(path.join(MINI, item.iconPath)), true, item.iconPath)
     assert.equal(fs.existsSync(path.join(MINI, item.selectedIconPath)), true, item.selectedIconPath)
+  }
+})
+
+test('native tab bar uses receipt text for recipes and martini for the bar', () => {
+  const tabbar = path.join(MINI, 'assets/tabbar')
+  const expectedGeometry = {
+    menu: '<path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/>',
+    materials: '<path d="M12 12 4.207 4.207A.707.707 0 0 1 4.707 3h14.586a.707.707 0 0 1 .5 1.207z"/><path d="M12 12v10"/><path d="M7 22h10"/>'
+  }
+  const expectedPngHashes = {
+    menu: '1e4595eda0753cc5b2556647781cfca666f064ed2445b3fc0d84895d7126d05c',
+    'menu-active': 'dc3d28a695aff62718c856037a5324d4670e591e9a43f20149a7bcb7e31c1137',
+    materials: 'de168e4d2d4fa080ab2fb6e0e70b871024d2076ef17cfa94610511d4529687aa',
+    'materials-active': '548c23edccd87f03533bd39bb732c06787de929b750a42ae97f6661b1cfc843c'
+  }
+
+  for (const [name, geometry] of Object.entries(expectedGeometry)) {
+    const normalSvg = fs.readFileSync(path.join(tabbar, `${name}.svg`), 'utf8')
+    const activeSvg = fs.readFileSync(path.join(tabbar, `${name}-active.svg`), 'utf8')
+    assert.equal(normalSvg.match(/^<svg[^>]*>(.*)<\/svg>\s*$/)[1], geometry)
+    assert.equal(activeSvg.match(/^<svg[^>]*>(.*)<\/svg>\s*$/)[1], geometry)
+    assert.match(normalSvg, /stroke="#9d9991"[^>]*stroke-width="1\.8"/)
+    assert.match(activeSvg, /stroke="#242321"[^>]*stroke-width="2\.1"/)
+
+    for (const suffix of ['', '-active']) {
+      const pngName = `${name}${suffix}`
+      const png = fs.readFileSync(path.join(tabbar, `${pngName}.png`))
+      assert.equal(png.readUInt32BE(16), 81)
+      assert.equal(png.readUInt32BE(20), 81)
+      assert.equal(png[25], 6)
+      assert.equal(createHash('sha256').update(png).digest('hex'), expectedPngHashes[pngName])
+    }
   }
 })
 
@@ -127,6 +160,43 @@ test('materials catalog uses compact scrollable tabs and an aligned two-column c
   assert.match(css, /\.materials-page \.library-card\s*{[^}]*box-sizing:\s*border-box[^}]*width:\s*100%[^}]*min-height:\s*176rpx/)
   assert.match(css, /\.library-card\.state-owned\s*{[^}]*background:/)
   assert.match(css, /\.library-card\.state-missing-long-term[^}]*{[^}]*border:/)
+  assert.match(wxml, /wx:else class="empty-materials"><text>没有符合要求的材料<\/text><\/view>/)
+  assert.doesNotMatch(wxml, /没有符合条件的材料|新增一种材料/)
+  assert.match(css, /\.empty-materials\s*{[^}]*margin-top:\s*32rpx[^}]*color:\s*#9d9991[^}]*font-size:\s*23rpx[^}]*text-align:\s*center/)
+  assert.doesNotMatch(css, /\.empty-materials\s*{[^}]*(?:background|border|box-shadow):/)
+})
+
+test('choosing a category without search matches clears the query before reloading', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/materials/index.js'))
+  const context = {
+    data: {
+      ...page.data,
+      search: '黄瓜',
+      categoryFilter: 'all',
+      searchMatchCategoryKeys: ['produce', 'mixer']
+    },
+    reloadCount: 0,
+    setData(value) { Object.assign(this.data, value) },
+    reload() { this.reloadCount += 1 }
+  }
+
+  page.onSelectCategory.call(context, { currentTarget: { dataset: { key: 'base' } } })
+  assert.equal(context.data.categoryFilter, 'base')
+  assert.equal(context.data.search, '')
+  assert.equal(context.reloadCount, 1)
+
+  context.data.search = '黄瓜'
+  page.onSelectCategory.call(context, { currentTarget: { dataset: { key: 'produce' } } })
+  assert.equal(context.data.categoryFilter, 'produce')
+  assert.equal(context.data.search, '黄瓜')
+  assert.equal(context.reloadCount, 2)
+
+  context.data.search = '完全不存在的材料'
+  context.data.searchMatchCategoryKeys = []
+  page.onSelectCategory.call(context, { currentTarget: { dataset: { key: 'all' } } })
+  assert.equal(context.data.categoryFilter, 'all')
+  assert.equal(context.data.search, '')
+  assert.equal(context.reloadCount, 3)
 })
 
 test('fresh shelf defaults to purchase rows and expands one inline recipe list', () => {
@@ -158,8 +228,10 @@ test('fresh shelf defaults to purchase rows and expands one inline recipe list',
   assert.doesNotMatch(wxml, /class="disclosure"[^>]*>\{\{freshShelfExpanded \? '收起' : '展开'\}\}/)
   assert.match(wxml, /wx:if="{{freshShelfExpanded}}"[^>]*class="fresh-list"/)
   assert.match(wxml, /class="fresh-summary"[^>]*bindtap="onToggleFreshItem"/)
-  assert.match(wxml, /购买日期 \{\{item\.purchaseDateLabel\}\}/)
-  assert.match(wxml, /未记录购买日期/)
+  assert.match(wxml, /class="fresh-remaining \{\{item\.needsReminder \? 'is-alert' : ''\}\} \{\{item\.remainingMissing \? 'is-empty' : ''\}\}"[^>]*catchtap="onOpenRemainingEditor"[^>]*data-id="\{\{item\.id\}\}"/)
+  assert.match(wxml, /wx:if="{{item\.needsReminder}}"[^>]*class="fresh-alert-mark"[^>]*>!<\/text>\s*<text class="fresh-remaining-label \{\{item\.remainingMissing \? 'is-empty' : ''\}\}">/)
+  assert.match(wxml, /\{\{item\.needsReminder \? item\.reminderLabel : item\.remainingLabel\}\}/)
+  assert.match(wxml, /class="fresh-detail-meta"[\s\S]*购买日期 \{\{item\.purchaseDateLabel \|\| '未填写'\}\}[\s\S]*预计到期 \{\{item\.expiryDateLabel \|\| '未填写'\}\}/)
   assert.match(wxml, /catchtap="onUseUp"/)
   assert.doesNotMatch(wxml, /优先用掉，少一点浪费/)
   assert.doesNotMatch(wxml, /fresh-summary-actions|expandedFreshMaterialId === item\.id \? '⌃' : '⌄'/)
@@ -177,19 +249,51 @@ test('fresh shelf defaults to purchase rows and expands one inline recipe list',
   assert.match(css, /\.fresh-disclosure-chevron\.is-expanded\s*{[^}]*transform:\s*rotate\(-135deg\)/)
   assert.match(css, /\.fresh-card\s*{[^}]*width:\s*100%/)
   assert.match(css, /\.fresh-summary\s*{[^}]*display:\s*grid[^}]*grid-template-columns:/)
-  assert.match(css, /\.fresh-purchase-date\s*{[^}]*text-align:\s*center/)
+  assert.match(css, /\.fresh-remaining\s*{[^}]*color:\s*#6f6c66[^}]*font-size:\s*23rpx/)
+  assert.match(css, /\.fresh-remaining\.is-alert\s*{[^}]*color:\s*#985a54[^}]*background:\s*#f6e3df[^}]*border:\s*1rpx solid #d98c82/)
+  assert.match(css, /\.fresh-remaining-label\.is-empty\s*{[^}]*text-decoration:\s*underline[^}]*text-underline-offset:/)
+  assert.doesNotMatch(css, /\.fresh-remaining\.is-empty\s*{[^}]*text-decoration:/)
+  assert.match(css, /\.fresh-detail-meta\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/)
+  assert.doesNotMatch(css, /\.fresh-detail-meta\s*{[^}]*border-top:/)
   assert.match(css, /\.use-up\s*{[^}]*width:\s*72rpx/)
   assert.match(css, /\.fresh-recipe-row\s*{[^}]*display:\s*grid[^}]*grid-template-columns:/)
+  assert.match(wxml, /wx:if="{{remainingEditorOpen}}"[^>]*class="sheet-mask remaining-editor-mask"[\s\S]*class="sheet remaining-editor"[\s\S]*编辑余量 · \{\{remainingDraft\.name\}\}[\s\S]*bindinput="onRemainingAmountInput"[\s\S]*bindchange="onRemainingUnitChange"[\s\S]*bindtap="onSaveRemaining"/)
+  const remainingEditorTemplate = wxml.slice(
+    wxml.indexOf('<view wx:if="{{remainingEditorOpen}}"'),
+    wxml.indexOf('<view wx:if="{{showFreshForm}}"')
+  )
+  assert.doesNotMatch(remainingEditorTemplate, /sheet-handle/)
+  assert.match(css, /\.remaining-editor-mask\s*{[^}]*align-items:\s*center[^}]*justify-content:\s*center[^}]*padding:\s*32rpx/)
+  assert.match(css, /\.remaining-editor\s*{[^}]*width:\s*560rpx[^}]*max-width:\s*100%[^}]*padding:\s*28rpx[^}]*border-radius:\s*26rpx/)
+  assert.match(css, /\.remaining-editor \.amount-row\s*{[^}]*height:\s*68rpx[^}]*align-items:\s*center/)
+  assert.match(css, /\.materials-page \.remaining-editor \.amount-row input\s*{[^}]*height:\s*68rpx[^}]*min-height:\s*68rpx[^}]*max-height:\s*68rpx[^}]*line-height:\s*68rpx[^}]*align-self:\s*center/)
+  assert.match(css, /\.remaining-editor \.amount-row picker\s*{[^}]*height:\s*68rpx[^}]*align-self:\s*center/)
+  assert.match(css, /\.remaining-editor \.picker-value\s*{[^}]*height:\s*68rpx[^}]*min-height:\s*68rpx[^}]*max-height:\s*68rpx[^}]*line-height:\s*68rpx/)
+  assert.match(css, /\.remaining-actions\s*{[^}]*display:\s*flex[^}]*justify-content:\s*center/)
+  assert.match(css, /\.materials-page \.remaining-actions button\s*{[^}]*width:\s*136rpx[^}]*min-height:\s*56rpx[^}]*font-size:\s*22rpx[^}]*line-height:\s*56rpx/)
   assert.doesNotMatch(css, /\.fresh-card\s*{[^}]*width:\s*520rpx/)
 })
 
-test('expanded fresh recipe rows navigate directly to recipe detail without a sheet', () => {
+test('expanded fresh recipe rows navigate directly while remaining edits stay on the bar page', () => {
   let navigation = null
   const page = registeredDefinition(path.join(MINI, 'pages/materials/index.js'), {
     navigateTo(options) { navigation = options.url }
   })
   const wxml = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxml'), 'utf8')
   page.onOpenRecipe.call({}, { currentTarget: { dataset: { id: 'r1' } } })
+  assert.equal(navigation, '/pages/recipe-detail/index?id=r1')
+
+  const context = {
+    data: {
+      ...page.data,
+      freshShelf: [{ id: 'cucumber', name: '黄瓜', remainingAmount: null, remainingUnit: null, defaultUnit: 'g' }]
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+  page.onOpenRemainingEditor.call(context, { currentTarget: { dataset: { id: 'cucumber' } } })
+  assert.equal(context.data.remainingEditorOpen, true)
+  assert.equal(context.data.remainingDraft.materialId, 'cucumber')
+  assert.equal(context.data.remainingDraft.remainingAmount, '')
   assert.equal(navigation, '/pages/recipe-detail/index?id=r1')
 
   assert.equal(page.data.recipeSheetOpen, undefined)
@@ -211,9 +315,10 @@ test('material editor pairs acquisition with default unit and hides material for
   const pairedFields = editor.match(/<view class="two-columns">[\s\S]*?<\/view>\s*<\/view>/)[0]
   assert.deepEqual(Array.from(page.data.categoryLabels), ['基酒', '利口酒', '糖浆', '果汁/果蔬', '混合饮品', '香料', '其他'])
   assert.doesNotMatch(editor, />系统分类</)
-  assert.match(editor, />分类 \*</)
-  assert.match(pairedFields, />获取方式 \*</)
-  assert.match(pairedFields, />默认用量单位 \*</)
+  assert.match(editor, />分类</)
+  assert.match(pairedFields, />获取方式</)
+  assert.match(pairedFields, />默认用量单位</)
+  assert.doesNotMatch(editor, />[^<]*\*/)
   assert.doesNotMatch(editor, />材料形态 \*</)
   assert.doesNotMatch(editor, /bindchange="onFormChange"/)
 })
@@ -272,8 +377,8 @@ test('recipe editor opens a dedicated two-column glassware selection page with i
   assert.match(picker, /bindtap="onSaveGlassware"/)
   assert.doesNotMatch(picker, /编辑|删除|onEditGlassware|onRequestDeleteGlassware/)
   assert.match(pickerCss, /\.glass-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
-  assert.match(pickerCss, /\.page-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#342f2b[^}]*border-radius:\s*999rpx/)
-  assert.match(barCss, /\.materials-page \.pane-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#342f2b[^}]*border-radius:\s*999rpx/)
+  assert.match(pickerCss, /\.page-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#242321[^}]*border-radius:\s*999rpx/)
+  assert.match(barCss, /\.materials-page \.pane-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#242321[^}]*border-radius:\s*999rpx/)
   assert.match(pickerCss, /padding-bottom:\s*calc\(40rpx \+ env\(safe-area-inset-bottom\)\)/)
 })
 
@@ -306,13 +411,13 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(editor, /bindtap="onRemoveAdvancePreparation"/)
   assert.match(editor, />制作方式</)
   assert.match(editorCss, /\.material-stage-switch\s*\{[^}]*display:\s*flex/)
-  assert.match(editorCss, /\.material-stage-switch\s*\{[^}]*border-bottom:\s*1rpx solid #ddd6cf/)
-  assert.match(editorCss, /\.material-stage\.selected::before\s*\{[^}]*height:\s*4rpx[^}]*background:\s*#24211f/)
-  assert.doesNotMatch(editorCss, /\.material-stage\.selected\s*\{[^}]*background:\s*#(?:6c594a|24211f)/)
+  assert.match(editorCss, /\.material-stage-switch\s*\{[^}]*border-bottom:\s*1rpx solid #e7e4dd/)
+  assert.match(editorCss, /\.material-stage\.selected::before\s*\{[^}]*height:\s*4rpx[^}]*background:\s*#242321/)
+  assert.doesNotMatch(editorCss, /\.material-stage\.selected\s*\{[^}]*background:\s*#242321/)
   assert.match(detail, /wx:for="{{detail\.ingredients}}"/)
-  assert.match(detail, /wx:if="{{item\.preparation}}"[^>]*class="advance-inline"/)
+  assert.match(detail, /<block wx:if="{{item\.preparation}}">[\s\S]*class="advance-group"[\s\S]*class="advance-summary"[\s\S]*class="advance-inline-ingredients"/)
   assert.doesNotMatch(detail, /wx:for="{{detail\.advancePreparations}}"|>提前准备 ·/)
-  assert.match(editorCss, /\.advance-card\s*\{[^}]*background:\s*#f8ead4/)
+  assert.match(editorCss, /\.advance-card\s*\{[^}]*background:\s*#f1f0ec/)
   assert.match(editorCss, /\.advance-name\s*\{[^}]*height:\s*52rpx[^}]*padding:\s*0 8rpx/)
   assert.match(editorCss, /\.advance-add-material\s*\{[^}]*display:\s*inline-flex[^}]*min-height:\s*40rpx[^}]*padding:\s*0 6rpx/)
   assert.match(editorCss, /\.advance-card-delete\s*\{[^}]*width:\s*52rpx[^}]*min-height:\s*32rpx/)
@@ -338,13 +443,18 @@ test('recipe detail nests advance materials and independently toggles non-empty 
   assert.equal(context.data.expandedPreparationIds['prep-a'], false)
   assert.equal(context.data.expandedPreparationIds['prep-b'], true)
 
-  assert.match(template, /wx:for="{{item\.preparation\.ingredients}}"/)
+  assert.match(template, /class="advance-group"[\s\S]*class="advance-summary"[\s\S]*class="ingredient-row prepared {{item\.state}}"[\s\S]*class="advance-inline-ingredients"[\s\S]*wx:for="{{item\.preparation\.ingredients}}"[\s\S]*class="advance-steps-toggle"[\s\S]*class="advance-steps"/)
   assert.match(template, /wx:if="{{item\.preparation\.hasSteps}}"[^>]*class="advance-steps-toggle"[^>]*bindtap="onTogglePreparationSteps"/)
-  assert.match(template, /\{\{expandedPreparationIds\[item\.preparation\.id\] \? '▼' : '▶'\}\} 制作步骤/)
+  assert.match(template, /class="advance-steps-toggle"[^>]*>\s*制作步骤\s*<\/view>/)
+  assert.doesNotMatch(template, /▶|▼|advance-step-index/)
   assert.match(template, /wx:if="{{expandedPreparationIds\[item\.preparation\.id\]}}"[^>]*class="advance-steps"/)
-  assert.match(css, /\.advance-inline\s*{[^}]*background:\s*#f7f3ed[^}]*border:\s*1rpx solid #e9dfd3/)
-  assert.doesNotMatch(css, /\.advance-inline\s*{[^}]*background:\s*#f8e4d7/)
+  assert.match(css, /\.advance-group\s*{[^}]*margin:\s*0 0 18rpx[^}]*padding:\s*0[^}]*background:\s*rgba\(111,\s*108,\s*102,\s*\.035\)[^}]*border:\s*0[^}]*box-shadow:\s*none/)
+  assert.doesNotMatch(css, /\.advance-summary\s*{[^}]*(?:background|border):/)
+  assert.doesNotMatch(css, /\.advance-inline-ingredients\s*{[^}]*(?:background|border):/)
+  assert.match(css, /\.advance-ingredient-row\s*{[^}]*position:\s*relative[^}]*padding:\s*0 12rpx 0 36rpx[^}]*color:\s*#77736c[^}]*border:\s*0/)
+  assert.match(css, /\.advance-ingredient-row:not\(:last-child\)::after\s*{[^}]*left:\s*36rpx[^}]*right:\s*24rpx[^}]*height:\s*1rpx[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*\.07\)/)
   assert.match(css, /\.advance-steps-toggle\s*{[^}]*font-size:\s*23rpx/)
+  assert.doesNotMatch(css, /\.advance-step-index\s*{/)
 })
 
 test('all preparation copy uses 预调 while retaining only one internal legacy alias', () => {
@@ -548,18 +658,27 @@ test('all material availability and optional tracking are controlled from detail
   assert.doesNotMatch(editor, /bindchange="onOwnedChange"/)
   assert.doesNotMatch(editor, /bindchange="onFreshChange"/)
   assert.doesNotMatch(editorScript, /onFreshChange\s*\(/)
-  assert.match(editor, /<switch[^>]*checked="{{form\.trackFreshness}}"[^>]*bindchange="onTrackChange"/)
+  assert.doesNotMatch(editor, /checked="{{form\.trackFreshness}}"|bindchange="onTrackChange"/)
   assert.match(detail, /class="availability-row"/)
   assert.match(detail, /<switch[^>]*checked="{{detail\.available}}"[^>]*bindchange="onToggleAvailable"/)
   assert.match(detail, /wx:if="{{detail\.canToggleTracking}}"[^>]*class="tracking-row"/)
   assert.match(detail, /<switch[^>]*checked="{{detail\.trackFreshness}}"[^>]*bindchange="onToggleTracking"/)
-  assert.match(detail, /wx:if="{{detail\.canEditTracking}}"[^>]*bindtap="onOpenTrackingForm"[^>]*>更新追踪信息</)
+  assert.doesNotMatch(detail, /更新追踪信息|onOpenTrackingForm|showFreshForm|sheet-mask/)
+  assert.match(detail, /wx:if="{{detail\.canEditTracking}}" class="tracking-details"/)
+  assert.match(detail, /class="tracking-detail-label">购买日期<\/text>/)
+  assert.match(detail, /class="tracking-detail-label">剩余量<\/text>/)
+  assert.match(detail, /class="tracking-detail-label">预计过期日<\/text>/)
+  assert.match(detail, /bindblur="onTrackingAmountBlur"/)
+  assert.match(detail, /bindchange="onTrackingUnitChange"/)
+  assert.match(detail, /bindchange="onTrackingExpiryChange"/)
+  assert.doesNotMatch(editorScript, /onFreshChange\s*\(/)
+  assert.doesNotMatch(fs.readFileSync(path.join(MINI, 'pages/material-detail/index.js'), 'utf8'), /showFreshForm|onOpenTrackingForm|onConfirmTracking/)
   assert.doesNotMatch(detail, />加入手头鲜材</)
   const actions = editor.match(/<view class="form-actions">[\s\S]*?<\/view>/)[0]
   assert.match(actions, /class="save"[^>]*>保存材料<\/button>/)
   assert.match(actions, /class="delete"[^>]*>删除材料<\/button>/)
   assert.match(editorCss, /\.form-actions\s*{[^}]*display:\s*flex[^}]*align-items:\s*stretch/)
-  assert.match(editorCss, /\.form-actions \.save\s*{[^}]*flex:\s*2/)
+  assert.match(editorCss, /\.form-actions \.save\s*{[^}]*flex:\s*1/)
   assert.match(editorCss, /\.form-actions \.delete\s*{[^}]*flex:\s*1/)
 })
 
@@ -595,7 +714,7 @@ test('home collapses every filter group behind one all trigger', () => {
   assert.doesNotMatch(recipes, /class="topbar"|class="page-title">我的酒单</)
   assert.match(css, /\.filter-bar\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*width:\s*100%/)
   assert.match(css, /\.filter-trigger\s*{[^}]*justify-content:\s*flex-start[^}]*flex:\s*1[^}]*width:\s*auto[^}]*margin-left:\s*0[^}]*text-align:\s*left/)
-  assert.match(css, /\.filter-symbol\.active \.filter-symbol-line\s*{[^}]*background:\s*#b86f29/)
+  assert.match(css, /\.filter-symbol\.active \.filter-symbol-line\s*{[^}]*background:\s*#957052/)
   assert.match(css, /\.filter-panel\s*{[^}]*position:\s*absolute[^}]*z-index:\s*10[^}]*right:\s*32rpx[^}]*left:\s*32rpx[^}]*max-width:\s*calc\(100vw - 64rpx\)[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*hidden[^}]*background:/)
   assert.match(css, /\.filter-option-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)[^}]*gap:\s*8rpx/)
   assert.match(css, /\.filter-option\s*{[^}]*min-width:\s*0[^}]*overflow:\s*hidden/)
@@ -680,7 +799,7 @@ test('home uses the same labeled dark pill add button as the bar page', () => {
   const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
   assert.match(template, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*<button size="mini" class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒">＋ 新增<\/button>/)
   assert.doesNotMatch(template, /class="add-button"/)
-  assert.match(css, /\.add-hit\s*{[^}]*flex:\s*none[^}]*width:\s*auto[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx[^}]*margin:\s*0[^}]*padding:\s*0 20rpx[^}]*color:\s*#fff[^}]*background:\s*#342f2b[^}]*border-radius:\s*999rpx[^}]*font-size:\s*21rpx[^}]*line-height:\s*64rpx/)
+  assert.match(css, /\.add-hit\s*{[^}]*flex:\s*none[^}]*width:\s*auto[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx[^}]*margin:\s*0[^}]*padding:\s*0 20rpx[^}]*color:\s*#ffffff[^}]*background:\s*#242321[^}]*border-radius:\s*999rpx[^}]*font-size:\s*21rpx[^}]*line-height:\s*64rpx/)
   assert.match(css, /\.add-hit::after[^}]*{[^}]*border:\s*0/)
   assert.doesNotMatch(css, /linear-gradient\(145deg,\s*#bd7b31,\s*#9d5f22\)/)
 })
@@ -703,19 +822,19 @@ test('recipe detail ratings keep the original tag sizing while saving directly',
   assert.match(template, /aria-label="\{\{item\.label\}\}\{\{item\.selected \? '，已选择，再点取消' : '，点按评价'\}\}"/)
   assert.match(controller, /onToggleRating\(event\)/)
   assert.match(controller, /orchestrateRatingToggle/)
-  assert.match(css, /\.rating-option\s*{[^}]*color:\s*#766c63[^}]*background:\s*#eee8df/)
+  assert.match(css, /\.rating-option\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*#f1f0ec/)
   assert.doesNotMatch(css, /\.detail-page \.ratings \.rating-option/)
 })
 
-test('recipe detail shows combined notes only in the steps section', () => {
+test('recipe detail shows combined notes only in the notes section', () => {
   const template = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
   assert.doesNotMatch(template, /detail\.tastingNote|暂未记录总体备注/)
   assert.doesNotMatch(css, /\.tasting-note/)
-  assert.match(template, /<text class="section-title">制作步骤<\/text>[\s\S]*wx:for="\{\{detail\.steps\}\}"/)
+  assert.match(template, /<text class="section-title">备注<\/text>[\s\S]*wx:for="\{\{detail\.steps\}\}"/)
 })
 
-test('recipe cards distinguish prepared outputs with a warm ingredient label', () => {
+test('recipe cards distinguish prepared outputs with a quiet neutral ingredient label', () => {
   const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
   assert.match(card, /class="ingredient \{\{item\.state\}\}"/)
@@ -727,7 +846,7 @@ test('recipe cards identify untried recipes in the rating position', () => {
   const css = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
   assert.match(card, /wx:if="{{recipe\.untriedLabel}}"[^>]*class="untried-label"[^>]*>{{recipe\.untriedLabel}}/)
   assert.match(card, /wx:elif="{{recipe\.rating}}"[^>]*class="rating"/)
-  assert.match(css, /\.untried-label\s*{[^}]*color:\s*#655f59[^}]*background:/)
+  assert.match(css, /\.untried-label\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*#f1f0ec/)
 })
 
 test('recipe page builds a null-prototype material lookup for legacy-safe ids', () => {
@@ -903,7 +1022,7 @@ test('every editable form exposes validation feedback inside the form', () => {
   const expected = new Map([
     ['pages/recipe-edit/index.wxml', /errors\./],
     ['pages/material-edit/index.wxml', /errors\./],
-    ['pages/recipe-detail/index.wxml', /observationError/],
+    ['pages/recipe-detail/index.wxml', /manualAbvError/],
     ['pages/materials/index.wxml', /freshError[\s\S]*glassError|glassError[\s\S]*freshError/],
     ['pages/material-detail/index.wxml', /freshError/]
   ])
@@ -933,14 +1052,14 @@ test('recipe detail uses compact meta tags and folds glassware into the material
   assert.match(wxml, /class="ingredient-name">{{item\.name}}<\/text><text wx:if="{{item\.state === 'quick-buy'}}" class="quick-buy-icon"[^>]*>🛍️<\/text>/)
   assert.doesNotMatch(wxml, /class="row-arrow"|>酒杯与用具</)
   assert.doesNotMatch(css, /\.ingredient-row\.quick-buy\s*{[^}]*background/)
-  assert.match(css, /\.abv-badge\s*{[^}]*min-height:\s*48rpx[^}]*padding:\s*0 18rpx[^}]*border:\s*0/)
+  assert.match(css, /\.abv-badge\s*{[^}]*min-height:\s*48rpx[^}]*padding:\s*0 18rpx[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
   assert.match(wxml, /bindinput="onManualAbvInput"/)
   assert.match(wxml, /bindtap="onSaveManualAbv"/)
   assert.match(wxml, /bindtap="onClearManualAbv"/)
   assert.doesNotMatch(wxml, /预估酒精度|预计总体积|总体积信息不完整|detail\.capacity|calculation-notice|onEditMissingAbv/)
 })
 
-test('material observations can be recorded repeatedly from material detail while recipe entry remains available', () => {
+test('material observations are added and edited only from material detail', () => {
   const material = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxml'), 'utf8')
   const materialScript = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.js'), 'utf8')
   const recipe = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
@@ -951,32 +1070,100 @@ test('material observations can be recorded repeatedly from material detail whil
   assert.match(material, /bindtap="onCancelObservation"[^>]*>取消<\/button>/)
   assert.match(material, /wx:if="{{observationError}}"[^>]*>{{observationError}}/)
   assert.match(material, /<text class="note">\{\{item\.note\}\}<\/text>/)
+  assert.match(material, /class="observation-swipe[^"]*"[^>]*bindtouchstart="onObservationTouchStart"[^>]*bindtouchend="onObservationTouchEnd"/)
+  assert.match(material, /class="observation-actions"[\s\S]*class="observation-edit"[^>]*catchtap="onEditObservation"[^>]*>编辑<\/view>[\s\S]*class="observation-delete"[^>]*catchtap="onDeleteObservation"[^>]*>删除<\/view>/)
+  assert.match(material, /<view class="observation-delete"[^>]*catchtap="onDeleteObservation"[^>]*aria-role="button"[^>]*>删除<\/view>/)
+  assert.match(material, /wx:if="{{!editingObservation \|\| editingObservation\.renderKey !== item\.renderKey}}"/)
   assert.match(material, /wx:if="{{item\.direct}}" class="note-source">\{\{item\.createdAtLabel \|\| '未记录日期'\}\}<\/text>/)
   assert.doesNotMatch(material, /“|”|记录于/)
   assert.match(material, /\{\{item\.createdAtLabel \|\| '未记录日期'\}\}/)
   assert.doesNotMatch(material, /\{\{item\.createdAt \|\| '未记录日期'\}\}/)
   const materialCss = fs.readFileSync(path.join(MINI, 'pages/material-detail/index.wxss'), 'utf8')
+  assert.match(materialCss, /\.observation-swipe\.open \.observation-swipe-content\s*\{[^}]*transform:\s*translateX\(-256rpx\)/)
+  assert.match(materialCss, /\.observation-actions\s*\{[^}]*display:\s*flex[^}]*width:\s*244rpx[^}]*gap:\s*12rpx/)
+  assert.match(materialCss, /\.observation-edit\s*\{[^}]*color:\s*#3f4144[^}]*background:\s*#ffffff[^}]*border:\s*1rpx solid #d8d5cf/)
+  assert.match(materialCss, /\.observation-delete\s*\{[^}]*display:\s*flex[^}]*width:\s*116rpx[^}]*color:\s*#985a54[^}]*background:\s*#f6e3df[^}]*border-radius:\s*18rpx/)
+  assert.match(materialCss, /\.observation-heading\s*\{[^}]*justify-content:\s*space-between[^}]*width:\s*100%/)
   assert.match(materialCss, /\.observations \.section-title\s*\{[^}]*font-weight:\s*400/)
   assert.match(materialCss, /\.material-observation-form\s*\{[^}]*padding:\s*14rpx[^}]*border-radius:\s*18rpx/)
   assert.match(materialCss, /\.material-observation-form textarea\s*\{[^}]*height:\s*96rpx[^}]*min-height:\s*96rpx[^}]*background:\s*transparent[^}]*border:\s*0/)
   assert.match(materialCss, /\.cancel-observation\.cancel-observation,\.save-observation\.save-observation\s*\{[^}]*width:\s*104rpx[^}]*height:\s*52rpx[^}]*min-height:\s*52rpx[^}]*padding:\s*0[^}]*border-radius:\s*999rpx/)
   assert.doesNotMatch(material, /还没有关于这个材料的品尝记录/)
-  assert.match(materialScript, /this\.setData\(\{\s*observationNote:\s*'',\s*observationError:\s*'',\s*showObservationForm:\s*false\s*\}\)/)
-  assert.match(recipe, /class="observation-form"/)
-  assert.match(recipe, /bindtap="onSaveObservation"/)
+  assert.match(materialScript, /onEditObservation\(event\)/)
+  assert.match(materialScript, /orchestrateMaterialObservationUpdate/)
+  assert.doesNotMatch(recipe, /材料观察|observation-form|onSaveObservation|onDeleteObservation/)
+})
+
+test('observation rows open on a deliberate left swipe and close on a right swipe', () => {
+  for (const route of ['material-detail']) {
+    const page = registeredDefinition(path.join(MINI, `pages/${route}/index.js`))
+    const context = {
+      data: { openObservationKey: '' },
+      setData(value) { Object.assign(this.data, value) }
+    }
+
+    page.onObservationTouchStart.call(context, {
+      currentTarget: { dataset: { key: 'observation-1' } },
+      touches: [{ clientX: 240, clientY: 80 }]
+    })
+    page.onObservationTouchEnd.call(context, {
+      currentTarget: { dataset: { key: 'observation-1' } },
+      changedTouches: [{ clientX: 150, clientY: 86 }]
+    })
+    assert.equal(context.data.openObservationKey, 'observation-1', `${route} opens`)
+
+    page.onObservationTouchStart.call(context, {
+      currentTarget: { dataset: { key: 'observation-1' } },
+      touches: [{ clientX: 150, clientY: 80 }]
+    })
+    page.onObservationTouchEnd.call(context, {
+      currentTarget: { dataset: { key: 'observation-1' } },
+      changedTouches: [{ clientX: 225, clientY: 84 }]
+    })
+    assert.equal(context.data.openObservationKey, '', `${route} closes`)
+  }
 })
 
 test('material observation add control expands and cancels its inline form', () => {
   const page = registeredDefinition(path.join(MINI, 'pages/material-detail/index.js'))
   const context = {
-    data: { showObservationForm: false, observationNote: '待清空', observationError: '待清空' },
+    data: { showObservationForm: false, observationNote: '待清空', observationError: '待清空', editingObservation: { direct: true } },
     setData(value) { Object.assign(this.data, value) }
   }
 
   page.onOpenObservation.call(context)
   assert.equal(context.data.showObservationForm, true)
+  assert.equal(context.data.editingObservation, null)
   page.onCancelObservation.call(context)
-  assert.deepEqual(context.data, { showObservationForm: false, observationNote: '', observationError: '' })
+  assert.deepEqual(context.data, { showObservationForm: false, observationNote: '', observationError: '', editingObservation: null, openObservationKey: '' })
+})
+
+test('editing a material observation tracks the row being hidden until save or cancel', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/material-detail/index.js'))
+  const context = {
+    data: { showObservationForm: false, observationNote: '', observationError: '', editingObservation: null, openObservationKey: 'material:gin:0' },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  page.onEditObservation.call(context, {
+    currentTarget: {
+      dataset: {
+        key: 'material:gin:0',
+        direct: true,
+        recipeId: '',
+        index: 0,
+        note: '原来的观察'
+      }
+    }
+  })
+
+  assert.equal(context.data.showObservationForm, true)
+  assert.equal(context.data.observationNote, '原来的观察')
+  assert.equal(context.data.editingObservation.renderKey, 'material:gin:0')
+  assert.equal(context.data.editingObservation.direct, true)
+  assert.equal(context.data.editingObservation.recipeId, '')
+  assert.equal(context.data.editingObservation.observationIndex, 0)
+  assert.equal(context.data.openObservationKey, '')
 })
 
 test('material detail loads once on first entry and refreshes only after returning to it', () => {
@@ -1001,15 +1188,19 @@ test('material detail uses compact edit and purchase date actions', () => {
   assert.doesNotMatch(detail, /class="eyebrow"|>MATERIAL</)
   assert.match(detail, /class="hero-top"[\s\S]*class="title">\{\{detail\.name\}\}<\/text>[\s\S]*class="edit"[^>]*>编辑<\/button>/)
   assert.doesNotMatch(detail, /class="hero-divider"|class="settings-panel"/)
-  assert.match(detail, /class="hero-top"[\s\S]*class="availability-row"[\s\S]*class="tracking-row"[\s\S]*class="purchase-row"/)
-  assert.match(css, /\.hero\s*{[^}]*background:\s*linear-gradient\(145deg,#fffaf0,#f0dcc0\)[^}]*border:\s*1rpx solid #e5c99f/)
+  assert.match(detail, /class="hero-top"[\s\S]*class="availability-row"[\s\S]*class="tracking-row"[\s\S]*class="tracking-details"/)
+  assert.match(css, /\.hero\s*{[^}]*background:\s*#ffffff[^}]*border:\s*1rpx solid #e7e4dd/)
   assert.doesNotMatch(css, /\.settings-panel\s*\{|\.hero-divider\s*\{/)
-  assert.match(css, /\.availability-row,\.tracking-row\s*\{[^}]*border-top:\s*1rpx solid rgba\(121,85,42,\.15\)/)
+  assert.match(css, /\.availability-row,\.tracking-row\s*\{[^}]*border-top:\s*1rpx solid rgba\(0,\s*0,\s*0,\.15\)/)
   assert.match(css, /\.edit\.edit\s*{[^}]*width:\s*auto[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx[^}]*padding:\s*0 20rpx/)
-  assert.match(detail, /class="purchase-actions"><picker[\s\S]*?class="purchase-value"[\s\S]*?<\/picker><button[^>]*class="purchase-clear"[^>]*>清除<\/button><\/view>/)
-  assert.doesNotMatch(detail, /class="purchase-value"[^>]*>[^<]*›/)
-  assert.match(css, /\.purchase-clear\.purchase-clear\s*{[^}]*height:\s*40rpx[^}]*min-height:\s*40rpx[^}]*border:\s*1rpx solid[^}]*border-radius:\s*10rpx/)
-  assert.match(css, /\.add-observation\.add-observation\s*{[^}]*background:\s*#342f2b[^}]*color:\s*#fff/)
+  assert.match(detail, /wx:if="{{detail\.canEditTracking}}" class="tracking-details"/)
+  assert.match(detail, /class="tracking-detail-row"[\s\S]*class="tracking-value-picker"[\s\S]*?class="tracking-detail-value"[\s\S]*?<\/picker>/)
+  assert.doesNotMatch(detail, /class="purchase-clear"/)
+  assert.doesNotMatch(detail, /class="purchase-value"|class="purchase-row"|class="purchase-actions"/)
+  assert.match(css, /\.tracking-detail-row\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*min-height:\s*88rpx/)
+  assert.match(css, /\.tracking-value-picker\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*height:\s*88rpx[^}]*min-height:\s*88rpx/)
+  assert.match(css, /\.tracking-detail-value\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*height:\s*88rpx/)
+  assert.match(css, /\.add-observation\.add-observation\s*{[^}]*background:\s*#242321[^}]*color:\s*#ffffff/)
   assert.doesNotMatch(css, /#(?:0b5f7d|126788|176d8d)/i)
 })
 
@@ -1022,10 +1213,12 @@ test('recipe detail bottom bar keeps only edit and delete inside a safe two-colu
   assert.doesNotMatch(actionBar, /复制|onCopy|action-button copy/)
   assert.equal((actionBar.match(/<button/g) || []).length, 2)
   assert.match(detailCss, /\.action-bar\s*{[^}]*box-sizing:\s*border-box[^}]*width:\s*100%[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/)
-  assert.match(detailCss, /\.action-button\s*{[^}]*min-width:\s*0/)
+  assert.match(detailCss, /\.action-button\s*{[^}]*min-width:\s*0[^}]*height:\s*88rpx[^}]*padding:\s*0[^}]*font-weight:\s*400[^}]*line-height:\s*88rpx/)
+  assert.match(detailCss, /\.hero-card\s*{[^}]*padding-top:\s*40rpx/)
+  assert.match(detailCss, /\.action-button\.edit\s*{[^}]*background:\s*#3f4144/)
 })
 
-test('recipe material rows use icons and aria without visible availability words or missing decoration', () => {
+test('recipe material rows use icons and aria while missing long-term materials stay visibly distinct', () => {
   const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxml'), 'utf8')
   const detail = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
   const cardCss = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
@@ -1033,7 +1226,7 @@ test('recipe material rows use icons and aria without visible availability words
   assert.doesNotMatch(card, /需购|我有|我没有|缺少/)
   assert.match(card, /quickBuyIcon/)
   assert.match(detail, /quick-buy-icon/)
-  assert.doesNotMatch(cardCss, /missing-long-term[^}]*border[^}]*dashed/)
+  assert.match(cardCss, /missing-long-term[^}]*border-color:\s*#c9c5bd[^}]*border-style:\s*dashed/)
   assert.doesNotMatch(appCss, /missing-long-term[^}]*dashed/)
 })
 

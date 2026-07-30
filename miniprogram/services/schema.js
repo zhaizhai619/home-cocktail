@@ -75,6 +75,7 @@ function normalizeRecipe(recipe, now) {
     imagePath: typeof source.imagePath === 'string' ? source.imagePath : '',
     source: typeof source.source === 'string' ? source.source : '',
     tried: source.tried === true,
+    ingredientOrderCustomized: source.ingredientOrderCustomized === true,
     ingredients: advance.ingredients,
     advancePreparations: advance.advancePreparations,
     preparations: Array.isArray(source.preparations) ? source.preparations.map((preparation) => (

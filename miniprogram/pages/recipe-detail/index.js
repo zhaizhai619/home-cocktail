@@ -1,8 +1,6 @@
 const {
   buildRecipeDetail,
   decodeRecipeId,
-  validateObservation,
-  orchestrateObservationSave,
   orchestrateRatingToggle,
   orchestrateManualAbvSave,
   orchestrateRecipeCopy,
@@ -17,14 +15,9 @@ function getRepository() {
 function toast(title) {
   if (typeof wx !== 'undefined' && wx.showToast) wx.showToast({ title, icon: 'none' })
 }
-
 Page({
   data: {
     detail: { status: 'loading' },
-    observationMaterialIndex: 0,
-    observationMaterialLabel: '选择材料',
-    observationNote: '',
-    observationError: '',
     showManualAbvEditor: false,
     manualAbvDraft: '',
     manualAbvError: '',
@@ -48,25 +41,11 @@ Page({
       repository ? repository.listTools() : []
     )
     this.recipe = recipe
-    const options = detail.status === 'ok' ? detail.ingredientOptions : []
-    const current = options[this.data.observationMaterialIndex]
-    const nextIndex = current ? this.data.observationMaterialIndex : 0
-    const selected = options[nextIndex]
-    this.setData({
-      detail,
-      observationMaterialIndex: nextIndex,
-      observationMaterialLabel: selected ? selected.name : '选择材料'
-    })
+    this.setData({ detail })
     if (detail.status === 'ok' && typeof wx !== 'undefined' && wx.setNavigationBarTitle) {
       wx.setNavigationBarTitle({ title: detail.name || '酒款详情' })
     }
   },
-  onObservationMaterialChange(event) {
-    const index = Number(event.detail.value)
-    const option = this.data.detail.ingredientOptions[index]
-    this.setData({ observationMaterialIndex: Number.isInteger(index) ? index : 0, observationMaterialLabel: option ? option.name : '选择材料', observationError: '' })
-  },
-  onObservationInput(event) { this.setData({ observationNote: event.detail.value || '', observationError: '' }) },
   onToggleRating(event) {
     const result = orchestrateRatingToggle({
       repository: getRepository(),
@@ -78,20 +57,6 @@ Page({
     if (!result.saved) return
     this.ratingPromotedFromUntried = result.promotedFromUntried
     this.loadDetail()
-  },
-  onSaveObservation() {
-    const options = this.data.detail.status === 'ok' ? this.data.detail.ingredientOptions : []
-    const selected = options[this.data.observationMaterialIndex]
-    const validation = validateObservation(this.recipe, selected ? selected.id : '', this.data.observationNote)
-    if (!validation.valid) { this.setData({ observationError: validation.message }); toast(validation.message); return }
-    const result = orchestrateObservationSave({
-      repository: getRepository(), recipe: this.recipe,
-      materialId: selected ? selected.id : '', note: this.data.observationNote, notify: toast
-    })
-    if (result.saved) {
-      this.setData({ observationNote: '', observationError: '' })
-      this.loadDetail()
-    } else this.setData({ observationError: '保存失败，请重试' })
   },
   onOpenMaterial(event) {
     const id = event.currentTarget.dataset.id

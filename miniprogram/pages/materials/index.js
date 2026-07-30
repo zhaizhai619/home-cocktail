@@ -1,5 +1,5 @@
 const { UNITS } = require('../../domain/constants')
-const { MATERIAL_LIBRARY_TABS, buildMaterialLibrary, buildGlasswareCards, buildFreshFormState, ensureLibraryMaterial, prepareGlasswareForSave, orchestrateFreshUseUp, orchestrateFreshUndo } = require('./model')
+const { MATERIAL_LIBRARY_TABS, buildMaterialLibrary, buildGlasswareCards, buildFreshFormState, buildFreshRemainingEditorState, ensureLibraryMaterial, prepareGlasswareForSave, orchestrateFreshRemainingSave, orchestrateFreshUseUp, orchestrateFreshUndo } = require('./model')
 const { validateGlasswareForm, orchestrateGlasswareSave, orchestrateEquipmentDelete, orchestrateGlasswareMediaDelete } = require('../settings/model')
 
 function repository() {
@@ -24,6 +24,7 @@ Page({
     unitLabels: UNITS.map(({ label }) => label),
     search: '',
     categoryFilter: 'all',
+    searchMatchCategoryKeys: [],
     freshShelf: [],
     freshShelfExpanded: true,
     expandedFreshMaterialId: '',
@@ -38,6 +39,10 @@ Page({
     freshDraft: { materialId: '', name: '', trackFreshness: false, remainingAmount: '', remainingUnit: 'ml', expiresAt: '' },
     freshUnitIndex: 0,
     freshError: '',
+    remainingEditorOpen: false,
+    remainingDraft: { materialId: '', name: '', remainingAmount: '', remainingUnit: 'ml' },
+    remainingUnitIndex: 0,
+    remainingError: '',
     undo: null
   },
   onShow() { this.reload() },
@@ -56,7 +61,19 @@ Page({
   },
   onBarSwiperChange(event) { this.setData({ barTabIndex: Number(event.detail.current) === 1 ? 1 : 0 }) },
   onSearchInput(event) { this.setData({ search: event.detail.value || '' }); this.reload() },
-  onSelectCategory(event) { this.setData({ categoryFilter: event.currentTarget.dataset.key || 'all' }); this.reload() },
+  onSelectCategory(event) {
+    const categoryFilter = event.currentTarget.dataset.key || 'all'
+    const hasSearch = Boolean(String(this.data.search || '').trim())
+    const searchMatchCategoryKeys = Array.isArray(this.data.searchMatchCategoryKeys) ? this.data.searchMatchCategoryKeys : []
+    const searchMatchesCategory = categoryFilter === 'all'
+      ? searchMatchCategoryKeys.length > 0
+      : searchMatchCategoryKeys.includes(categoryFilter)
+    this.setData({
+      categoryFilter,
+      ...(hasSearch && !searchMatchesCategory ? { search: '' } : {})
+    })
+    this.reload()
+  },
   onToggleFreshShelf() {
     const freshShelfExpanded = !this.data.freshShelfExpanded
     this.setData({
@@ -75,6 +92,37 @@ Page({
   onOpenMaterial(event) {
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(id)}` })
+  },
+  onOpenRemainingEditor(event) {
+    const id = event.currentTarget.dataset.id
+    const item = this.data.freshShelf.find((entry) => entry.id === id)
+    if (!item) return toast('没有找到这个材料')
+    this.setData(buildFreshRemainingEditorState(item))
+  },
+  onCloseRemainingEditor() {
+    this.setData({ remainingEditorOpen: false, remainingError: '' })
+  },
+  onRemainingAmountInput(event) {
+    this.setData({ 'remainingDraft.remainingAmount': event.detail.value, remainingError: '' })
+  },
+  onRemainingUnitChange(event) {
+    const index = Number(event.detail.value)
+    const safe = Number.isInteger(index) && UNITS[index] ? index : 0
+    this.setData({
+      remainingUnitIndex: safe,
+      'remainingDraft.remainingUnit': UNITS[safe].value,
+      remainingError: ''
+    })
+  },
+  onSaveRemaining() {
+    const result = orchestrateFreshRemainingSave({
+      repository: repository(),
+      draft: this.data.remainingDraft,
+      notify: toast
+    })
+    if (!result.saved) return this.setData({ remainingError: result.message })
+    this.setData({ remainingEditorOpen: false, remainingError: '' })
+    this.reload()
   },
   onOpenLibraryCard(event) {
     const { id, name, category } = event.currentTarget.dataset

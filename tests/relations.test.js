@@ -268,23 +268,23 @@ test('aggregates recipe material observations newest first with stable fallbacks
   assert.deepEqual(getMaterialPreferenceNotes('gin', recipes), [
     {
       recipeId: 'second', recipeName: '第二杯', note: '最新记录',
-      createdAt: '2026-07-20T10:00:00.000Z'
+      createdAt: '2026-07-20T10:00:00.000Z', observationIndex: 0
     },
     {
       recipeId: 'first', recipeName: '第一杯', note: '较旧记录',
-      createdAt: '2026-07-01T10:00:00.000Z'
+      createdAt: '2026-07-01T10:00:00.000Z', observationIndex: 0
     },
     {
       recipeId: 'second', recipeName: '第二杯', note: '同时间第二条',
-      createdAt: '2026-07-01T10:00:00.000Z'
+      createdAt: '2026-07-01T10:00:00.000Z', observationIndex: 1
     },
     {
       recipeId: 'first', recipeName: '第一杯', note: '无效日期先出现',
-      createdAt: 'not-a-date'
+      createdAt: 'not-a-date', observationIndex: 1
     },
     {
       recipeId: 'second', recipeName: '第二杯', note: '缺失日期',
-      createdAt: undefined
+      createdAt: undefined, observationIndex: 2
     }
   ])
   assert.deepEqual(recipes, snapshot)
@@ -310,7 +310,7 @@ test('combines direct material observations with recipe observations newest firs
   ]
 
   assert.deepEqual(getMaterialPreferenceNotes('cucumber', recipes, direct), [
-    { recipeId: '', recipeName: '', note: '直接记录的新观察', createdAt: '2026-07-22T10:00:00.000Z', direct: true },
-    { recipeId: 'r1', recipeName: '黄瓜酒', note: '酒单里的记录', createdAt: '2026-07-20T10:00:00.000Z' }
+    { recipeId: '', recipeName: '', note: '直接记录的新观察', createdAt: '2026-07-22T10:00:00.000Z', observationIndex: 0, direct: true },
+    { recipeId: 'r1', recipeName: '黄瓜酒', note: '酒单里的记录', createdAt: '2026-07-20T10:00:00.000Z', observationIndex: 0 }
   ])
 })

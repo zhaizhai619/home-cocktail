@@ -304,6 +304,43 @@ function createRepository(adapter, options = {}) {
         return { changed: true, value: savedRecipe }
       })
     },
+    updateRecipeObservation(id, observationIndex, value) {
+      const sourceIndex = Number(observationIndex)
+      const note = String(value && value.note || '').trim()
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.recipes.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.recipes[index]
+        const observations = Array.isArray(existing && existing.materialObservations)
+          ? existing.materialObservations
+          : []
+        if (!note || !Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= observations.length) {
+          return { changed: false, value: null }
+        }
+        const nextObservations = observations.slice()
+        nextObservations[sourceIndex] = { ...nextObservations[sourceIndex], note, createdAt: now() }
+        const savedRecipe = recipe({ ...existing, materialObservations: nextObservations }, existing)
+        nextState.recipes[index] = savedRecipe
+        return { changed: true, value: savedRecipe }
+      })
+    },
+    deleteRecipeObservation(id, observationIndex) {
+      const sourceIndex = Number(observationIndex)
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.recipes.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.recipes[index]
+        const observations = Array.isArray(existing && existing.materialObservations)
+          ? existing.materialObservations
+          : []
+        if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= observations.length) {
+          return { changed: false, value: null }
+        }
+        const nextObservations = observations.slice()
+        nextObservations.splice(sourceIndex, 1)
+        const savedRecipe = recipe({ ...existing, materialObservations: nextObservations }, existing)
+        nextState.recipes[index] = savedRecipe
+        return { changed: true, value: savedRecipe }
+      })
+    },
     duplicateRecipe(id) {
       return atomicStateUpdate((nextState) => {
         const existing = nextState.recipes.find((item) => item.id === id)
@@ -331,6 +368,37 @@ function createRepository(adapter, options = {}) {
           ...existing,
           observations: [...normalizeMaterialObservations(existing.observations), { note, createdAt: now() }]
         }, existing)
+        nextState.materials[index] = savedMaterial
+        return { changed: true, value: savedMaterial }
+      })
+    },
+    updateMaterialObservation(id, observationIndex, value) {
+      const sourceIndex = Number(observationIndex)
+      const note = String(value && value.note || '').trim()
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.materials.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.materials[index]
+        const observations = normalizeMaterialObservations(existing && existing.observations)
+        if (!existing || !note || !Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= observations.length) {
+          return { changed: false, value: null }
+        }
+        observations[sourceIndex] = { ...observations[sourceIndex], note, createdAt: now() }
+        const savedMaterial = material({ ...existing, observations }, existing)
+        nextState.materials[index] = savedMaterial
+        return { changed: true, value: savedMaterial }
+      })
+    },
+    deleteMaterialObservation(id, observationIndex) {
+      const sourceIndex = Number(observationIndex)
+      return atomicStateUpdate((nextState) => {
+        const index = nextState.materials.findIndex((item) => item.id === id)
+        const existing = index === -1 ? null : nextState.materials[index]
+        const observations = normalizeMaterialObservations(existing && existing.observations)
+        if (!existing || !Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= observations.length) {
+          return { changed: false, value: null }
+        }
+        observations.splice(sourceIndex, 1)
+        const savedMaterial = material({ ...existing, observations }, existing)
         nextState.materials[index] = savedMaterial
         return { changed: true, value: savedMaterial }
       })

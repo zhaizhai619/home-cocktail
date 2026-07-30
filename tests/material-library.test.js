@@ -14,7 +14,9 @@ const {
   formatExpiry,
   getLocalDateOrdinal,
   buildFreshFormState,
+  buildFreshRemainingEditorState,
   ensureLibraryMaterial,
+  orchestrateFreshRemainingSave,
   orchestrateFreshUseUp,
   orchestrateFreshUndo
 } = require('../miniprogram/pages/materials/model')
@@ -22,7 +24,9 @@ const {
   buildMaterialDetail,
   decodeMaterialId,
   validateMaterialObservation,
-  orchestrateMaterialObservationSave
+  orchestrateMaterialObservationSave,
+  orchestrateMaterialObservationUpdate,
+  orchestrateMaterialObservationDelete
 } = require('../miniprogram/pages/material-detail/model')
 const { validateMaterialForm, orchestrateMaterialSave, materialSaveNavigation } = require('../miniprogram/pages/material-edit/model')
 
@@ -315,6 +319,22 @@ test('library view model separates tracked fresh shelf and supports final filter
   assert.equal(buildMaterialLibrary([{ id: 'raw', name: '旧西瓜', acquisition: 'on-demand', trackFreshness: true, freshOnHand: false, expiresAt: '2026-07-22' }], [], { now: '2026-07-21' }).materials[0].expiryLabel, '')
 })
 
+test('material search reports every matching category independently of the selected tab', () => {
+  const materials = [
+    { id: 'cucumber', name: '黄瓜', category: 'fruit', acquisition: 'on-demand', freshOnHand: true },
+    { id: 'pickle-juice', name: '酸黄瓜汁', category: 'other-liquid', acquisition: 'on-demand', freshOnHand: false },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true }
+  ]
+
+  const view = buildMaterialLibrary(materials, [], {
+    search: '黄瓜',
+    categoryFilter: 'produce',
+    includeCatalog: true
+  })
+  assert.deepEqual(view.searchMatchCategoryKeys, ['produce', 'mixer'])
+  assert.deepEqual(view.materials.map(({ id }) => id), ['cucumber'])
+})
+
 test('fresh shelf recommends usable recipes before rating and shorter preparation time', () => {
   const materials = [
     { id: 'fruit', name: '西瓜', category: 'fruit', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true },
@@ -343,6 +363,30 @@ test('fresh shelf recommends usable recipes before rating and shorter preparatio
   assert.equal(fresh.relatedRecipes[1].preparationLabel, '冷泡/浸泡 · 提前24小时')
 })
 
+test('fresh shelf prioritizes recipes by fresh-material hits, readiness, then tracked-unit match', () => {
+  const materials = [
+    { id: 'cucumber', name: '黄瓜', category: 'fruit', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true, remainingAmount: 200, remainingUnit: 'g' },
+    { id: 'lemon', name: '柠檬', category: 'citrus', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true },
+    { id: 'violet', name: '紫罗兰利口酒', category: 'liqueur', acquisition: 'long-term', owned: false }
+  ]
+  const recipes = [
+    { id: 'missing-match', name: '缺材料但单位匹配', ingredients: [{ materialId: 'cucumber', amount: 30, unit: 'g' }, { materialId: 'violet', amount: 10, unit: 'ml' }] },
+    { id: 'ready-mismatch', name: '材料齐全但单位不同', ingredients: [{ materialId: 'cucumber', amount: 20, unit: 'ml' }, { materialId: 'gin', amount: 30, unit: 'ml' }] },
+    { id: 'ready-match', name: '材料齐全且单位匹配', ingredients: [{ materialId: 'cucumber', amount: 30, unit: 'g' }, { materialId: 'gin', amount: 30, unit: 'ml' }] },
+    { id: 'multi-fresh', name: '命中两种鲜材', ingredients: [{ materialId: 'cucumber', amount: 20, unit: 'ml' }, { materialId: 'lemon', amount: 10, unit: 'ml' }, { materialId: 'violet', amount: 5, unit: 'ml' }] }
+  ]
+
+  const cucumber = buildMaterialLibrary(materials, recipes).freshShelf.find(({ id }) => id === 'cucumber')
+
+  assert.deepEqual(cucumber.relatedRecipes.map(({ id }) => id), [
+    'multi-fresh',
+    'ready-match',
+    'ready-mismatch',
+    'missing-match'
+  ])
+})
+
 test('fresh shelf omits redundant on-hand copy and tolerates materials without recipes', () => {
   const noAmount = buildMaterialLibrary([
     { id: 'mint', name: '薄荷', category: 'other-solid', acquisition: 'on-demand', trackFreshness: true, freshOnHand: true }
@@ -352,9 +396,62 @@ test('fresh shelf omits redundant on-hand copy and tolerates materials without r
   ], [], { now: '2026-07-26' }).freshShelf[0]
 
   assert.equal(noAmount.freshMeta, '')
+  assert.equal(noAmount.remainingLabel, '填写余量')
+  assert.equal(noAmount.remainingMissing, true)
   assert.equal(noAmount.recommendedRecipe, null)
   assert.deepEqual(noAmount.relatedRecipes, [])
   assert.equal(tracked.freshMeta, '还剩约 2个 · 2 天后到期')
+  assert.equal(tracked.remainingMissing, false)
+})
+
+test('fresh shelf exposes compact remaining and expiry labels with due reminders', () => {
+  const tracked = {
+    id: 'lime',
+    name: '青柠',
+    category: 'citrus',
+    acquisition: 'on-demand',
+    trackFreshness: true,
+    freshOnHand: true,
+    remainingAmount: 2,
+    remainingUnit: 'piece',
+    purchasedAt: '2026-07-26',
+    expiresAt: '2026-07-30'
+  }
+
+  const normal = buildMaterialLibrary([tracked], [], { now: '2026-07-28' }).freshShelf[0]
+  assert.equal(normal.remainingLabel, '剩余 2个')
+  assert.equal(normal.purchaseDateLabel, '07-26')
+  assert.equal(normal.expiryDateLabel, '07-30')
+  assert.equal(normal.needsReminder, false)
+
+  const dayBefore = buildMaterialLibrary([tracked], [], { now: '2026-07-29' }).freshShelf[0]
+  assert.equal(dayBefore.needsReminder, true)
+  assert.equal(dayBefore.reminderLabel, '剩余 2个')
+
+  const dueToday = buildMaterialLibrary([tracked], [], { now: '2026-07-30' }).freshShelf[0]
+  assert.equal(dueToday.needsReminder, true)
+
+  const overdue = buildMaterialLibrary([tracked], [], { now: '2026-07-31' }).freshShelf[0]
+  assert.equal(overdue.needsReminder, true)
+})
+
+test('fresh shelf falls back to a purchase-date reminder when expiry is missing', () => {
+  const unplanned = {
+    id: 'cucumber',
+    name: '黄瓜',
+    category: 'fruit',
+    acquisition: 'on-demand',
+    trackFreshness: true,
+    freshOnHand: true,
+    remainingAmount: 1,
+    remainingUnit: 'piece',
+    purchasedAt: '2026-07-01',
+    expiresAt: null
+  }
+
+  assert.equal(buildMaterialLibrary([unplanned], [], { now: '2026-07-02' }).freshShelf[0].needsReminder, false)
+  assert.equal(buildMaterialLibrary([unplanned], [], { now: '2026-07-03' }).freshShelf[0].needsReminder, true)
+  assert.equal(buildMaterialLibrary([{ ...unplanned, purchasedAt: null }], [], { now: '2026-07-20' }).freshShelf[0].needsReminder, false)
 })
 
 test('fresh shelf shows purchase date and aggregates target use across serving and advance ingredients', () => {
@@ -443,6 +540,58 @@ test('fresh material form state never sends undefined fields to the rendering la
     freshDraft: { materialId: 'watermelon', name: '西瓜', trackFreshness: true, remainingAmount: '', remainingUnit: 'g', expiresAt: '' }
   })
   assert.doesNotMatch(JSON.stringify(state), /undefined/)
+})
+
+test('fresh remaining editor starts from the current amount and persists edits or clears', () => {
+  assert.deepEqual(buildFreshRemainingEditorState({
+    id: 'cucumber',
+    name: '黄瓜',
+    remainingAmount: 2,
+    remainingUnit: 'piece',
+    defaultUnit: 'g'
+  }), {
+    remainingEditorOpen: true,
+    remainingError: '',
+    remainingUnitIndex: 2,
+    remainingDraft: {
+      materialId: 'cucumber',
+      name: '黄瓜',
+      remainingAmount: 2,
+      remainingUnit: 'piece'
+    }
+  })
+
+  const writes = []
+  const repository = {
+    updateMaterialInventory(id, fields) {
+      writes.push({ id, fields })
+      return { id, ...fields }
+    }
+  }
+  assert.equal(orchestrateFreshRemainingSave({
+    repository,
+    draft: { materialId: 'cucumber', remainingAmount: '1.5', remainingUnit: 'piece' }
+  }).saved, true)
+  assert.deepEqual(writes[0], {
+    id: 'cucumber',
+    fields: { remainingAmount: 1.5, remainingUnit: 'piece' }
+  })
+
+  assert.equal(orchestrateFreshRemainingSave({
+    repository,
+    draft: { materialId: 'cucumber', remainingAmount: '', remainingUnit: 'piece' }
+  }).saved, true)
+  assert.deepEqual(writes[1], {
+    id: 'cucumber',
+    fields: { remainingAmount: null, remainingUnit: null }
+  })
+
+  const invalid = orchestrateFreshRemainingSave({
+    repository,
+    draft: { materialId: 'cucumber', remainingAmount: '-1', remainingUnit: 'piece' }
+  })
+  assert.deepEqual(invalid, { saved: false, message: '余量不能小于 0' })
+  assert.equal(writes.length, 2)
 })
 
 test('material library puts available cards first while preserving catalog order within each state', () => {
@@ -639,6 +788,86 @@ test('material detail appends multiple direct observations and validates empty n
   ])
 })
 
+test('material observations can be deleted from their direct or recipe source', () => {
+  const repository = createRepository(memoryAdapter(), repositoryOptions())
+  repository.initialize()
+  const cucumber = repository.saveMaterial({
+    name: '黄瓜',
+    category: 'fruit',
+    observations: [
+      { note: '直接记录一', createdAt: '2026-07-20T00:00:00.000Z' },
+      { note: '直接记录二', createdAt: '2026-07-21T00:00:00.000Z' }
+    ]
+  })
+  const recipe = repository.upsertRecipe({
+    name: '黄瓜酒',
+    ingredients: [{ materialId: cucumber.id, amount: 30, unit: 'g' }],
+    materialObservations: [
+      { materialId: cucumber.id, note: '酒单记录一', createdAt: '2026-07-22T00:00:00.000Z' },
+      { materialId: cucumber.id, note: '酒单记录二', createdAt: '2026-07-23T00:00:00.000Z' }
+    ]
+  })
+
+  const directResult = orchestrateMaterialObservationDelete({
+    repository,
+    materialId: cucumber.id,
+    direct: true,
+    observationIndex: 0
+  })
+  assert.equal(directResult.deleted, true)
+  assert.deepEqual(repository.getMaterial(cucumber.id).observations.map(({ note }) => note), ['直接记录二'])
+
+  const recipeResult = orchestrateMaterialObservationDelete({
+    repository,
+    materialId: cucumber.id,
+    recipeId: recipe.id,
+    direct: false,
+    observationIndex: 1
+  })
+  assert.equal(recipeResult.deleted, true)
+  assert.deepEqual(repository.getRecipe(recipe.id).materialObservations.map(({ note }) => note), ['酒单记录一'])
+})
+
+test('material observations can be edited in place for direct and historical recipe sources', () => {
+  const repository = createRepository(memoryAdapter(), repositoryOptions())
+  repository.initialize()
+  const cucumber = repository.saveMaterial({
+    name: '黄瓜',
+    category: 'fruit',
+    observations: [{ note: '直接旧记录', createdAt: '2026-07-20T00:00:00.000Z' }]
+  })
+  const recipe = repository.upsertRecipe({
+    name: '黄瓜酒',
+    ingredients: [{ materialId: cucumber.id, amount: 30, unit: 'g' }],
+    materialObservations: [{ materialId: cucumber.id, note: '酒单旧记录', createdAt: '2026-07-22T00:00:00.000Z' }]
+  })
+
+  const directResult = orchestrateMaterialObservationUpdate({
+    repository,
+    materialId: cucumber.id,
+    direct: true,
+    observationIndex: 0,
+    note: '直接新记录'
+  })
+  assert.equal(directResult.saved, true)
+  assert.deepEqual(repository.getMaterial(cucumber.id).observations, [
+    { note: '直接新记录', createdAt: '2026-07-03T00:00:00.000Z' }
+  ])
+
+  const recipeResult = orchestrateMaterialObservationUpdate({
+    repository,
+    materialId: cucumber.id,
+    recipeId: recipe.id,
+    direct: false,
+    observationIndex: 0,
+    note: '酒单新记录'
+  })
+  assert.equal(recipeResult.saved, true)
+  assert.deepEqual(repository.getRecipe(recipe.id).materialObservations, [
+    { materialId: cucumber.id, note: '酒单新记录', createdAt: '2026-07-05T00:00:00.000Z' }
+  ])
+})
+
 test('material detail only exposes purchase-date editing while the material is currently available', () => {
   const missingLongTerm = buildMaterialDetail({ id: 'gin', name: '金酒', acquisition: 'long-term', owned: false, trackFreshness: false, purchasedAt: '2026-07-01' })
   const missingFresh = buildMaterialDetail({ id: 'watermelon', name: '西瓜', acquisition: 'on-demand', freshOnHand: false, trackFreshness: true, purchasedAt: null })
@@ -749,12 +978,16 @@ test('mini program registers material detail and editor with actionable fresh un
   assert.match(materialsWxml, /class="catalog-tabs"/)
   const detailWxml = fs.readFileSync('miniprogram/pages/material-detail/index.wxml', 'utf8')
   assert.match(detailWxml, /bindchange="onPurchaseDateChange"/)
-  assert.match(detailWxml, /class="purchase-label">购买日期<\/text>/)
+  assert.match(detailWxml, /class="tracking-detail-label">购买日期<\/text>/)
   assert.doesNotMatch(detailWxml, /购买日期（选填）/)
-  assert.match(detailWxml, /class="purchase-actions"[\s\S]*?<picker[^>]*bindchange="onPurchaseDateChange"[\s\S]*?class="purchase-clear"/)
+  assert.match(detailWxml, /wx:if="\{\{detail\.canEditTracking\}\}" class="tracking-details"/)
+  assert.match(detailWxml, /class="tracking-detail-row"[\s\S]*?<picker[^>]*bindchange="onPurchaseDateChange"/)
+  assert.match(detailWxml, /class="tracking-detail-label">剩余量<\/text>[\s\S]*bindblur="onTrackingAmountBlur"/)
+  assert.match(detailWxml, /class="tracking-detail-label">预计过期日<\/text>[\s\S]*bindchange="onTrackingExpiryChange"/)
+  assert.doesNotMatch(detailWxml, /更新追踪信息|class="sheet-mask"/)
+  assert.doesNotMatch(detailWxml, /class="purchase-clear"/)
   const detailCss = fs.readFileSync('miniprogram/pages/material-detail/index.wxss', 'utf8')
-  assert.match(detailCss, /\.purchase-actions\s*\{[^}]*margin-left:\s*auto[^}]*justify-content:\s*flex-end/)
-  assert.match(detailCss, /\.purchase-value\s*\{[^}]*text-align:\s*right/)
-  assert.match(detailCss, /\.purchase-clear\.purchase-clear\s*\{[^}]*min-height:\s*40rpx[^}]*padding:\s*0 10rpx[^}]*border:\s*1rpx solid #d8b5aa/)
+  assert.match(detailCss, /\.tracking-detail-row\s*\{[^}]*align-items:\s*center[^}]*min-height:\s*88rpx/)
+  assert.match(detailCss, /\.tracking-value-picker\s*\{[^}]*align-items:\s*center[^}]*height:\s*88rpx[^}]*min-height:\s*88rpx/)
   assert.doesNotMatch(detailWxml, /还能做什么/)
 })

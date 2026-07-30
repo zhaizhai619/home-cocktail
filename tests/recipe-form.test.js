@@ -80,6 +80,18 @@ test('new base spirits and liqueurs stay ahead of other ingredients in their sel
   assert.deepEqual(form.ingredients.map(({ name }) => name), ['金酒', '椰子利口酒', '深色朗姆', '柠檬汁', '糖浆', '菠萝汁'])
 })
 
+test('default ingredient order keeps prepared outputs before spirits and other materials', () => {
+  let form = createAdvancePreparation(createEmptyRecipeForm())
+  const preparationId = form.advancePreparations[0].id
+  form = updateAdvancePreparation(form, preparationId, 'outputName', '混合果汁')
+  form = applyMaterialSelection(form, -1, { id: 'gin', name: '金酒', category: 'base-spirit', defaultUnit: 'ml', alcoholic: true, abv: 40 })
+  form = applyMaterialSelection(form, -1, { id: 'coconut', name: '椰子利口酒', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 20 })
+  form = applyMaterialSelection(form, -1, { id: 'pineapple', name: '菠萝汁', category: 'dairy/juice', defaultUnit: 'ml', alcoholic: false })
+
+  assert.deepEqual(form.ingredients.map(({ name }) => name), ['混合果汁', '金酒', '椰子利口酒', '柠檬汁', '糖浆', '菠萝汁'])
+  assert.equal(form.ingredientOrderCustomized, false)
+})
+
 test('ingredient drag reorders exactly one row and preserves every row value', () => {
   const form = createEmptyRecipeForm()
   form.ingredients = [
@@ -93,7 +105,21 @@ test('ingredient drag reorders exactly one row and preserves every row value', (
     { name: '金酒', amount: 45 },
     { name: '柠檬汁', amount: 25 }
   ])
+  assert.equal(moved.ingredientOrderCustomized, true)
   assert.deepEqual(form.ingredients.map(({ name }) => name), ['金酒', '柠檬汁', '普通糖浆'])
+})
+
+test('new materials append after the user customizes ingredient order', () => {
+  let form = createEmptyRecipeForm()
+  form.ingredients = [
+    { ...createIngredientDraft('base-spirit', '金酒'), amount: 45 },
+    { ...createIngredientDraft('citrus', '柠檬汁'), amount: 25 },
+    { ...createIngredientDraft('syrup/staple', '糖浆'), amount: 10 }
+  ]
+  form = reorderIngredient(form, 2, 0)
+  form = applyMaterialSelection(form, -1, { id: 'coconut', name: '椰子利口酒', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 20 })
+
+  assert.deepEqual(form.ingredients.map(({ name }) => name), ['糖浆', '金酒', '柠檬汁', '椰子利口酒'])
 })
 
 test('multiple advance preparations create editable serving rows and never create output materials', () => {
@@ -268,7 +294,8 @@ test('payload uses ingredient material ids and preserves recipe data and materia
   form.name = '蜂蜜酸酒'; form.source = '书'; form.imagePath = '/tmp/x'; form.steps = '摇匀'; form.rating = '顶尖'; form.tastingNote = '酸甜'; form.tried = false
   form.ingredients = [{ ...createIngredientDraft('citrus', '青柠汁'), materialId: 'm-lime', status: 'existing', amount: '25', observation: '新鲜' }, { ...createIngredientDraft('liqueur', '君度'), amount: 20 }]
   const result = buildRecipePayload(form)
-  assert.deepEqual(result.recipe.ingredients, [{ materialId: 'm-lime', amount: 25, unit: 'ml' }, { materialId: '', draftKey: 'liqueur:君度', amount: 20, unit: 'ml' }])
+  assert.deepEqual(result.recipe.ingredients, [{ materialId: '', draftKey: 'liqueur:君度', amount: 20, unit: 'ml' }, { materialId: 'm-lime', amount: 25, unit: 'ml' }])
+  assert.equal(result.recipe.ingredientOrderCustomized, false)
   assert.equal(result.recipe.tastingNote, '酸甜')
   assert.equal(result.recipe.tried, false)
   assert.deepEqual(result.materialDrafts.map((item) => item.name), ['君度'])

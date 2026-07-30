@@ -42,7 +42,10 @@ function buildMaterialDetail(material, sources = {}) {
     canEditTracking: currentlyAvailable && material.trackFreshness === true,
     observations: getMaterialPreferenceNotes(material.id, recipes, material.observations).map((item) => ({
       ...item,
-      createdAtLabel: formatDateInput(item.createdAt)
+      createdAtLabel: formatDateInput(item.createdAt),
+      renderKey: item.direct
+        ? `material:${material.id}:${item.observationIndex}`
+        : `recipe:${item.recipeId}:${item.observationIndex}`
     }))
   }
 }
@@ -70,4 +73,60 @@ function orchestrateMaterialObservationSave({ repository, materialId, note, noti
   }
 }
 
-module.exports = { buildMaterialDetail, decodeMaterialId, validateMaterialObservation, orchestrateMaterialObservationSave }
+function orchestrateMaterialObservationUpdate({
+  repository,
+  materialId,
+  recipeId,
+  direct,
+  observationIndex,
+  note,
+  notify = () => {}
+} = {}) {
+  const validation = validateMaterialObservation(note)
+  if (!validation.valid) {
+    notify(validation.message)
+    return { saved: false, message: validation.message }
+  }
+  try {
+    const saved = direct
+      ? repository && repository.updateMaterialObservation(materialId, observationIndex, { note: validation.note })
+      : repository && repository.updateRecipeObservation(recipeId, observationIndex, { note: validation.note })
+    if (!saved) throw new Error('Observation not updated')
+    notify('记录已更新')
+    return { saved: true, message: '' }
+  } catch (_) {
+    const message = '保存失败，请重试'
+    notify(message)
+    return { saved: false, message }
+  }
+}
+
+function orchestrateMaterialObservationDelete({
+  repository,
+  materialId,
+  recipeId,
+  direct,
+  observationIndex,
+  notify = () => {}
+} = {}) {
+  try {
+    const saved = direct
+      ? repository && repository.deleteMaterialObservation(materialId, observationIndex)
+      : repository && repository.deleteRecipeObservation(recipeId, observationIndex)
+    if (!saved) throw new Error('Observation not deleted')
+    notify('记录已删除')
+    return { deleted: true }
+  } catch (_) {
+    notify('删除失败，请重试')
+    return { deleted: false }
+  }
+}
+
+module.exports = {
+  buildMaterialDetail,
+  decodeMaterialId,
+  validateMaterialObservation,
+  orchestrateMaterialObservationSave,
+  orchestrateMaterialObservationUpdate,
+  orchestrateMaterialObservationDelete
+}

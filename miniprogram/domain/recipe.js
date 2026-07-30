@@ -9,6 +9,27 @@ const PREPARATION_UNITS = new Set([
   '小时',
   ...DAY_UNITS
 ])
+const LEADING_ALCOHOL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur'])
+
+function getIngredientOrderPriority(ingredient, material) {
+  if (ingredient && ingredient.kind === 'prepared-output') return 0
+  const category = ingredient && ingredient.category || material && material.category
+  return LEADING_ALCOHOL_CATEGORIES.has(category) ? 1 : 2
+}
+
+function sortIngredientsByDefault(ingredients, materialsById = {}) {
+  return (Array.isArray(ingredients) ? ingredients : [])
+    .map((ingredient, index) => ({
+      ingredient,
+      index,
+      priority: getIngredientOrderPriority(
+        ingredient,
+        ingredient && ingredient.materialId ? materialsById[ingredient.materialId] : null
+      )
+    }))
+    .sort((first, second) => first.priority - second.priority || first.index - second.index)
+    .map(({ ingredient }) => ingredient)
+}
 
 function getPreparationDurationText(preparation) {
   if (!preparation || typeof preparation !== 'object' || preparation.type === INSTANT_PREPARATION) return ''
@@ -254,5 +275,6 @@ module.exports = {
   getPrimaryPreparation,
   getMaterialReadiness,
   filterRecipes,
-  sortRecipes
+  sortRecipes,
+  sortIngredientsByDefault
 }

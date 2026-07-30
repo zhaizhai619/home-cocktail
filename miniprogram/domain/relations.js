@@ -100,15 +100,15 @@ function hydrateRecipeSummary(recipe, lookups = {}) {
 function getMaterialPreferenceNotes(materialId, recipes, directObservations) {
   const notes = []
 
-  for (const observation of Array.isArray(directObservations) ? directObservations : []) {
+  ;(Array.isArray(directObservations) ? directObservations : []).forEach((observation, observationIndex) => {
     if (!observation || typeof observation !== 'object' ||
-      typeof observation.note !== 'string' || !observation.note.trim()) continue
+      typeof observation.note !== 'string' || !observation.note.trim()) return
     const timestamp = typeof observation.createdAt === 'string' ? Date.parse(observation.createdAt) : NaN
     notes.push({
       recipeId: '', recipeName: '', note: observation.note.trim(), createdAt: observation.createdAt,
-      direct: true, timestamp, order: notes.length
+      observationIndex, direct: true, timestamp, order: notes.length
     })
-  }
+  })
 
   for (const recipe of Array.isArray(recipes) ? recipes : []) {
     if (!recipe || typeof recipe !== 'object' ||
@@ -116,11 +116,11 @@ function getMaterialPreferenceNotes(materialId, recipes, directObservations) {
       continue
     }
 
-    for (const observation of recipe.materialObservations) {
+    recipe.materialObservations.forEach((observation, observationIndex) => {
       if (!observation || typeof observation !== 'object' ||
         observation.materialId !== materialId ||
         typeof observation.note !== 'string' || !observation.note.trim()) {
-        continue
+        return
       }
 
       const timestamp = typeof observation.createdAt === 'string'
@@ -131,10 +131,11 @@ function getMaterialPreferenceNotes(materialId, recipes, directObservations) {
         recipeName: recipe.name,
         note: observation.note,
         createdAt: observation.createdAt,
+        observationIndex,
         timestamp,
         order: notes.length
       })
-    }
+    })
   }
 
   return notes.sort((first, second) => {
@@ -147,11 +148,12 @@ function getMaterialPreferenceNotes(materialId, recipes, directObservations) {
       return firstValid ? -1 : 1
     }
     return first.order - second.order
-  }).map(({ recipeId, recipeName, note, createdAt, direct }) => ({
+  }).map(({ recipeId, recipeName, note, createdAt, observationIndex, direct }) => ({
     recipeId,
     recipeName,
     note,
     createdAt,
+    observationIndex,
     ...(direct ? { direct: true } : {})
   }))
 }

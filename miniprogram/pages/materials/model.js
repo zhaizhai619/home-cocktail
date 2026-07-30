@@ -128,12 +128,16 @@ function getRecipeLeadHours(recipe) {
   return primary ? primary.leadHours : 0
 }
 
-function formatRecipeMaterialAmount(recipe, materialId) {
+function recipeMaterialIngredients(recipe) {
   const servingIngredients = (Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients : [])
     .filter((ingredient) => ingredient && ingredient.kind !== 'prepared-output')
   const advanceIngredients = (Array.isArray(recipe && recipe.advancePreparations) ? recipe.advancePreparations : [])
     .flatMap((preparation) => Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
-  const groups = [...servingIngredients, ...advanceIngredients]
+  return [...servingIngredients, ...advanceIngredients]
+}
+
+function formatRecipeMaterialAmount(recipe, materialId) {
+  const groups = recipeMaterialIngredients(recipe)
     .filter((ingredient) => ingredient.materialId === materialId)
     .reduce((result, ingredient) => {
       const unit = String(ingredient.unit || '')
@@ -159,12 +163,29 @@ function formatRecipeMaterialAmount(recipe, materialId) {
   }).join(' + ')
 }
 
-function buildFreshRecipeSummaries(materialId, recipes, materialsById) {
-  return getRecipesUsingMaterial(materialId, recipes)
-    .map((recipe, index) => ({ recipe, index }))
+function buildFreshRecipeSummaries(material, recipes, materialsById, freshMaterialIds) {
+  return getRecipesUsingMaterial(material.id, recipes)
+    .map((recipe, index) => {
+      const ingredients = recipeMaterialIngredients(recipe)
+      const freshHitCount = new Set(
+        ingredients
+          .map((ingredient) => ingredient && ingredient.materialId)
+          .filter((materialId) => freshMaterialIds.has(materialId))
+      ).size
+      const unitMatchesRemaining = Boolean(material.remainingUnit) &&
+        ingredients.some((ingredient) => ingredient && ingredient.materialId === material.id && ingredient.unit === material.remainingUnit)
+      return {
+        recipe,
+        index,
+        freshHitCount,
+        ready: getMaterialReadiness(recipe, materialsById) === 'on-hand',
+        unitMatchesRemaining
+      }
+    })
     .sort((first, second) => (
-      Number(getMaterialReadiness(first.recipe, materialsById) !== 'on-hand') -
-        Number(getMaterialReadiness(second.recipe, materialsById) !== 'on-hand') ||
+      second.freshHitCount - first.freshHitCount ||
+      Number(!first.ready) - Number(!second.ready) ||
+      Number(!first.unitMatchesRemaining) - Number(!second.unitMatchesRemaining) ||
       getRecipeRatingRank(first.recipe) - getRecipeRatingRank(second.recipe) ||
       getRecipeLeadHours(first.recipe) - getRecipeLeadHours(second.recipe) ||
       String(second.recipe.createdAt || '').localeCompare(String(first.recipe.createdAt || '')) ||
@@ -175,19 +196,50 @@ function buildFreshRecipeSummaries(materialId, recipes, materialsById) {
       name: recipe.name,
       rating: recipe.tried === true && RATINGS.includes(recipe.rating) ? recipe.rating : '',
       preparationLabel: formatRecipePreparation(recipe),
-      materialAmountLabel: formatRecipeMaterialAmount(recipe, materialId),
+      materialAmountLabel: formatRecipeMaterialAmount(recipe, material.id),
       recommended: index === 0
     }))
 }
 
-function buildFreshCard(card, recipes, materialsById) {
-  const relatedRecipes = buildFreshRecipeSummaries(card.id, recipes, materialsById)
+function compactDateLabel(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value.slice(5)
+    : ''
+}
+
+function freshRemainingLabel(card) {
+  const hasAmount = card.remainingAmount !== null &&
+    card.remainingAmount !== undefined &&
+    String(card.remainingAmount).trim() !== '' &&
+    Number.isFinite(Number(card.remainingAmount))
+  if (!hasAmount) return '填写余量'
+  const labels = { piece: '个', slice: '片', drop: '滴', chunk: '块', 'top-up': '补满', 'to-taste': '适量' }
+  return `剩余 ${Number(card.remainingAmount)}${labels[card.remainingUnit] || card.remainingUnit || ''}`
+}
+
+function freshNeedsReminder(card, nowValue) {
+  const nowOrdinal = getLocalDateOrdinal(nowValue || new Date())
+  if (!Number.isFinite(nowOrdinal)) return false
+  const expiryOrdinal = card.expiresAt ? getLocalDateOrdinal(card.expiresAt) : null
+  if (Number.isFinite(expiryOrdinal)) return expiryOrdinal - nowOrdinal <= 1
+  const purchaseOrdinal = card.purchasedAt ? getLocalDateOrdinal(card.purchasedAt) : null
+  return Number.isFinite(purchaseOrdinal) && nowOrdinal - purchaseOrdinal >= 2
+}
+
+function buildFreshCard(card, recipes, materialsById, nowValue, freshMaterialIds) {
+  const relatedRecipes = buildFreshRecipeSummaries(card, recipes, materialsById, freshMaterialIds)
   const visibleInventory = card.inventoryLabel === '当前在手头' ? '' : card.inventoryLabel
+  const remainingLabel = freshRemainingLabel(card)
+  const remainingMissing = remainingLabel === '填写余量'
+  const needsReminder = freshNeedsReminder(card, nowValue)
   return {
     ...card,
-    purchaseDateLabel: typeof card.purchasedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(card.purchasedAt)
-      ? card.purchasedAt.slice(5)
-      : '',
+    purchaseDateLabel: compactDateLabel(card.purchasedAt),
+    expiryDateLabel: compactDateLabel(card.expiresAt),
+    remainingLabel,
+    remainingMissing,
+    needsReminder,
+    reminderLabel: needsReminder ? remainingLabel : '',
     freshMeta: [visibleInventory, card.expiryLabel].filter(Boolean).join(' · '),
     recommendedRecipe: relatedRecipes[0] || null,
     relatedRecipes
@@ -239,10 +291,19 @@ function buildMaterialLibrary(materials = [], recipes = [], options = {}) {
   const query = String(options.search || '').trim().toLocaleLowerCase()
   const acquisition = options.acquisition || 'all'
   const cards = safeMaterials.map((material) => buildCard(material, safeRecipes, materialsById, options.now))
+  const freshMaterialIds = new Set(cards.filter((card) => card.isFreshShelf).map((card) => card.id))
   const freshShelf = cards
     .filter((card) => card.isFreshShelf)
-    .map((card) => buildFreshCard(card, safeRecipes, materialsById))
+    .map((card) => buildFreshCard(card, safeRecipes, materialsById, options.now, freshMaterialIds))
   const libraryCards = options.includeCatalog === true ? mergeCatalogTemplates(cards) : cards
+  const searchMatchCategoryKeys = query
+    ? MATERIAL_LIBRARY_TABS
+      .filter(({ key }) => key !== 'all' && libraryCards.some((card) => (
+        card.categoryFilter === key &&
+        materialNameMatchesQuery(card.category, card.name, query)
+      )))
+      .map(({ key }) => key)
+    : []
   const categoryFilter = MATERIAL_LIBRARY_TABS.some((item) => item.key === options.categoryFilter) ? options.categoryFilter : 'all'
   const filtered = libraryCards.filter((card) => {
     if (query && !materialNameMatchesQuery(card.category, card.name, query)) return false
@@ -263,7 +324,11 @@ function buildMaterialLibrary(materials = [], recipes = [], options = {}) {
     byUsage(first, second) ||
     priorOrder(first, second)
   )
-  return { freshShelf: freshShelf.sort(byRecent), materials: filtered.sort(byLibraryPriority) }
+  return {
+    freshShelf: freshShelf.sort(byRecent),
+    materials: filtered.sort(byLibraryPriority),
+    searchMatchCategoryKeys
+  }
 }
 
 function nextGlasswareName(glassware = []) {
@@ -316,6 +381,49 @@ function buildFreshFormState(material = {}) {
   }
 }
 
+function buildFreshRemainingEditorState(material = {}) {
+  const requestedUnit = material.remainingUnit || material.defaultUnit || 'ml'
+  const matchedIndex = UNITS.findIndex(({ value }) => value === requestedUnit)
+  const remainingUnitIndex = matchedIndex < 0 ? 0 : matchedIndex
+  return {
+    remainingEditorOpen: true,
+    remainingError: '',
+    remainingUnitIndex,
+    remainingDraft: {
+      materialId: String(material.id || ''),
+      name: String(material.name || ''),
+      remainingAmount: material.remainingAmount === null || material.remainingAmount === undefined
+        ? ''
+        : material.remainingAmount,
+      remainingUnit: UNITS[remainingUnitIndex].value
+    }
+  }
+}
+
+function orchestrateFreshRemainingSave({ repository, draft = {}, notify = () => {} }) {
+  const raw = String(draft.remainingAmount ?? '').trim()
+  const amount = raw === '' ? null : Number(raw)
+  if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+    const message = amount < 0 ? '余量不能小于 0' : '请填写有效余量'
+    return { saved: false, message }
+  }
+  const remainingUnit = UNITS.some(({ value }) => value === draft.remainingUnit) ? draft.remainingUnit : ''
+  if (amount !== null && !remainingUnit) return { saved: false, message: '请选择余量单位' }
+  try {
+    const saved = repository && repository.updateMaterialInventory(draft.materialId, {
+      remainingAmount: amount,
+      remainingUnit: amount === null ? null : remainingUnit
+    })
+    if (!saved) throw new Error('not saved')
+    notify('余量已更新')
+    return { saved: true, message: '' }
+  } catch (_) {
+    const message = '余量保存失败，请重试'
+    notify(message)
+    return { saved: false, message }
+  }
+}
+
 function orchestrateFreshUseUp({ repository, materialId, notify = () => {} }) {
   try {
     const result = repository && repository.useUpFreshMaterial(materialId)
@@ -346,11 +454,13 @@ module.exports = {
   buildMaterialLibrary,
   buildGlasswareCards,
   buildFreshFormState,
+  buildFreshRemainingEditorState,
   ensureLibraryMaterial,
   prepareGlasswareForSave,
   formatInventory,
   formatExpiry,
   getLocalDateOrdinal,
+  orchestrateFreshRemainingSave,
   orchestrateFreshUseUp,
   orchestrateFreshUndo
 }

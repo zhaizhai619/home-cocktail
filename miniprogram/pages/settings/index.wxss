@@ -2,7 +2,7 @@
   box-sizing: border-box;
   min-height: 100vh;
   padding: 96rpx 40rpx 160rpx;
-  background: #f7f1e8;
+  background: #f8f5ee;
 }
 
 .identity {
@@ -19,8 +19,8 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  color: #fffaf4;
-  background: #342f2b;
+  color: #ffffff;
+  background: #242321;
   border-radius: 50%;
 }
 
@@ -58,7 +58,7 @@
   width: 420rpx;
   height: 72rpx;
   margin-top: 24rpx;
-  color: #342f2b;
+  color: #242321;
   font-size: 36rpx;
   font-weight: 650;
   line-height: 72rpx;
@@ -73,21 +73,21 @@
   padding: 0 28rpx;
   align-items: center;
   justify-content: space-between;
-  color: #4a4038;
-  background: #fffdf8;
-  border: 1rpx solid #e8ddcf;
+  color: #242321;
+  background: #ffffff;
+  border: 1rpx solid #e7e4dd;
   border-radius: 22rpx;
   font-size: 27rpx;
 }
 
 .sync-value {
-  color: #8b8178;
+  color: #6f6c66;
 }
 
 .edit-hint {
   display: block;
   margin-top: 28rpx;
-  color: #948980;
+  color: #6f6c66;
   font-size: 22rpx;
   text-align: center;
 }
