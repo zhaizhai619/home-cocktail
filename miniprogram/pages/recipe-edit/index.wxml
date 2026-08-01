@@ -9,7 +9,7 @@
     </view>
     <scroll-view wx:if="{{form.tried}}" class="rating-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
       <view class="rating-track">
-        <button wx:for="{{ratings}}" wx:key="*this" data-rating="{{item}}" bindtap="onRating" class="rating-chip {{form.rating === item ? 'selected' : ''}}" aria-label="{{item}}{{form.rating === item ? '，已选择' : ''}}"><text wx:if="{{form.rating === item}}">✓ </text>{{item}}</button>
+        <button wx:for="{{ratings}}" wx:key="*this" data-rating="{{item}}" bindtap="onRating" class="rating-chip {{form.rating === item ? 'selected' : ''}}" aria-label="{{item}}{{form.rating === item ? '，已选择' : ''}}">{{item}}</button>
       </view>
     </scroll-view>
     <view class="basic-grid">
@@ -29,7 +29,7 @@
     </view>
     <view wx:if="{{materialStage === 'serving'}}" class="material-shortcuts">
       <view class="shortcut-track">
-        <button size="mini" class="shortcut primary" data-filter="base" bindtap="onOpenMaterialSelect">＋基酒</button>
+        <button size="mini" class="shortcut" data-filter="base" bindtap="onOpenMaterialSelect">＋基酒</button>
         <button size="mini" class="shortcut" data-filter="liqueur" bindtap="onOpenMaterialSelect">＋利口酒</button>
         <button size="mini" class="shortcut" data-filter="produce" bindtap="onOpenMaterialSelect">＋果汁/果蔬</button>
         <button size="mini" class="shortcut" data-filter="mixer" bindtap="onOpenMaterialSelect">＋混合饮品</button>
@@ -43,7 +43,15 @@
       <view wx:for="{{advanceCards}}" wx:for-item="preparation" wx:key="id" class="advance-card">
         <text class="compact-label">预调成品名称</text>
         <input class="advance-name" data-preparation-id="{{preparation.id}}" data-field="outputName" value="{{preparation.outputName}}" bindinput="onAdvanceInput" />
-        <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="all" bindtap="onOpenMaterialSelect">＋材料</button>
+        <view class="material-shortcuts advance-material-shortcuts">
+          <view class="shortcut-track">
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="base" bindtap="onOpenMaterialSelect">＋基酒</button>
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="liqueur" bindtap="onOpenMaterialSelect">＋利口酒</button>
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="produce" bindtap="onOpenMaterialSelect">＋果汁/果蔬</button>
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="mixer" bindtap="onOpenMaterialSelect">＋混合饮品</button>
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="all" bindtap="onOpenMaterialSelect">＋材料库</button>
+          </view>
+        </view>
         <view class="ingredient-list advance-ingredients">
           <ingredient-row wx:for="{{preparation.formIngredients}}" wx:for-item="ingredient" wx:key="renderKey" item="{{ingredient}}" index="{{index}}" preparation-id="{{preparation.id}}" units="{{units}}" dragging="{{draggingAdvancePreparationId === preparation.id && draggingAdvanceIndex === index}}" bind:change="onAdvanceIngredientChange" bind:remove="onRemoveAdvanceIngredient" bind:pickname="onPickAdvanceName" bind:dragstart="onAdvanceDragStart" bind:dragmove="onAdvanceDragMove" bind:dragend="onAdvanceDragEnd" />
         </view>

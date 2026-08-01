@@ -5,9 +5,9 @@ page { background: #f8f5ee; color: #242321; }
 .search-icon { color: #6f6c66; }
 .category-tabs { width: 100%; margin: 20rpx 0 22rpx; white-space: nowrap; }
 .category-track { display: inline-flex; gap: 12rpx; padding-right: 20rpx; }
-.category-tab { margin: 0; min-width: 0; height: 58rpx; line-height: 56rpx; padding: 0 22rpx; border-radius: 30rpx; border: 1rpx solid #e7e4dd; background: #f1f0ec; color: #242321; font-size: 25rpx; }
+.category-tab { width: auto; min-width: 0; height: 60rpx; min-height: 60rpx; margin: 0; padding: 0 20rpx; color: #6f6c66; background: #f1f0ec; border: 1rpx solid #e7e4dd; border-radius: 999rpx; font-size: 23rpx; line-height: 58rpx; }
 .category-tab::after, .material-card::after, .create-material::after { border: 0; }
-.category-tab.selected { color: #ffffff; background: #242321; border-color: #242321; }
+.category-tab.selected { color: #242321; background: #e8e5df; border-color: #d8d4cc; }
 .material-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18rpx; }
 .material-card { margin: 0; width: 100%; min-width: 0; height: 180rpx; padding: 24rpx 16rpx; border-radius: 24rpx; border: 1rpx solid #e7e4dd; background: #fffefc; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24rpx; box-sizing: border-box; box-shadow: 0 8rpx 24rpx rgba(55, 50, 43, .07); }
 .material-card.state-owned { background: #fffefc; border-color: #e7e4dd; }

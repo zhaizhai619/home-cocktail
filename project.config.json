@@ -1,5 +1,5 @@
 {
-  "appid": "wxec0aaefcfeb65dc9",
+  "appid": "wx0d0626aa793db930",
   "compileType": "miniprogram",
   "miniprogramRoot": "miniprogram/",
   "projectname": "home-cocktail-mini-program",
@@ -32,5 +32,6 @@
     "ignore": [],
     "include": []
   },
-  "editorSetting": {}
+  "editorSetting": {},
+  "libVersion": "3.17.0"
 }

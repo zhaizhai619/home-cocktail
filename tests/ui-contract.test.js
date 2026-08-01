@@ -408,6 +408,7 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(editor, /class="advance-card-delete"[^>]*bindtap="onRemoveAdvancePreparation"/)
   assert.match(editor, /class="add-advance"[^>]*bindtap="onCreateAdvancePreparation"/)
   assert.match(editor, /class="advance-name"[\s\S]*class="shortcut advance-add-material"[\s\S]*class="ingredient-list advance-ingredients"/)
+  assert.doesNotMatch(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*min-height:\s*40rpx/)
   assert.match(editor, /bindtap="onRemoveAdvancePreparation"/)
   assert.match(editor, />制作方式</)
   assert.match(editorCss, /\.material-stage-switch\s*\{[^}]*display:\s*flex/)
@@ -419,8 +420,9 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.doesNotMatch(detail, /wx:for="{{detail\.advancePreparations}}"|>提前准备 ·/)
   assert.match(editorCss, /\.advance-card\s*\{[^}]*background:\s*#f1f0ec/)
   assert.match(editorCss, /\.advance-name\s*\{[^}]*height:\s*52rpx[^}]*padding:\s*0 8rpx/)
-  assert.match(editorCss, /\.advance-add-material\s*\{[^}]*display:\s*inline-flex[^}]*min-height:\s*40rpx[^}]*padding:\s*0 6rpx/)
-  assert.match(editorCss, /\.advance-card-delete\s*\{[^}]*width:\s*52rpx[^}]*min-height:\s*32rpx/)
+  assert.match(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*background:\s*#ffffff[^}]*border-color:\s*#e7e4dd/)
+  assert.match(editorCss, /\.advance-card-actions\s*\{[^}]*justify-content:\s*flex-end/)
+  assert.match(editorCss, /\.edit-page \.advance-card-delete\s*\{[^}]*width:\s*104rpx[^}]*min-height:\s*48rpx/)
   assert.match(editorCss, /\.add-advance\s*\{[^}]*display:\s*inline-flex[^}]*width:\s*auto[^}]*min-height:\s*38rpx[^}]*padding:\s*0 6rpx/)
 })
 
@@ -488,16 +490,27 @@ test('recipe editor opens a reusable single-select material library with approve
   const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
   assert.ok(app.pages.includes('pages/material-select/index'))
   assert.deepEqual(Array.from(page.data.addCategories, ({ label }) => label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '材料库'])
-  assert.equal((editor.match(/bindtap="onOpenMaterialSelect"/g) || []).length, 6)
-  assert.match(editor, /class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"/)
+  assert.equal((editor.match(/bindtap="onOpenMaterialSelect"/g) || []).length, 10)
+  assert.equal((editor.match(/class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"/g) || []).length, 5)
+  for (const [filter, label] of [
+    ['base', '基酒'],
+    ['liqueur', '利口酒'],
+    ['produce', '果汁/果蔬'],
+    ['mixer', '混合饮品'],
+    ['all', '材料库']
+  ]) {
+    assert.match(editor, new RegExp(`class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"[^>]*data-filter="${filter}"[^>]*>＋${label}<`))
+  }
   assert.doesNotMatch(editor, /basePickerOpen|苏打\/汤力|>＋果汁<|>＋奶制品</)
-  assert.match(picker, /placeholder="搜索材料"/)
+  assert.match(picker, /placeholder="搜索材料\/快速添加材料"/)
   assert.match(picker, /class="category-tabs"[^>]*scroll-x="true"/)
   assert.match(picker, /class="material-grid"/)
   assert.match(picker, /wx:if="{{canCreateMaterial && !creatingMaterial}}"[^>]*class="create-material"/)
   assert.match(picker, /添加「{{newMaterialName}}」/)
   assert.match(picker, /wx:if="{{creatingMaterial}}"[^>]*class="create-category-panel"/)
   assert.match(picker, /wx:for="{{creationCategories}}"[^>]*bindtap="onSelectCreateCategory"/)
+  assert.match(pickerCss, /\.category-tab\s*\{[^}]*height:\s*60rpx[^}]*min-height:\s*60rpx[^}]*padding:\s*0 20rpx[^}]*color:\s*#6f6c66[^}]*background:\s*#f1f0ec[^}]*border:\s*1rpx solid #e7e4dd[^}]*border-radius:\s*999rpx[^}]*font-size:\s*23rpx/)
+  assert.match(pickerCss, /\.category-tab\.selected\s*\{[^}]*color:\s*#242321[^}]*background:\s*#e8e5df[^}]*border-color:\s*#d8d4cc/)
   assert.match(pickerCss, /\.material-grid\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
   assert.match(pickerCss, /\.create-material\s*\{[^}]*width:\s*100%[^}]*height:\s*auto[^}]*white-space:\s*normal[^}]*overflow-wrap:\s*anywhere/)
 })
@@ -534,8 +547,11 @@ test('material picker only offers adding a searched name when no exact material 
   assert.equal(context.data.canCreateMaterial, true)
   assert.equal(context.data.newMaterialName, '紫苏糖浆')
 
+  context.data.categoryFilter = 'liqueur'
   context.data.query = '金酒'
   page.reload.call(context)
+  assert.equal(context.data.categoryFilter, 'liqueur')
+  assert.equal(context.data.materials.some(({ name }) => name === '金酒'), true)
   assert.equal(context.data.canCreateMaterial, false)
 })
 
@@ -881,16 +897,21 @@ test('recipe entry keeps ratings scrollable while compact material shortcuts wra
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
   assert.match(editor, /class="rating-scroll"[^>]*scroll-x="true"/)
+  assert.doesNotMatch(editor, /<text wx:if="{{form\.rating === item}}">✓ <\/text>/)
   assert.match(editor, /<view[^>]*class="material-shortcuts">/)
   assert.doesNotMatch(editor, /class="material-shortcuts"[^>]*scroll-x=/)
   assert.match(css, /\.shortcut-track\s*{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/)
 })
 
-test('recipe entry exposes only the five approved material-library shortcuts', () => {
+test('each recipe material stage exposes the same five approved material-library shortcuts', () => {
   const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
   assert.deepEqual(Array.from(page.data.addCategories, (item) => item.label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '材料库'])
-  assert.equal((editor.match(/<button[^>]*size="mini"[^>]*class="shortcut(?: primary)?"/g) || []).length, 5)
+  assert.equal((editor.match(/<button[^>]*size="mini"[^>]*class="shortcut(?: advance-add-material)?"/g) || []).length, 10)
+  assert.doesNotMatch(editor, /class="shortcut primary/)
+  for (const filter of ['base', 'liqueur', 'produce', 'mixer', 'all']) {
+    assert.equal((editor.match(new RegExp(`data-filter="${filter}"`, 'g')) || []).length, 2)
+  }
 })
 
 test('recipe ingredient suggestions show ordinary syrup once using its short name', () => {

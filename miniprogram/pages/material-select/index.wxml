@@ -1,5 +1,5 @@
 <view class="material-select-page">
-  <view class="search-box"><text class="search-icon">⌕</text><input value="{{query}}" bindinput="onSearchInput" placeholder="搜索材料" confirm-type="search" /></view>
+  <view class="search-box"><text class="search-icon">⌕</text><input value="{{query}}" bindinput="onSearchInput" placeholder="搜索材料/快速添加材料" confirm-type="search" /></view>
   <scroll-view class="category-tabs" scroll-x="true" enhanced="true" show-scrollbar="false">
     <view class="category-track">
       <button wx:for="{{categoryTabs}}" wx:key="key" size="mini" class="category-tab {{categoryFilter === item.key ? 'selected' : ''}}" data-key="{{item.key}}" bindtap="onSelectCategory">{{item.label}}</button>

@@ -25,12 +25,12 @@ Page({
   onShow() { this.reload() },
   reload() {
     const repo = repository()
+    const newMaterialName = String(this.data.query || '').trim()
     const result = buildMaterialLibrary(repo ? repo.listMaterials() : [], repo ? repo.listRecipes() : [], {
       includeCatalog: true,
-      categoryFilter: this.data.categoryFilter,
-      search: this.data.query
+      categoryFilter: newMaterialName ? 'all' : this.data.categoryFilter,
+      search: newMaterialName
     })
-    const newMaterialName = String(this.data.query || '').trim()
     const exact = newMaterialName && result.materials.some((item) => getMaterialIdentityKey(item.category, item.name) === getMaterialIdentityKey(item.category, newMaterialName))
     this.setData({ materials: result.materials, newMaterialName, canCreateMaterial: Boolean(newMaterialName && !exact) })
   },
