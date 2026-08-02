@@ -502,7 +502,7 @@ test('complete catalog merges templates with real materials and filters by the e
     { id: 'mystery', name: '神秘材料', category: 'other', acquisition: 'on-demand', freshOnHand: false, trackFreshness: false }
   ]
   const base = buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'base' }).materials
-  assert.deepEqual(base.map(({ name }) => name), ['金酒', '白朗姆', '伏特加'])
+  assert.deepEqual(base.map(({ name }) => name), ['金酒', '白朗姆', '威士忌', '伏特加', '龙舌兰'])
   assert.deepEqual({ id: base[0].id, template: base[0].isTemplate, state: base[0].visualState, label: base[0].categoryLabel }, { id: 'gin-real', template: false, state: 'owned', label: '基酒' })
   assert.deepEqual({ id: base[1].id, template: base[1].isTemplate, state: base[1].visualState }, { id: '', template: true, state: 'missing-long-term' })
   assert.equal(new Set(base.map(({ renderKey }) => renderKey)).size, base.length)
@@ -601,8 +601,8 @@ test('material library puts available cards first while preserving catalog order
     { id: 'vodka', name: '伏特加', category: 'base-spirit', acquisition: 'long-term', owned: true, trackFreshness: false }
   ]
   const cards = buildMaterialLibrary(materials, [], { includeCatalog: true, categoryFilter: 'base' }).materials
-  assert.deepEqual(cards.map(({ name }) => name), ['白朗姆', '伏特加', '金酒'])
-  assert.deepEqual(cards.map(({ visualState }) => visualState), ['owned', 'owned', 'missing-long-term'])
+  assert.deepEqual(cards.map(({ name }) => name), ['白朗姆', '伏特加', '金酒', '威士忌', '龙舌兰'])
+  assert.deepEqual(cards.map(({ visualState }) => visualState), ['owned', 'owned', 'missing-long-term', 'missing-long-term', 'missing-long-term'])
 })
 
 test('material library sorts a category by availability then usage count', () => {
@@ -620,8 +620,8 @@ test('material library sorts a category by availability then usage count', () =>
   ]
 
   const cards = buildMaterialLibrary(materials, recipes, { includeCatalog: true, categoryFilter: 'base' }).materials
-  assert.deepEqual(cards.map(({ id }) => id), ['rum', 'gin', 'vodka', 'tequila'])
-  assert.deepEqual(cards.map(({ usageCount }) => usageCount), [2, 1, 3, 1])
+  assert.deepEqual(cards.map(({ id }) => id), ['rum', 'gin', 'vodka', 'tequila', ''])
+  assert.deepEqual(cards.map(({ usageCount }) => usageCount), [2, 1, 3, 1, 0])
 })
 
 test('all materials put available cards first and preserve category order inside each availability group', () => {
@@ -944,6 +944,30 @@ test('material save orchestration returns inline errors and never navigates afte
   })
   assert.equal(duplicate.errors.name, '同一分类下已经有这个材料')
   assert.equal(navigations, 0)
+})
+
+test('material save orchestration waits for cloud confirmation before reporting success', async () => {
+  let confirm
+  const pending = new Promise((resolve) => { confirm = resolve })
+  const messages = []
+  let navigations = 0
+  const outcome = orchestrateMaterialSave({
+    repository: { saveMaterial() { return pending } },
+    form: {
+      name: '西瓜', category: 'fruit', acquisition: 'on-demand', form: 'solid', defaultUnit: 'g',
+      alcoholic: false, freshOnHand: false, trackFreshness: true
+    },
+    notify: (message) => messages.push(message),
+    navigate: () => { navigations++ }
+  })
+
+  assert.equal(typeof outcome.then, 'function')
+  assert.deepEqual(messages, [])
+  assert.equal(navigations, 0)
+  confirm({ id: 'm-cloud', name: '西瓜' })
+  assert.equal((await outcome).saved, true)
+  assert.deepEqual(messages, ['材料已保存'])
+  assert.equal(navigations, 1)
 })
 
 test('saving an existing material returns to its previous page without stacking another detail page', () => {

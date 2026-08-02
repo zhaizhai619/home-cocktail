@@ -1,6 +1,7 @@
 const { UNITS } = require('../../domain/constants')
 const { MATERIAL_LIBRARY_TABS, buildMaterialLibrary, buildGlasswareCards, buildFreshFormState, buildFreshRemainingEditorState, ensureLibraryMaterial, prepareGlasswareForSave, orchestrateFreshRemainingSave, orchestrateFreshUseUp, orchestrateFreshUndo } = require('./model')
 const { validateGlasswareForm, orchestrateGlasswareSave, orchestrateEquipmentDelete, orchestrateGlasswareMediaDelete } = require('../settings/model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
@@ -45,7 +46,7 @@ Page({
     remainingError: '',
     undo: null
   },
-  onShow() { this.reload() },
+  async onShow() { await waitForCloudReady(); this.reload() },
   onUnload() { if (this.undoTimer) clearTimeout(this.undoTimer) },
   reload() {
     const repo = repository()
@@ -114,8 +115,8 @@ Page({
       remainingError: ''
     })
   },
-  onSaveRemaining() {
-    const result = orchestrateFreshRemainingSave({
+  async onSaveRemaining() {
+    const result = await orchestrateFreshRemainingSave({
       repository: repository(),
       draft: this.data.remainingDraft,
       notify: toast
@@ -124,10 +125,10 @@ Page({
     this.setData({ remainingEditorOpen: false, remainingError: '' })
     this.reload()
   },
-  onOpenLibraryCard(event) {
+  async onOpenLibraryCard(event) {
     const { id, name, category } = event.currentTarget.dataset
     try {
-      const material = ensureLibraryMaterial(repository(), { id, name, category })
+      const material = await ensureLibraryMaterial(repository(), { id, name, category })
       if (!material) throw new Error('material not found')
       wx.navigateTo({ url: `/pages/material-detail/index?id=${encodeURIComponent(material.id)}` })
     } catch (_) { toast('打开材料失败，请重试') }
@@ -155,13 +156,13 @@ Page({
   },
   onGlassFormInput(event) { if (!this.data.savingGlass) this.setData({ [`glassForm.${event.currentTarget.dataset.field}`]: event.detail.value, glassError: '' }) },
   onCloseGlassEditor() { if (!this.data.savingGlass) this.setData({ glassEditorOpen: false, glassError: '' }) },
-  onSaveGlassware() {
+  async onSaveGlassware() {
     if (this.data.savingGlass) return
     const form = prepareGlasswareForSave(this.data.glassForm, this.data.glassware)
     const validation = validateGlasswareForm(form)
     if (!validation.valid) { this.setData({ glassError: validation.message }); return toast(validation.message) }
     this.setData({ savingGlass: true, glassError: '' })
-    const result = orchestrateGlasswareSave({ repository: repository(), form, notify: toast })
+    const result = await orchestrateGlasswareSave({ repository: repository(), form, notify: toast })
     this.setData({ savingGlass: false })
     if (!result.saved) return this.setData({ glassError: '保存失败，请重试' })
     this.setData({ glassEditorOpen: false })
@@ -189,11 +190,11 @@ Page({
     const id = event.currentTarget.dataset.id
     if (id) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(id)}` })
   },
-  onToggleOwned(event) {
+  async onToggleOwned(event) {
     const id = event.currentTarget.dataset.id
     const owned = event.currentTarget.dataset.owned !== true
     try {
-      const saved = repository().setMaterialOwned(id, owned)
+      const saved = await repository().setMaterialOwned(id, owned)
       if (!saved) throw new Error('not found')
       this.reload()
     } catch (_) { toast('更新失败，请重试') }
@@ -213,28 +214,28 @@ Page({
     this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
   },
   onFreshExpiryChange(event) { this.setData({ 'freshDraft.expiresAt': event.detail.value || '', freshError: '' }) },
-  onConfirmFresh() {
+  async onConfirmFresh() {
     const draft = this.data.freshDraft
     const fields = draft.trackFreshness ? { remainingUnit: draft.remainingUnit, expiresAt: draft.expiresAt || null } : {}
     if (draft.trackFreshness && String(draft.remainingAmount).trim()) fields.remainingAmount = Number(draft.remainingAmount)
     try {
-      const saved = repository().addToFreshShelf(draft.materialId, fields)
+      const saved = await repository().addToFreshShelf(draft.materialId, fields)
       if (!saved) throw new Error('not saved')
       this.setData({ showFreshForm: false })
       this.reload()
       toast('已加入手头鲜材')
     } catch (_) { this.setData({ freshError: '请检查余量和日期' }); toast('请检查余量和日期') }
   },
-  onUseUp(event) {
-    const undo = orchestrateFreshUseUp({ repository: repository(), materialId: event.currentTarget.dataset.id, notify: toast })
+  async onUseUp(event) {
+    const undo = await orchestrateFreshUseUp({ repository: repository(), materialId: event.currentTarget.dataset.id, notify: toast })
     if (!undo.removed) return
     if (this.undoTimer) clearTimeout(this.undoTimer)
     this.setData({ undo })
     this.undoTimer = setTimeout(() => this.setData({ undo: null }), 6000)
     this.reload()
   },
-  onUndoUseUp() {
-    const result = orchestrateFreshUndo({ repository: repository(), undo: this.data.undo, notify: toast })
+  async onUndoUseUp() {
+    const result = await orchestrateFreshUndo({ repository: repository(), undo: this.data.undo, notify: toast })
     if (result.restored) {
       if (this.undoTimer) clearTimeout(this.undoTimer)
       this.setData({ undo: null })

@@ -1,6 +1,7 @@
 const { formatGlasswareLabel } = require('../../domain/equipment')
 const { prepareGlasswareForSave } = require('../materials/model')
 const { validateGlasswareForm, orchestrateGlasswareSave } = require('../settings/model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
@@ -9,7 +10,7 @@ function repository() {
 
 Page({
   data: { selectedId: '', glassware: [], orphanedSelection: false, glassEditorOpen: false, glassForm: { name: '', capacityMl: '' }, glassError: '', savingGlass: false },
-  onLoad() {
+  async onLoad() {
     this.eventChannel = typeof this.getOpenerEventChannel === 'function' ? this.getOpenerEventChannel() : null
     if (this.eventChannel && this.eventChannel.on) {
       this.eventChannel.on('glassware:init', ({ selectedId } = {}) => {
@@ -17,9 +18,10 @@ Page({
         this.reload()
       })
     }
+    await waitForCloudReady()
     this.reload()
   },
-  onShow() { if (this.loaded) this.reload(); else this.loaded = true },
+  async onShow() { await waitForCloudReady(); if (this.loaded) this.reload(); else this.loaded = true },
   reload() {
     const repo = repository()
     const items = repo && repo.listGlassware ? repo.listGlassware() : []
@@ -39,13 +41,13 @@ Page({
   onAddGlassware() { if (!this.data.savingGlass) this.setData({ glassEditorOpen: true, glassForm: { name: '', capacityMl: '' }, glassError: '' }) },
   onCloseGlassEditor() { if (!this.data.savingGlass) this.setData({ glassEditorOpen: false, glassError: '' }) },
   onGlassFormInput(event) { this.setData({ [`glassForm.${event.currentTarget.dataset.field}`]: event.detail.value, glassError: '' }) },
-  onSaveGlassware() {
+  async onSaveGlassware() {
     if (this.data.savingGlass) return
     const form = prepareGlasswareForSave(this.data.glassForm, this.data.glassware)
     const validation = validateGlasswareForm(form)
     if (!validation.valid) return this.setData({ glassError: validation.message })
     this.setData({ savingGlass: true, glassError: '' })
-    const result = orchestrateGlasswareSave({ repository: repository(), form })
+    const result = await orchestrateGlasswareSave({ repository: repository(), form })
     this.setData({ savingGlass: false })
     if (!result.saved) return this.setData({ glassError: '保存失败，请重试' })
     this.setData({ glassEditorOpen: false })

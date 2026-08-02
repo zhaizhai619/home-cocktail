@@ -1,0 +1,10 @@
+.trash-page { box-sizing: border-box; min-height: 100vh; padding: 32rpx 28rpx 100rpx; background: #f8f5ee; }
+.intro { padding: 24rpx 28rpx; color: #6f6c66; background: #fff; border: 1rpx solid #e7e4dd; border-radius: 20rpx; font-size: 25rpx; line-height: 1.6; }
+.empty { padding: 120rpx 24rpx; color: #8b877f; font-size: 27rpx; text-align: center; }
+.trash-list { margin-top: 24rpx; }
+.trash-card { display: flex; min-height: 132rpx; margin-bottom: 18rpx; padding: 24rpx; align-items: center; justify-content: space-between; background: #fff; border: 1rpx solid #e7e4dd; border-radius: 20rpx; }
+.trash-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.trash-name { overflow: hidden; color: #242321; font-size: 30rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.trash-meta, .trash-expiry { margin-top: 8rpx; color: #77736d; font-size: 23rpx; }
+.restore-button { min-width: 124rpx; margin: 0 0 0 24rpx; color: #fff; background: #242321; border-radius: 999rpx; font-size: 25rpx; }
+.restore-button::after { border: 0; }

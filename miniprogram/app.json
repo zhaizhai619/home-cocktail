@@ -8,6 +8,7 @@
     "pages/materials/index",
     "pages/material-detail/index",
     "pages/material-edit/index",
+    "pages/trash/index",
     "pages/settings/index"
   ],
   "window": {

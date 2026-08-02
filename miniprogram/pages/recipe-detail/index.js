@@ -6,6 +6,7 @@ const {
   orchestrateRecipeCopy,
   orchestrateRecipeDelete
 } = require('./model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 function getRepository() {
   const app = typeof getApp === 'function' ? getApp() : null
@@ -23,12 +24,14 @@ Page({
     manualAbvError: '',
     expandedPreparationIds: {}
   },
-  onLoad(query) {
+  async onLoad(query) {
     this.recipeId = decodeRecipeId(query && query.id)
     this.ratingPromotedFromUntried = false
+    await waitForCloudReady()
     this.loadDetail()
   },
-  onShow() {
+  async onShow() {
+    await waitForCloudReady()
     if (this.recipeId) this.loadDetail()
   },
   loadDetail() {
@@ -46,8 +49,8 @@ Page({
       wx.setNavigationBarTitle({ title: detail.name || '酒款详情' })
     }
   },
-  onToggleRating(event) {
-    const result = orchestrateRatingToggle({
+  async onToggleRating(event) {
+    const result = await orchestrateRatingToggle({
       repository: getRepository(),
       recipe: this.recipe,
       rating: event.currentTarget.dataset.rating,
@@ -78,21 +81,21 @@ Page({
   },
   onCloseManualAbv() { this.setData({ showManualAbvEditor: false, manualAbvError: '' }) },
   onManualAbvInput(event) { this.setData({ manualAbvDraft: event.detail.value || '', manualAbvError: '' }) },
-  saveManualAbv(value) {
-    const result = orchestrateManualAbvSave({ repository: getRepository(), recipe: this.recipe, value, notify: toast })
+  async saveManualAbv(value) {
+    const result = await orchestrateManualAbvSave({ repository: getRepository(), recipe: this.recipe, value, notify: toast })
     if (!result.saved) return this.setData({ manualAbvError: result.message })
     this.setData({ showManualAbvEditor: false, manualAbvError: '' })
     this.loadDetail()
   },
-  onSaveManualAbv() { this.saveManualAbv(this.data.manualAbvDraft) },
-  onClearManualAbv() { this.saveManualAbv('') },
+  async onSaveManualAbv() { await this.saveManualAbv(this.data.manualAbvDraft) },
+  async onClearManualAbv() { await this.saveManualAbv('') },
   noop() {},
   onEdit() {
     if (!this.recipeId) return toast('无法编辑这款酒')
     wx.navigateTo({ url: `/pages/recipe-edit/index?id=${encodeURIComponent(this.recipeId)}` })
   },
-  onCopy() {
-    const result = orchestrateRecipeCopy({ repository: getRepository(), recipeId: this.recipeId, notify: toast })
+  async onCopy() {
+    const result = await orchestrateRecipeCopy({ repository: getRepository(), recipeId: this.recipeId, notify: toast })
     if (result.copied) wx.redirectTo({ url: `/pages/recipe-detail/index?id=${encodeURIComponent(result.recipeId)}` })
   },
   onDelete() {
@@ -102,9 +105,9 @@ Page({
       content: '只会删除酒单中的配方，材料库里的材料会保留。',
       confirmText: '删除',
       confirmColor: '#a54d36',
-      success: ({ confirm }) => {
+      success: async ({ confirm }) => {
         if (!confirm) return
-        const result = orchestrateRecipeDelete({ repository: getRepository(), recipeId: this.recipeId, notify: toast })
+        const result = await orchestrateRecipeDelete({ repository: getRepository(), recipeId: this.recipeId, notify: toast })
         if (result.deleted) wx.switchTab({ url: '/pages/recipes/index' })
       }
     })

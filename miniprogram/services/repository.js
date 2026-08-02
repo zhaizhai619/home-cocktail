@@ -247,12 +247,16 @@ function createRepository(adapter, options = {}) {
         const key = materialKey(existingMaterial)
         if (!idsByMaterialKey[key]) idsByMaterialKey[key] = existingMaterial.id
       }
+      const inputRecipe = recipeValue && typeof recipeValue === 'object' ? recipeValue : {}
       for (const draft of Array.isArray(materialDrafts) ? materialDrafts : []) {
         if (!draft || typeof draft !== 'object') continue
         const key = materialKey(draft)
         let id = idsByMaterialKey[key]
         if (!id) {
-          const { draftKey, ...materialValue } = draft
+          const { draftKey, ...draftMaterial } = draft
+          const materialValue = inputRecipe.tried === true
+            ? draftMaterial
+            : { ...draftMaterial, owned: false, freshOnHand: false, assumedAvailable: false }
           const savedMaterial = material(materialValue, null)
           state.materials.push(savedMaterial)
           id = savedMaterial.id
@@ -261,7 +265,6 @@ function createRepository(adapter, options = {}) {
         if (typeof draft.draftKey === 'string' && draft.draftKey) idsByDraftKey[draft.draftKey] = id
         idsByDraftKey[key] = id
       }
-      const inputRecipe = recipeValue && typeof recipeValue === 'object' ? recipeValue : {}
       const resolveId = (item) => item && (item.materialId || idsByDraftKey[item.draftKey] || '')
       const resolvedRecipe = {
         ...inputRecipe,

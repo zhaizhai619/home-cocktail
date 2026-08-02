@@ -88,4 +88,59 @@ function createWxMediaFileService(wxApi) {
   return createMediaFileService({ fileSystem: wxApi.getFileSystemManager(), userDataPath: wxApi.env && wxApi.env.USER_DATA_PATH })
 }
 
-module.exports = { MANAGED_DIRECTORY, RECIPE_MANAGED_DIRECTORY, PROFILE_MANAGED_DIRECTORY, createMediaFileService, createWxMediaFileService }
+function createCloudMediaFileService({ cloud, idFactory = () => `${Date.now()}-${Math.random().toString(36).slice(2)}` } = {}) {
+  if (!cloud || typeof cloud.uploadFile !== 'function' || typeof cloud.deleteFile !== 'function') {
+    throw new Error('Cloud media service unavailable')
+  }
+
+  const managedMarker = '.user-media/'
+  const managedRoot = 'user-media'
+  const profileMarker = `${managedMarker}profile/`
+
+  function isManagedPath(path) {
+    return typeof path === 'string' && path.startsWith('cloud://') && path.includes(managedMarker)
+  }
+
+  function isManagedProfilePath(path) {
+    return isManagedPath(path) && path.includes(profileMarker)
+  }
+
+  async function persistImage(sourcePath, category) {
+    const path = String(sourcePath || '').trim()
+    if (!path) return { path: '', created: false }
+    if (path.startsWith('cloud://')) return { path, created: false }
+    const cloudPath = `${managedRoot}/${category}/${safeFileId(idFactory())}${extensionFor(path)}`
+    const result = await cloud.uploadFile({ cloudPath, filePath: path })
+    if (!result || !result.fileID) throw new Error('Cloud image upload failed')
+    return { path: result.fileID, created: true }
+  }
+
+  async function removeManagedFile(path) {
+    if (!isManagedPath(path)) return { removed: false }
+    await cloud.deleteFile({ fileList: [path] })
+    return { removed: true }
+  }
+
+  return {
+    isManagedPath,
+    isManagedProfilePath,
+    persistGlasswareImage: (path) => persistImage(path, 'glassware'),
+    persistRecipeImage: (path) => persistImage(path, 'recipes'),
+    persistProfileImage: (path) => persistImage(path, 'profile'),
+    removeManagedFile
+  }
+}
+
+function createWxCloudMediaFileService(wxApi) {
+  return createCloudMediaFileService({ cloud: wxApi && wxApi.cloud })
+}
+
+module.exports = {
+  MANAGED_DIRECTORY,
+  RECIPE_MANAGED_DIRECTORY,
+  PROFILE_MANAGED_DIRECTORY,
+  createMediaFileService,
+  createWxMediaFileService,
+  createCloudMediaFileService,
+  createWxCloudMediaFileService
+}

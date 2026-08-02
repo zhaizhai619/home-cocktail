@@ -1,6 +1,7 @@
 const { RATINGS } = require('../../domain/constants')
 const { buildSeasonalFruitMessage } = require('../../domain/seasonal-fruits')
 const { filterAndSortRecipeCards } = require('./model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 const PREP_OPTIONS = [
   { key: 'all', label: '全部' },
@@ -81,7 +82,8 @@ Page({
     sortOptions: SORT_OPTIONS,
     statusOptions: STATUS_OPTIONS
   },
-  onShow() {
+  async onShow() {
+    await waitForCloudReady()
     const source = repositoryData()
     this.recipesSource = source.recipes
     this.materialsById = source.materialsById

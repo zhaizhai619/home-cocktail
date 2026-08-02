@@ -1,4 +1,5 @@
 const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, isValidGlassCapacity } = require('../../domain/equipment-invariants')
+const { settleOperation } = require('../../services/maybe-promise')
 
 function createEditorOperationGuard() {
   let currentToken = null
@@ -58,15 +59,14 @@ function buildSettingsView(glassware = [], tools = [], recipes = []) {
 function orchestrateSave({ repository, form, validate, method, notify = () => {} }) {
   const validation = validate(form)
   if (!validation.valid) { notify(validation.message); return { saved: false, item: null } }
-  try {
-    const item = repository && repository[method](validation.value)
+  return settleOperation(() => repository && repository[method](validation.value), (item) => {
     if (!item) throw new Error('not saved')
     notify('已保存')
     return { saved: true, item }
-  } catch (error) {
+  }, (error) => {
     notify(error && /已存在/.test(error.message) ? error.message : '保存失败，请重试')
     return { saved: false, item: null }
-  }
+  })
 }
 
 function orchestrateGlasswareSave(options = {}) {
@@ -109,7 +109,7 @@ async function orchestrateGlasswareMediaSave({ repository, mediaFiles, form, sel
     return { saved: false, item: null }
   }
   try {
-    const item = repository && repository.upsertGlassware({ ...validation.value, imagePath: persisted.path })
+    const item = await repository.upsertGlassware({ ...validation.value, imagePath: persisted.path })
     if (!item) throw new Error('not saved')
     if (priorPath && priorPath !== persisted.path) await cleanupIfUnreferenced({ repository, mediaFiles, path: priorPath, message: '酒杯已保存，但旧图片清理失败', warn })
     notify('已保存')
@@ -135,20 +135,19 @@ function orchestrateEquipmentDelete({ repository, type, id, confirmed = false, n
     return { deleted: false, needsConfirmation: false, usageCount }
   }
   if (!confirmed) return { deleted: false, needsConfirmation: true, usageCount }
-  try {
-    const deleted = repository && repository[deleteMethod](id)
+  return settleOperation(() => repository && repository[deleteMethod](id), (deleted) => {
     if (!deleted) throw new Error('not deleted')
     notify('已删除')
     return { deleted: true, needsConfirmation: false, usageCount }
-  } catch (_) {
+  }, () => {
     notify('删除失败，请重试')
     return { deleted: false, needsConfirmation: false, usageCount }
-  }
+  })
 }
 
 async function orchestrateGlasswareMediaDelete({ repository, mediaFiles, id, confirmed = false, notify = () => {}, warn = () => {} } = {}) {
   const existing = repository && repository.getGlassware ? repository.getGlassware(id) : null
-  const result = orchestrateEquipmentDelete({ repository, type: 'glassware', id, confirmed, notify })
+  const result = await orchestrateEquipmentDelete({ repository, type: 'glassware', id, confirmed, notify })
   if (result.deleted && existing && existing.imagePath) await cleanupIfUnreferenced({ repository, mediaFiles, path: existing.imagePath, message: '酒杯已删除，但图片清理失败', warn })
   return result
 }

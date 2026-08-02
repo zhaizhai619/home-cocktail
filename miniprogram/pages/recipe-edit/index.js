@@ -2,6 +2,7 @@ const { PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
 const { formatPreparationDurationText, getPreparationDurationParts } = require('../../domain/recipe')
 const { getMaterialCategoryGroup, getMaterialDisplayName, getMaterialIdentityKey, materialNameMatchesQuery } = require('../../domain/material')
 const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 const NEW_CATEGORIES = [
   { key: 'base-spirit', label: '基酒' }, { key: 'other-base-spirit', label: '其他基酒' }, { key: 'liqueur', label: '利口酒' }, { key: 'bitters', label: '苦精' },
@@ -48,7 +49,8 @@ function emptyData(form, glassware, tools) {
 
 Page({
   data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
-  onLoad(query) {
+  async onLoad(query) {
+    await waitForCloudReady()
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
     this.materials = repo ? repo.listMaterials() : []; this.glassware = repo ? repo.listGlassware() : []; this.tools = repo ? repo.listTools() : []
     let form = createEmptyRecipeForm()
@@ -60,7 +62,8 @@ Page({
     }
     this.setData({ materials: this.materials, ...emptyData(form, this.glassware, this.tools) })
   },
-  onShow() {
+  async onShow() {
+    await waitForCloudReady()
     this._openingGlassSelect = false
     this._openingMaterialSelect = false
     const repo = repository()
@@ -233,11 +236,11 @@ Page({
   onTools(event) { const indexes = event.detail.value || []; this.sync({ ...this.data.form, toolIds: indexes.map((index) => this.data.tools[Number(index)]).filter(Boolean).map((tool) => tool.id) }) },
   onRating(event) { this.sync({ ...this.data.form, rating: event.currentTarget.dataset.rating }) },
   noop() {},
-  onSave() {
+  async onSave() {
     if (this._savingRecipe) return
     this._savingRecipe = true
     this.setData({ savingRecipe: true, formError: '' })
-    const result = orchestrateRecipeSave({ repository: repository(), form: this.data.form, notify: (title) => { if (typeof wx !== 'undefined') wx.showToast({ title, icon: 'none' }) }, navigateBack: () => { if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack() } })
+    const result = await orchestrateRecipeSave({ repository: repository(), form: this.data.form, notify: (title) => { if (typeof wx !== 'undefined') wx.showToast({ title, icon: 'none' }) }, navigateBack: () => { if (typeof wx !== 'undefined' && wx.navigateBack) wx.navigateBack() } })
     if (!result.saved) {
       this._savingRecipe = false
       this.setData({ savingRecipe: false })

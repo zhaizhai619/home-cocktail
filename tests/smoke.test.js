@@ -14,6 +14,12 @@ test('app config starts with recipes and declares the three tabs', () => {
   )
 })
 
+test('app initializes the cloud environment owned by this mini program', () => {
+  const appSource = fs.readFileSync(path.join(__dirname, '..', 'miniprogram', 'app.js'), 'utf8')
+
+  assert.match(appSource, /const CLOUD_ENV_ID = 'cloud1-d3gbs4a2yb36e552b'/)
+})
+
 test('declared pages and recipe card component have complete mini-program files', () => {
   const root = path.join(__dirname, '..', 'miniprogram')
   const appConfig = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'))

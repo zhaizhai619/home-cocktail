@@ -6,12 +6,22 @@
       <button class="avatar-picker" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" disabled="{{savingAvatar}}" aria-label="编辑头像"></button>
     </view>
     <input class="nickname-input" type="nickname" value="{{profile.nickname}}" maxlength="20" confirm-type="done" bindblur="onNicknameCommit" bindconfirm="onNicknameCommit" aria-label="编辑名字" />
+    <text class="edit-hint">点击头像和名字即可编辑</text>
   </view>
 
-  <view class="sync-row">
-    <text class="sync-label">数据同步时间</text>
-    <text class="sync-value">{{syncTimeLabel}}</text>
+  <view class="data-panel">
+    <view class="sync-row">
+      <text class="sync-label">数据同步时间</text>
+      <text class="sync-value">{{syncTimeLabel}}</text>
+    </view>
+    <view class="data-action" bindtap="onOpenTrash" hover-class="data-action-active" aria-role="button">
+      <text class="data-action-title">最近删除</text>
+      <text class="action-note">3 天内可恢复</text>
+    </view>
+    <view class="data-action" bindtap="onExportBackup" hover-class="data-action-active" aria-role="button" aria-disabled="{{exportingBackup}}">
+      <text class="data-action-title">导出备份</text>
+      <text class="action-note">保存一份 JSON 文件</text>
+    </view>
   </view>
 
-  <text class="edit-hint">点击头像和名字即可编辑</text>
 </view>

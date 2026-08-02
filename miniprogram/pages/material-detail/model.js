@@ -2,6 +2,7 @@ const { getMaterialVisualState, isMaterialAvailable } = require('../../domain/ma
 const { getMaterialUsageStats, getMaterialPreferenceNotes } = require('../../domain/relations')
 const { formatInventory, formatExpiry } = require('../materials/model')
 const { toLocalDateValue } = require('../../domain/date')
+const { settleOperation } = require('../../services/maybe-promise')
 
 function lookup(items) {
   return (Array.isArray(items) ? items : []).reduce((result, item) => {
@@ -61,16 +62,15 @@ function orchestrateMaterialObservationSave({ repository, materialId, note, noti
     notify(validation.message)
     return { saved: false, material: null, message: validation.message }
   }
-  try {
-    const material = repository && repository.appendMaterialObservation(materialId, { note: validation.note })
+  return settleOperation(() => repository && repository.appendMaterialObservation(materialId, { note: validation.note }), (material) => {
     if (!material) throw new Error('not saved')
     notify('观察已保存')
     return { saved: true, material, message: '' }
-  } catch (_) {
+  }, () => {
     const message = '保存失败，请重试'
     notify(message)
     return { saved: false, material: null, message }
-  }
+  })
 }
 
 function orchestrateMaterialObservationUpdate({
@@ -87,18 +87,17 @@ function orchestrateMaterialObservationUpdate({
     notify(validation.message)
     return { saved: false, message: validation.message }
   }
-  try {
-    const saved = direct
+  return settleOperation(() => direct
       ? repository && repository.updateMaterialObservation(materialId, observationIndex, { note: validation.note })
-      : repository && repository.updateRecipeObservation(recipeId, observationIndex, { note: validation.note })
+      : repository && repository.updateRecipeObservation(recipeId, observationIndex, { note: validation.note }), (saved) => {
     if (!saved) throw new Error('Observation not updated')
     notify('记录已更新')
     return { saved: true, message: '' }
-  } catch (_) {
+  }, () => {
     const message = '保存失败，请重试'
     notify(message)
     return { saved: false, message }
-  }
+  })
 }
 
 function orchestrateMaterialObservationDelete({
@@ -109,17 +108,16 @@ function orchestrateMaterialObservationDelete({
   observationIndex,
   notify = () => {}
 } = {}) {
-  try {
-    const saved = direct
+  return settleOperation(() => direct
       ? repository && repository.deleteMaterialObservation(materialId, observationIndex)
-      : repository && repository.deleteRecipeObservation(recipeId, observationIndex)
+      : repository && repository.deleteRecipeObservation(recipeId, observationIndex), (saved) => {
     if (!saved) throw new Error('Observation not deleted')
     notify('记录已删除')
     return { deleted: true }
-  } catch (_) {
+  }, () => {
     notify('删除失败，请重试')
     return { deleted: false }
-  }
+  })
 }
 
 module.exports = {

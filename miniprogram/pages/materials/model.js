@@ -5,6 +5,7 @@ const { getMaterialReadiness, getPreparationDurationText, getPrimaryPreparation 
 const { formatGlasswareLabel } = require('../../domain/equipment')
 const { normalizeEquipmentName } = require('../../domain/equipment-invariants')
 const { isValidDateString } = require('../../domain/date')
+const { settleOperation } = require('../../services/maybe-promise')
 
 const MATERIAL_LIBRARY_TABS = Object.freeze([
   { key: 'all', label: '全部' },
@@ -14,7 +15,9 @@ const MATERIAL_LIBRARY_TABS = Object.freeze([
 const MATERIAL_LIBRARY_TEMPLATES = Object.freeze([
   { name: '金酒', category: 'base-spirit' },
   { name: '白朗姆', category: 'base-spirit' },
+  { name: '威士忌', category: 'base-spirit' },
   { name: '伏特加', category: 'base-spirit' },
+  { name: '龙舌兰', category: 'base-spirit' },
   { name: '普通糖浆', category: 'syrup/staple' },
   { name: '接骨木糖浆', category: 'syrup/staple' }
 ])
@@ -409,43 +412,40 @@ function orchestrateFreshRemainingSave({ repository, draft = {}, notify = () => 
   }
   const remainingUnit = UNITS.some(({ value }) => value === draft.remainingUnit) ? draft.remainingUnit : ''
   if (amount !== null && !remainingUnit) return { saved: false, message: '请选择余量单位' }
-  try {
-    const saved = repository && repository.updateMaterialInventory(draft.materialId, {
+  return settleOperation(() => repository && repository.updateMaterialInventory(draft.materialId, {
       remainingAmount: amount,
       remainingUnit: amount === null ? null : remainingUnit
-    })
+    }), (saved) => {
     if (!saved) throw new Error('not saved')
     notify('余量已更新')
     return { saved: true, message: '' }
-  } catch (_) {
+  }, () => {
     const message = '余量保存失败，请重试'
     notify(message)
     return { saved: false, message }
-  }
+  })
 }
 
 function orchestrateFreshUseUp({ repository, materialId, notify = () => {} }) {
-  try {
-    const result = repository && repository.useUpFreshMaterial(materialId)
+  return settleOperation(() => repository && repository.useUpFreshMaterial(materialId), (result) => {
     if (!result || !result.removed) throw new Error('Not removed')
     notify('已从手头鲜材移出')
     return { removed: true, materialId, undoToken: result.undoToken }
-  } catch (_) {
+  }, () => {
     notify('操作失败，请重试')
     return { removed: false, materialId: '', undoToken: '' }
-  }
+  })
 }
 
 function orchestrateFreshUndo({ repository, undo, notify = () => {} }) {
-  try {
-    const restored = undo && repository && repository.restoreFreshMaterial(undo.materialId, undo.undoToken)
+  return settleOperation(() => undo && repository && repository.restoreFreshMaterial(undo.materialId, undo.undoToken), (restored) => {
     if (!restored) throw new Error('Not restored')
     notify('已撤销')
     return { restored: true }
-  } catch (_) {
+  }, () => {
     notify('无法撤销，材料可能已更新')
     return { restored: false }
-  }
+  })
 }
 
 module.exports = {

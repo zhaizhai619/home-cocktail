@@ -3,6 +3,7 @@ const { createMaterialDefaults, getMaterialDisplayName, getMaterialIdentityKey }
 const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateAbv } = require('../../domain/abv')
 const { calculateGlassCapacity, formatGlasswareLabel } = require('../../domain/equipment')
+const { settleOperation } = require('../../services/maybe-promise')
 
 let ingredientRenderSequence = 0
 let advancePreparationSequence = 0
@@ -388,15 +389,15 @@ function hydrateEquipmentSelections(form, glassware = [], tools = []) {
 function orchestrateRecipeSave({ repository, form, notify = () => {}, navigateBack = () => {} } = {}) {
   const checked = normalizeAndValidateForm(form)
   if (!checked.valid) { notify(Object.values(checked.errors)[0]); return { saved: false, form: checked.form, errors: checked.errors } }
-  try {
-    const payload = buildRecipePayload(checked.form)
-    const recipe = repository.saveRecipeWithMaterials(payload.recipe, payload.materialDrafts, payload.materialUpdates)
+  const payload = buildRecipePayload(checked.form)
+  return settleOperation(() => repository.saveRecipeWithMaterials(payload.recipe, payload.materialDrafts, payload.materialUpdates), (recipe) => {
+    if (!recipe || !recipe.id) throw new Error('Recipe not saved')
     navigateBack()
     return { saved: true, recipe, form: checked.form, errors: {} }
-  } catch (_) {
+  }, () => {
     notify('保存失败，请重试')
     return { saved: false, form: checked.form, errors: { form: '保存失败，请重试' } }
-  }
+  })
 }
 
 module.exports = { createEmptyRecipeForm, applyQuickBase, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave }
