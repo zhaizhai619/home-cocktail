@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "酒单",
+  "usingComponents": {
+    "recipe-card": "/components/recipe-card/index"
+  }
+}

@@ -1,0 +1,21 @@
+<view class="recipe-card" bindtap="onSelect" aria-label="打开{{recipe.name}}详情">
+  <image wx:if="{{recipe.image}}" class="recipe-image" src="{{recipe.image}}" mode="aspectFill" />
+  <view class="recipe-body">
+    <view class="recipe-heading">
+      <text class="recipe-name">{{recipe.name}}</text>
+      <text wx:if="{{recipe.untriedLabel}}" class="untried-label">{{recipe.untriedLabel}}</text>
+      <text wx:elif="{{recipe.rating}}" class="rating">{{recipe.rating}}</text>
+    </view>
+    <view wx:if="{{recipe.preparationLabel || recipe.abvLabel}}" class="recipe-meta">
+      <text wx:if="{{recipe.preparationLabel}}" class="prep-label">{{recipe.preparationLabel}}</text>
+      <text wx:if="{{recipe.abvLabel}}" class="abv-label" aria-label="预估酒精度{{recipe.abvLabel}}">{{recipe.abvLabel}}</text>
+    </view>
+    <view wx:if="{{recipe.ingredients.length}}" class="ingredient-list">
+      <view wx:for="{{recipe.ingredients}}" wx:key="index" class="ingredient {{item.state}}" aria-label="{{item.accessibilityLabel}}">
+        <text>{{item.name}}</text>
+        <text wx:if="{{item.amountLabel}}" class="ingredient-amount"> {{item.amountLabel}}</text>
+        <text wx:if="{{item.quickBuyIcon}}" class="quick-buy-icon" aria-hidden="true">{{item.quickBuyIcon}}</text>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,17 @@
+<view class="profile-page">
+  <view class="identity">
+    <view class="avatar-shell">
+      <image wx:if="{{profile.avatarPath}}" class="avatar-image" src="{{profile.avatarPath}}" mode="aspectFill" />
+      <view wx:else class="avatar-fallback"><text>头像</text></view>
+      <button class="avatar-picker" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" disabled="{{savingAvatar}}" aria-label="编辑头像"></button>
+    </view>
+    <input class="nickname-input" type="nickname" value="{{profile.nickname}}" maxlength="20" confirm-type="done" bindblur="onNicknameCommit" bindconfirm="onNicknameCommit" aria-label="编辑名字" />
+  </view>
+
+  <view class="sync-row">
+    <text class="sync-label">数据同步时间</text>
+    <text class="sync-value">{{syncTimeLabel}}</text>
+  </view>
+
+  <text class="edit-hint">点击头像和名字即可编辑</text>
+</view>

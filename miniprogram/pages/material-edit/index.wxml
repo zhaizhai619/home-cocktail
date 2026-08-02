@@ -1,0 +1,24 @@
+<view class="edit-page">
+  <view wx:if="{{missing}}" class="missing"><text>没有找到这个材料，它可能已被删除</text><button bindtap="onBack">返回</button></view>
+  <block wx:else>
+    <view class="heading"><text class="eyebrow">MATERIAL</text><text class="title">{{mode === 'edit' ? '编辑材料' : '新增材料'}}</text><text class="intro">分类会帮你填好默认值，但每一项都可以调整。</text></view>
+
+    <view class="form-card">
+      <text class="label">材料名称</text><input class="input {{errors.name ? 'error' : ''}}" value="{{form.name}}" bindinput="onNameInput" placeholder="例如：西瓜"/><text wx:if="{{errors.name}}" class="error-text">{{errors.name}}</text>
+      <text class="label">分类</text><picker range="{{categoryLabels}}" value="{{categoryIndex}}" bindchange="onCategoryChange"><view class="picker">{{categoryLabels[categoryIndex]}}</view></picker><text wx:if="{{errors.category}}" class="error-text">{{errors.category}}</text>
+      <view class="two-columns">
+        <view><text class="label">获取方式</text><picker range="{{acquisitionLabels}}" value="{{acquisitionIndex}}" bindchange="onAcquisitionChange"><view class="picker">{{acquisitionLabels[acquisitionIndex]}}</view></picker></view>
+        <view><text class="label">默认用量单位</text><picker range="{{unitLabels}}" value="{{unitIndex}}" bindchange="onUnitChange"><view class="picker">{{unitLabels[unitIndex]}}</view></picker></view>
+      </view>
+    </view>
+
+    <view class="form-card">
+      <view class="switch-row"><view><text class="switch-title">含酒精</text><text class="switch-note">用于预估酒精度</text></view><switch checked="{{form.alcoholic}}" bindchange="onAlcoholicChange" color="#627969"/></view>
+      <block wx:if="{{form.alcoholic}}"><text class="label">酒精度</text><view class="suffix-input"><input type="digit" value="{{form.abv}}" bindinput="onAbvInput"/><text>%</text></view><text wx:if="{{errors.abv}}" class="error-text">{{errors.abv}}</text></block>
+      <view class="switch-row"><view><text class="switch-title">常备材料</text></view><switch checked="{{form.assumedAvailable}}" bindchange="onAssumedChange" color="#627969"/></view>
+    </view>
+
+    <text wx:if="{{errors.form}}" class="error-text form-error" aria-live="assertive">{{errors.form}}</text>
+    <view class="form-actions"><button class="save" bindtap="onSave">保存材料</button><button wx:if="{{mode === 'edit'}}" class="delete" bindtap="onDelete">删除材料</button></view>
+  </block>
+</view>

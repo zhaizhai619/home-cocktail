@@ -1,0 +1,48 @@
+.detail-page { min-height: 100vh; padding: 24rpx 24rpx 160rpx; box-sizing: border-box; }
+.hero-image { width: 100%; height: 420rpx; border-radius: 24rpx; }
+.hero-card, .section { margin-top: 20rpx; padding: 28rpx; background: #ffffff; border-radius: 22rpx; box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, .05); }
+.hero-card { margin-top: 0; padding-top: 40rpx; }.hero-image + .hero-card { margin-top: 20rpx; }
+.hero-heading, .ingredient-row, .ingredient-main { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.recipe-name { color: #242321; font-size: 42rpx; font-weight: 700; line-height: 1.25; }
+.rating-badge, .prep-badge, .tool-chip, .rating-option { display: inline-flex; align-items: center; min-height: 48rpx; padding: 0 18rpx; border-radius: 999rpx; font-size: 23rpx; }
+.rating-badge { flex: none; color: #957052; background: #f4eee8; font-weight: 600; }
+.muted { color: #6f6c66; font-size: 25rpx; line-height: 1.6; }
+.hero-card > .muted { display: block; margin-top: 12rpx; }
+.detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12rpx; margin-top: 22rpx; }
+.prep-item { display: flex; align-items: center; gap: 14rpx; }
+.prep-badge { flex: none; color: #ffffff; background: #242321; }
+.prep-note { color: #6f6c66; font-size: 25rpx; line-height: 1.5; }
+.abv-badge { display: inline-flex; align-items: center; box-sizing: border-box; width: auto; min-height: 48rpx; margin: 0; padding: 0 18rpx; color: #536274; background: #ebeff3; border: 1rpx solid #dbe2e9; border-radius: 999rpx; font-size: 23rpx; font-weight: 650; line-height: 1.2; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin-bottom: 20rpx; }
+.section-title { display: block; margin-bottom: 20rpx; color: #242321; font-size: 31rpx; font-weight: 650; }
+.section-heading .section-title { min-width: 0; margin-bottom: 0; }
+.material-glassware { min-width: 0; overflow: hidden; color: #6f6c66; font-size: 24rpx; line-height: 1.4; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.ingredient-row { min-height: 82rpx; padding: 0 12rpx; border-bottom: 1rpx solid #f1f0ec; border-radius: 12rpx; }.ingredient-row:last-child { border-bottom: 0; }
+.ingredient-row.prepared { border-bottom: 0; }
+.ingredient-row.missing-long-term { color: #9d9991; background: #f1f0ec; }
+.ingredient-name { font-size: 27rpx; }.ingredient-amount { flex: none; font-size: 26rpx; }
+.ingredient-main { justify-content: flex-start; gap: 8rpx; }
+.quick-buy-icon { flex: none; font-size: 24rpx; line-height: 1; }
+.advance-group { margin: 0 0 18rpx; padding: 0; background: rgba(111, 108, 102, .035); border: 0; border-radius: 16rpx; box-shadow: none; }
+.advance-summary { margin: 0; padding: 0; }
+.advance-inline-ingredients { margin: 0; padding: 0; }
+.advance-ingredient-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16rpx; min-height: 68rpx; padding: 0 12rpx 0 36rpx; color: #77736c; border: 0; }
+.advance-ingredient-row:not(:last-child)::after { content: ''; position: absolute; bottom: 0; left: 36rpx; right: 24rpx; height: 1rpx; background: rgba(0, 0, 0, .07); }
+.advance-ingredient-row.missing-long-term { color: #9d9991; }
+.advance-steps-toggle { display: flex; align-items: center; min-height: 60rpx; margin-top: 6rpx; padding: 0 24rpx 0 36rpx; color: #6f6c66; font-size: 23rpx; font-weight: 600; }
+.advance-steps { display: grid; gap: 10rpx; margin: 0 24rpx 0 36rpx; padding: 12rpx 0 16rpx; border-top: 1rpx solid rgba(0, 0, 0, .12); }
+.advance-step { display: flex; align-items: flex-start; color: #6f6c66; font-size: 23rpx; line-height: 1.55; }
+.advance-step-copy { min-width: 0; flex: 1; }
+.tool-list, .ratings { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 14rpx; }.tool-chip { color: #6f6c66; background: #f1f0ec; }
+.steps { display: grid; gap: 20rpx; }.step { display: flex; align-items: flex-start; gap: 18rpx; }.step-index { display: flex; flex: none; align-items: center; justify-content: center; width: 42rpx; height: 42rpx; color: #ffffff; background: #242321; border-radius: 50%; font-size: 22rpx; }.step-copy { padding-top: 3rpx; color: #242321; font-size: 27rpx; line-height: 1.6; }
+.rating-option { color: #6f6c66; background: #f1f0ec; }.rating-option.selected { color: #ffffff; background: #242321; font-weight: 600; }
+.primary-button, .secondary-button, .action-button { min-height: 88rpx; border-radius: 16rpx; font-size: 27rpx; }.primary-button { color: #ffffff; background: #242321; }.secondary-button { margin-top: 14rpx; color: #242321; background: #f1f0ec; }
+.empty-state { display: flex; min-height: 70vh; flex-direction: column; align-items: center; justify-content: center; text-align: center; }.empty-title { color: #242321; font-size: 34rpx; font-weight: 600; }.empty-copy { margin: 16rpx 0 32rpx; color: #6f6c66; font-size: 26rpx; }
+.action-bar { position: fixed; z-index: 5; right: 0; bottom: env(safe-area-inset-bottom); left: 0; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12rpx; padding: 12rpx 24rpx; background: #ffffff; box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0,.08); }
+.action-bar::after { content: ''; position: absolute; top: 100%; right: 0; left: 0; height: env(safe-area-inset-bottom); background: #ffffff; }
+.action-button { min-width: 0; height: 88rpx; margin: 0; padding: 0; font-weight: 400; line-height: 88rpx; }
+.action-button.edit { color: #ffffff; background: #3f4144; }
+.action-button.delete { color: #985a54; background: #f5ebe9; }
+.bottom-space { height: 24rpx; }
+.ingredient-side{display:flex;align-items:center;flex:none}
+.abv-sheet-mask{position:fixed;z-index:12;inset:0;display:flex;align-items:flex-end;background:rgba(0, 0, 0,.42)}.abv-sheet{box-sizing:border-box;width:100%;padding:28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));background:#ffffff;border-radius:28rpx 28rpx 0 0}.abv-sheet-title{display:block;margin-bottom:18rpx;color:#242321;font-size:30rpx;font-weight:650}.abv-input{display:flex;align-items:center;box-sizing:border-box;height:82rpx;padding:0 20rpx;background:#ffffff;border:1rpx solid #e7e4dd;border-radius:16rpx}.abv-input input{flex:1;font-size:28rpx}.abv-input text{color:#6f6c66;font-size:27rpx}.abv-sheet-actions{display:flex;gap:14rpx;margin-top:22rpx}.abv-sheet-actions button{box-sizing:border-box;min-width:0;margin:0;line-height:82rpx;border-radius:16rpx;font-size:26rpx}.clear-abv{flex:1;color:#6f6c66;background:#f1f0ec}.save-abv{flex:2;color:#ffffff;background:#242321}

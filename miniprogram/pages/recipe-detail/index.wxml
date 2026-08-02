@@ -1,0 +1,81 @@
+<view class="page detail-page">
+  <view wx:if="{{detail.status === 'missing'}}" class="empty-state">
+    <text class="empty-title">这款酒找不到了</text>
+    <text class="empty-copy">{{detail.message}}</text>
+    <button class="primary-button" bindtap="onBackToList">返回我的酒单</button>
+  </view>
+
+  <block wx:elif="{{detail.status === 'ok'}}">
+    <image wx:if="{{detail.imagePath}}" class="hero-image" src="{{detail.imagePath}}" mode="aspectFill" />
+    <view class="hero-card">
+      <view class="hero-heading"><text class="recipe-name">{{detail.name}}</text><text wx:if="{{detail.rating}}" class="rating-badge">{{detail.rating}}</text></view>
+      <text wx:if="{{detail.source}}" class="muted">来源：{{detail.source}}</text>
+      <view class="detail-meta">
+        <view wx:for="{{detail.preparations}}" wx:key="type" class="prep-item">
+          <text class="prep-badge">{{item.label}}</text>
+          <text wx:if="{{item.note}}" class="prep-note">{{item.note}}</text>
+        </view>
+        <text class="abv-badge" bindtap="onOpenManualAbv" aria-role="button" aria-label="酒精度 {{detail.abvBadgeLabel}}，点按编辑">{{detail.abvBadgeLabel}}</text>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-heading">
+        <text class="section-title">材料</text>
+        <text wx:if="{{detail.glassware}}" class="material-glassware">{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text>
+      </view>
+      <view class="ingredient-list">
+        <block wx:for="{{detail.ingredients}}" wx:key="index">
+          <block wx:if="{{item.preparation}}">
+            <view class="advance-group">
+              <view class="advance-summary">
+                <view class="ingredient-row prepared {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
+                  <view class="ingredient-main"><text class="ingredient-name">{{item.name}}</text><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍️</text></view>
+                  <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text></view>
+                </view>
+              </view>
+              <view class="advance-inline-ingredients">
+                <view wx:for="{{item.preparation.ingredients}}" wx:for-item="preparedIngredient" wx:key="index" class="advance-ingredient-row {{preparedIngredient.state}}" data-id="{{preparedIngredient.materialId}}" bindtap="onOpenMaterial" aria-label="{{preparedIngredient.accessibilityLabel}}">
+                  <text class="ingredient-name">{{preparedIngredient.name}}</text>
+                  <text class="ingredient-amount">{{preparedIngredient.amountLabel}}</text>
+                </view>
+              </view>
+              <view wx:if="{{item.preparation.hasSteps}}" class="advance-steps-toggle" data-preparation-id="{{item.preparation.id}}" bindtap="onTogglePreparationSteps" aria-role="button" aria-label="{{expandedPreparationIds[item.preparation.id] ? '收起' : '展开'}}制作步骤">
+                制作步骤
+              </view>
+              <view wx:if="{{expandedPreparationIds[item.preparation.id]}}" class="advance-steps">
+                <view wx:for="{{item.preparation.steps}}" wx:for-item="advanceStep" wx:key="index" class="advance-step">
+                  <text class="advance-step-copy">{{advanceStep}}</text>
+                </view>
+              </view>
+            </view>
+          </block>
+          <view wx:else class="ingredient-row {{item.state}}" data-id="{{item.materialId}}" bindtap="onOpenMaterial" aria-label="{{item.accessibilityLabel}}">
+            <view class="ingredient-main"><text class="ingredient-name">{{item.name}}</text><text wx:if="{{item.state === 'quick-buy'}}" class="quick-buy-icon" aria-hidden="true">🛍️</text></view>
+            <view class="ingredient-side"><text class="ingredient-amount">{{item.amountLabel}}</text></view>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view class="section">
+      <text class="section-title">备注</text>
+      <view wx:if="{{detail.steps.length}}" class="steps"><view wx:for="{{detail.steps}}" wx:key="index" class="step"><text class="step-index">{{index + 1}}</text><text class="step-copy">{{item}}</text></view></view>
+      <text wx:else class="muted">暂无</text>
+    </view>
+
+    <view class="section">
+      <text class="section-title">我的评价</text>
+      <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" data-rating="{{item.label}}" bindtap="onToggleRating" class="rating-option {{item.selected ? 'selected' : ''}}" aria-role="button" aria-label="{{item.label}}{{item.selected ? '，已选择，再点取消' : '，点按评价'}}">{{item.label}}</text></view>
+    </view>
+
+    <view class="bottom-space"></view>
+    <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
+  </block>
+  <view wx:if="{{showManualAbvEditor}}" class="abv-sheet-mask" bindtap="onCloseManualAbv"><view class="abv-sheet" catchtap="noop">
+    <text class="abv-sheet-title">整杯酒精度</text>
+    <view class="abv-input"><input type="digit" value="{{manualAbvDraft}}" bindinput="onManualAbvInput" placeholder="例如 12.5"/><text>%</text></view>
+    <text wx:if="{{manualAbvError}}" class="form-error">{{manualAbvError}}</text>
+    <view class="abv-sheet-actions"><button wx:if="{{detail.manualAbv !== null}}" class="clear-abv" bindtap="onClearManualAbv">恢复自动计算</button><button class="save-abv" bindtap="onSaveManualAbv">保存</button></view>
+  </view></view>
+</view>

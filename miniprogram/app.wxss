@@ -1,0 +1,63 @@
+page {
+  --color-canvas: #f8f5ee;
+  --color-surface: #fffefc;
+  --color-subtle: #f1f0ec;
+  --color-border: #e7e4dd;
+  --color-border-strong: #d8d4cc;
+  --color-text: #242321;
+  --color-text-secondary: #6f6c66;
+  --color-text-tertiary: #9d9991;
+  --color-sage: #627969;
+  --color-sage-tint: #ebf1ed;
+  --color-blue: #6e7c8f;
+  --color-blue-tint: #ebeff3;
+  --color-amber: #957052;
+  --color-amber-tint: #f4eee8;
+  --color-danger: #985a54;
+  --color-danger-tint: #f5ebe9;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: sans-serif;
+}
+
+.page {
+  padding: 48rpx 32rpx;
+}
+
+.page-title {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+button { box-sizing: border-box; min-height: 88rpx; }
+.is-disabled { opacity: .56; }
+input, textarea, picker { box-sizing: border-box; min-height: 88rpx; }
+.form-error { display: block; margin-top: 12rpx; color: #985a54; font-size: 23rpx; line-height: 1.5; }
+
+.materials-page .fresh-name-row { min-height: 88rpx; }
+.materials-page .fresh-name, .materials-page .material-name { overflow-wrap: anywhere; }
+.materials-page .expiry { color: #985a54; }
+.materials-page .use-up { color: #985a54; border: 2rpx solid #985a54; }
+.materials-page .empty-fresh, .materials-page .empty-list { color: #6f6c66; border-color: #e7e4dd; }
+.materials-page .chip, .materials-page .mini-chip { min-height: 88rpx; border: 2rpx solid transparent; color: #6f6c66; }
+.materials-page .chip.selected, .materials-page .mini-chip.selected { border-color: #242321; box-shadow: inset 0 0 0 2rpx #ffffff; }
+.materials-page .material-card.state-missing-long-term .material-name { color: #8b877f; }
+.materials-page .quick-marker { border: 1rpx solid #242321; color: #957052; }
+.materials-page .state-button.owned { border: 2rpx solid #627969; }
+.materials-page .state-button.warm { border: 2rpx solid #242321; color: #957052; }
+.materials-page .amount-row input, .materials-page .picker-value, .materials-page .date-value { height: 88rpx; }
+.materials-page .undo-bar { min-height: 88rpx; padding-top: 10rpx; padding-bottom: 10rpx; }
+
+.page .section input, .page .section textarea, .page .select, .page .quick-bases button, .page .ratings button, .page .sheet button, .save-bar button { min-height: 88rpx; }
+.page .ratings button.selected { color: #ffffff; background: #242321; border: 2rpx solid #242321; box-shadow: inset 0 0 0 2rpx #ffffff; }
+.page .tried-row { display: flex; align-items: center; min-height: 88rpx; gap: 16rpx; }
+.detail-page .ingredient-row { min-height: 88rpx; }
+.detail-page .ingredient-name, .detail-page .recipe-name, .detail-page .prep-note, .detail-page .observation-note, .detail-page .tasting-note { overflow-wrap: anywhere; }
+.detail-page .ingredient-row.missing-long-term, .detail-page .ingredient.state-missing-long-term { color: #8b877f; }
+.detail-page .quick-buy-icon { margin-right: 6rpx; font-size: 20rpx; }
+.detail-page .rating-option.selected { border: 2rpx solid #242321; box-shadow: inset 0 0 0 2rpx #ffffff; }
+.detail-page .status, .detail-page .edit, .detail-page .primary, .detail-page .undo-bar button { min-height: 88rpx; }
+.detail-page .amount-row input, .detail-page .picker { min-height: 88rpx; height: 88rpx; }
+.edit-page .input, .edit-page .picker, .edit-page .suffix-input, .edit-page .amount-row, .edit-page button { min-height: 88rpx; }
+.settings-page .item-name, .settings-page .item-notes, .settings-page .usage { overflow-wrap: anywhere; }
+.settings-page .tool-chip { min-height: 88rpx; }

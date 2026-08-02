@@ -1,0 +1,24 @@
+<scroll-view scroll-y="true" class="glass-select-page" enhanced="true" show-scrollbar="false">
+  <view class="page-content">
+    <view class="page-head"><button size="mini" class="page-add" bindtap="onAddGlassware">＋ 新增</button></view>
+    <view wx:if="{{orphanedSelection}}" class="orphan-warning">当前选择的酒杯资料已缺失，请重新选择或清空。</view>
+    <view class="glass-grid">
+      <view class="glass-card clear-card {{!selectedId ? 'selected' : ''}}" data-id="" bindtap="onSelectGlassware" aria-role="button" aria-label="暂不选择酒杯{{!selectedId ? '，已选择' : ''}}">
+        <text class="glass-label">暂不选择酒杯</text>
+      </view>
+      <view wx:for="{{glassware}}" wx:key="id" class="glass-card {{item.selected ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="onSelectGlassware" aria-role="button" aria-label="{{item.displayLabel}}{{item.selected ? '，已选择' : ''}}">
+        <text class="glass-label">{{item.displayLabel}}</text>
+      </view>
+    </view>
+    <view wx:if="{{!glassware.length}}" class="empty-hint">还没有酒杯，可点击右上角新增。</view>
+  </view>
+</scroll-view>
+<view wx:if="{{glassEditorOpen}}" class="sheet-mask" bindtap="onCloseGlassEditor">
+  <view class="sheet" catchtap="noop">
+    <view class="sheet-head"><text class="sheet-title">新增酒杯</text><button class="sheet-close" bindtap="onCloseGlassEditor">×</button></view>
+    <text class="field-label">名称（选填）</text><input class="glass-input" data-field="name" value="{{glassForm.name}}" placeholder="留空将自动命名" bindinput="onGlassFormInput" />
+    <text class="field-label">容量 ml *</text><input class="glass-input" type="digit" data-field="capacityMl" value="{{glassForm.capacityMl}}" placeholder="例如 420" bindinput="onGlassFormInput" />
+    <text wx:if="{{glassError}}" class="form-error">{{glassError}}</text>
+    <button class="save-glass" disabled="{{savingGlass}}" loading="{{savingGlass}}" bindtap="onSaveGlassware">保存并选择</button>
+  </view>
+</view>

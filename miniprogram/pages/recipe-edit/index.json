@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "录入配方",
+  "usingComponents": {
+    "ingredient-row": "/components/ingredient-row/index",
+    "prep-editor": "/components/prep-editor/index"
+  }
+}

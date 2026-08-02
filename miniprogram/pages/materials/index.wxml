@@ -1,0 +1,127 @@
+<view class="materials-page">
+  <view class="bar-switch">
+    <button size="mini" class="bar-switch-item {{barTabIndex === 0 ? 'selected' : ''}}" data-index="0" bindtap="onSelectBarTab" aria-label="材料{{barTabIndex === 0 ? '，已选择' : ''}}">材料</button>
+    <button size="mini" class="bar-switch-item {{barTabIndex === 1 ? 'selected' : ''}}" data-index="1" bindtap="onSelectBarTab" aria-label="酒杯{{barTabIndex === 1 ? '，已选择' : ''}}">酒杯</button>
+  </view>
+
+  <swiper class="bar-swiper" current="{{barTabIndex}}" bindchange="onBarSwiperChange" duration="220">
+    <swiper-item>
+      <scroll-view scroll-y="true" class="bar-scroll" enhanced="true" show-scrollbar="false">
+        <view class="pane-content">
+          <view class="pane-toolbar">
+            <view class="search-box"><text class="search-icon">⌕</text><input value="{{search}}" bindinput="onSearchInput" placeholder="搜索材料" confirm-type="search" /></view>
+            <button size="mini" class="pane-add" bindtap="onAddMaterial" aria-label="新增材料">＋ 新增</button>
+          </view>
+
+          <view class="section fresh-section">
+            <view class="section-head fresh-section-head" bindtap="onToggleFreshShelf" aria-role="button" aria-label="手头鲜材，{{freshShelfExpanded ? '收起' : '展开'}}">
+              <text class="section-title">手头鲜材</text>
+              <view class="fresh-section-state"><text class="count">{{freshShelf.length}}</text><view class="fresh-disclosure-chevron {{freshShelfExpanded ? 'is-expanded' : ''}}" aria-hidden="true"></view></view>
+            </view>
+            <view wx:if="{{freshShelfExpanded}}" class="fresh-list">
+              <block wx:if="{{freshShelf.length}}">
+                <view wx:for="{{freshShelf}}" wx:key="id" class="fresh-card">
+                  <view class="fresh-summary" bindtap="onToggleFreshItem" data-id="{{item.id}}" aria-role="button" aria-label="{{item.name}}，{{expandedFreshMaterialId === item.id ? '收起' : '展开'}}">
+                    <text class="fresh-name">{{item.name}}</text>
+                    <view class="fresh-remaining {{item.needsReminder ? 'is-alert' : ''}} {{item.remainingMissing ? 'is-empty' : ''}}" catchtap="onOpenRemainingEditor" data-id="{{item.id}}" aria-role="button" aria-label="{{item.remainingMissing ? '填写余量' : '编辑余量'}}">
+                      <text wx:if="{{item.needsReminder}}" class="fresh-alert-mark">!</text>
+                      <text class="fresh-remaining-label {{item.remainingMissing ? 'is-empty' : ''}}">{{item.needsReminder ? item.reminderLabel : item.remainingLabel}}</text>
+                    </view>
+                    <button class="use-up" catchtap="onUseUp" data-id="{{item.id}}">用完</button>
+                  </view>
+                  <view wx:if="{{expandedFreshMaterialId === item.id}}" class="fresh-detail-meta">
+                    <text>购买日期 {{item.purchaseDateLabel || '未填写'}}</text>
+                    <text>预计到期 {{item.expiryDateLabel || '未填写'}}</text>
+                  </view>
+                  <view wx:if="{{expandedFreshMaterialId === item.id}}" class="fresh-recipes">
+                    <block wx:if="{{item.relatedRecipes.length}}">
+                      <button wx:for="{{item.relatedRecipes}}" wx:for-item="recipe" wx:key="id" class="fresh-recipe-row" bindtap="onOpenRecipe" data-id="{{recipe.id}}" aria-label="{{recipe.name}}，使用{{item.name}}{{recipe.materialAmountLabel}}">
+                        <text class="fresh-recipe-rating">{{recipe.rating || '未调过'}}</text>
+                        <text class="fresh-recipe-name">{{recipe.name}}</text>
+                        <text class="fresh-recipe-amount">{{recipe.materialAmountLabel}}</text>
+                      </button>
+                    </block>
+                    <view wx:else class="fresh-recipes-empty">酒单中暂时没有使用这个材料</view>
+                  </view>
+                </view>
+              </block>
+              <view wx:else class="empty-fresh"><text>暂时没有要优先用掉的鲜材</text><text class="empty-sub">从下方随买随用材料一键加入</text></view>
+            </view>
+          </view>
+
+          <view class="section library-section">
+            <view class="section-head"><text class="section-title">完整材料库</text></view>
+            <scroll-view scroll-x="true" class="catalog-tabs" enhanced="true" show-scrollbar="false">
+              <view class="catalog-tab-track">
+                <button wx:for="{{categoryTabs}}" wx:key="key" size="mini" class="catalog-tab {{categoryFilter === item.key ? 'selected' : ''}}" aria-label="{{item.label}}{{categoryFilter === item.key ? '，已选择' : ''}}" bindtap="onSelectCategory" data-key="{{item.key}}">{{item.label}}</button>
+              </view>
+            </scroll-view>
+
+            <view wx:if="{{materials.length}}" class="library-grid">
+              <button wx:for="{{materials}}" wx:key="renderKey" size="mini" class="library-card state-{{item.visualState}}" bindtap="onOpenLibraryCard" data-id="{{item.id}}" data-name="{{item.name}}" data-category="{{item.category}}" aria-label="{{item.name}}，{{item.visualState === 'owned' ? '已有材料' : '未有材料'}}">
+                <text class="library-card-name">{{item.name}}</text>
+                <text class="library-card-category">{{item.categoryLabel}}</text>
+              </button>
+            </view>
+            <view wx:else class="empty-materials"><text>没有符合要求的材料</text></view>
+          </view>
+        </view>
+      </scroll-view>
+    </swiper-item>
+    <swiper-item>
+      <scroll-view scroll-y="true" class="bar-scroll" enhanced="true" show-scrollbar="false">
+        <view class="pane-content glass-pane">
+          <view class="section-head"><text class="section-title">我的酒杯 · {{glassware.length}}</text><button size="mini" class="pane-add" disabled="{{savingGlass}}" bindtap="onAddGlassware">＋ 新增</button></view>
+          <view wx:if="{{glassware.length}}" class="glass-grid">
+            <view wx:for="{{glassware}}" wx:key="id" class="glass-card" bindtap="onEditGlassware" data-id="{{item.id}}" aria-role="button" aria-label="{{item.displayLabel}}，点击编辑">
+              <text class="glass-card-label">{{item.displayLabel}}</text>
+              <button size="mini" class="glass-delete" disabled="{{savingGlass}}" catchtap="onRequestDeleteGlassware" data-id="{{item.id}}" aria-label="删除{{item.displayLabel}}">×</button>
+            </view>
+          </view>
+          <view wx:else class="empty-list"><text>还没有酒杯</text><button bindtap="onAddGlassware">新增一个酒杯</button></view>
+        </view>
+      </scroll-view>
+    </swiper-item>
+  </swiper>
+
+  <view wx:if="{{remainingEditorOpen}}" class="sheet-mask remaining-editor-mask" bindtap="onCloseRemainingEditor">
+    <view class="sheet remaining-editor" catchtap="noop">
+      <text class="sheet-title">编辑余量 · {{remainingDraft.name}}</text>
+      <view class="amount-row">
+        <input type="digit" value="{{remainingDraft.remainingAmount}}" focus="{{remainingEditorOpen}}" bindinput="onRemainingAmountInput" placeholder="填写余量" />
+        <picker range="{{unitLabels}}" value="{{remainingUnitIndex}}" bindchange="onRemainingUnitChange"><view class="picker-value">{{unitLabels[remainingUnitIndex]}}</view></picker>
+      </view>
+      <text class="remaining-note">清空并保存可取消余量记录</text>
+      <text wx:if="{{remainingError}}" class="form-error" aria-live="assertive">{{remainingError}}</text>
+      <view class="remaining-actions">
+        <button class="remaining-cancel" bindtap="onCloseRemainingEditor">取消</button>
+        <button class="primary remaining-save" bindtap="onSaveRemaining">保存</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showFreshForm}}" class="sheet-mask" bindtap="onCloseFreshForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-handle"></view><text class="sheet-title">加入手头鲜材 · {{freshDraft.name}}</text>
+      <block wx:if="{{freshDraft.trackFreshness}}">
+        <text class="field-label">还剩多少（选填）</text>
+        <view class="amount-row"><input type="digit" value="{{freshDraft.remainingAmount}}" bindinput="onFreshAmountInput" placeholder="例如 320"/><picker range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onFreshUnitChange"><view class="picker-value">{{unitLabels[freshUnitIndex]}}</view></picker></view>
+        <text class="field-label">预计过期日（选填）</text>
+        <picker mode="date" value="{{freshDraft.expiresAt}}" bindchange="onFreshExpiryChange"><view class="date-value">{{freshDraft.expiresAt || '选择日期'}}</view></picker>
+      </block>
+      <text wx:else class="tracking-note">这个材料未开启余量追踪，只记录“当前在手头”。可在编辑材料中开启追踪。</text>
+      <text wx:if="{{freshError}}" class="form-error">{{freshError}}</text><button class="primary" bindtap="onConfirmFresh">确认加入</button>
+    </view>
+  </view>
+
+  <view wx:if="{{glassEditorOpen}}" class="sheet-mask" bindtap="onCloseGlassEditor">
+    <view class="sheet glass-editor {{savingGlass ? 'is-disabled' : ''}}" catchtap="noop">
+      <view class="sheet-heading"><text class="sheet-title">{{glassEditorTitle}}</text><button size="mini" class="sheet-close" disabled="{{savingGlass}}" bindtap="onCloseGlassEditor" aria-label="关闭编辑">×</button></view>
+      <text class="field-label">名称（选填）</text><input class="glass-input" data-field="name" value="{{glassForm.name}}" maxlength="40" placeholder="留空将自动命名" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
+      <text class="field-label">容量 ml *</text><input class="glass-input" type="digit" data-field="capacityMl" value="{{glassForm.capacityMl}}" placeholder="例如 420" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
+      <text wx:if="{{glassError}}" class="form-error">{{glassError}}</text><button class="primary" disabled="{{savingGlass}}" loading="{{savingGlass}}" bindtap="onSaveGlassware">{{savingGlass ? '保存中…' : '保存酒杯'}}</button>
+    </view>
+  </view>
+
+  <view wx:if="{{undo}}" class="undo-bar"><text>已从手头鲜材移出</text><button bindtap="onUndoUseUp">撤销</button></view>
+</view>

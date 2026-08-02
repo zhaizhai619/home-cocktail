@@ -1,0 +1,9 @@
+{
+  "name": "home-cocktail-mini-program",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check:js": "node scripts/check-js.js",
+    "check": "npm run check:js && npm test"
+  }
+}

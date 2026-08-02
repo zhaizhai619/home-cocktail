@@ -1,0 +1,10 @@
+<view class="prep-editor">
+  <view class="chips"><button wx:for="{{types}}" wx:key="type" data-type="{{item.type}}" bindtap="choose" size="mini" class="chip {{item.selected ? 'selected' : ''}}">{{item.type}}</button></view>
+  <view wx:for="{{preparations}}" wx:key="type" class="prep-row">
+    <text class="prep-name">{{item.type}}</text>
+    <view wx:if="{{item.needsDuration}}" class="prep-duration-control">
+      <input class="prep-duration-text" data-index="{{index}}" data-field="durationValue" value="{{item.durationValue}}" bindinput="edit" />
+      <picker class="prep-duration-unit" range="{{item.units}}" range-key="label" value="{{item.unitIndex}}" data-index="{{index}}" bindchange="unit"><text>{{item.durationUnitLabel}}</text></picker>
+    </view>
+  </view>
+</view>

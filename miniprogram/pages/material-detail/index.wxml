@@ -1,0 +1,56 @@
+<view class="detail-page">
+  <view wx:if="{{detail.status === 'missing'}}" class="missing"><text>{{detail.message}}</text><button bindtap="onBack">返回</button></view>
+  <block wx:else>
+    <view class="hero">
+      <view class="hero-top"><text class="title">{{detail.name}}</text><button class="edit" bindtap="onEdit">编辑</button></view>
+      <view class="availability-row"><view><text class="availability-title">当前我有</text><text class="availability-note">关闭后，酒单中的相关材料会显示为缺少</text></view><switch checked="{{detail.available}}" bindchange="onToggleAvailable" color="#627969"/></view>
+      <view wx:if="{{detail.canToggleTracking}}" class="tracking-row"><view><text class="availability-title">追踪数量与保质期</text><text class="availability-note">可以记录余量、购买日期和预计过期日</text></view><switch checked="{{detail.trackFreshness}}" bindchange="onToggleTracking" color="#627969"/></view>
+      <view wx:if="{{detail.canEditTracking}}" class="tracking-details">
+        <view class="tracking-detail-row">
+          <text class="tracking-detail-label">购买日期</text>
+          <view class="tracking-detail-control"><picker class="tracking-value-picker" mode="date" value="{{detail.purchasedAtDate}}" bindchange="onPurchaseDateChange"><view class="tracking-detail-value">{{detail.purchasedAtDate || '未填写'}}</view></picker></view>
+        </view>
+        <view class="tracking-detail-row">
+          <text class="tracking-detail-label">剩余量</text>
+          <view class="tracking-detail-control tracking-amount-control">
+            <input class="tracking-amount-input" type="digit" value="{{freshDraft.remainingAmount}}" placeholder="未填写" bindinput="onTrackingAmountInput" bindblur="onTrackingAmountBlur"/>
+            <picker class="tracking-unit-picker" range="{{unitLabels}}" value="{{freshUnitIndex}}" bindchange="onTrackingUnitChange"><view class="tracking-unit-value">{{unitLabels[freshUnitIndex]}}</view></picker>
+          </view>
+        </view>
+        <view class="tracking-detail-row">
+          <text class="tracking-detail-label">预计过期日</text>
+          <view class="tracking-detail-control"><picker class="tracking-value-picker" mode="date" value="{{freshDraft.expiresAt}}" bindchange="onTrackingExpiryChange"><view class="tracking-detail-value">{{freshDraft.expiresAt || '未填写'}}</view></picker></view>
+        </view>
+        <text wx:if="{{freshError}}" class="tracking-error" aria-live="assertive">{{freshError}}</text>
+      </view>
+    </view>
+
+    <view class="numbers">
+      <view><text class="number">{{detail.usageCount}}</text><text class="number-label">款酒使用</text></view>
+      <view><text class="number">{{detail.immediateUnlockCount}}</text><text class="number-label">买后立即解锁</text></view>
+    </view>
+
+    <view class="section observations">
+      <view class="observation-heading"><text class="section-title">我的材料观察</text><button class="add-observation" bindtap="onOpenObservation">＋ 添加</button></view>
+      <view wx:if="{{showObservationForm}}" class="material-observation-form">
+        <textarea value="{{observationNote}}" maxlength="300" placeholder="记录这个材料的新发现" bindinput="onObservationInput"/>
+        <view class="observation-form-footer"><text wx:if="{{observationError}}" class="form-error">{{observationError}}</text><button class="cancel-observation" bindtap="onCancelObservation">取消</button><button class="save-observation" bindtap="onSaveObservation">保存</button></view>
+      </view>
+      <view wx:if="{{detail.observations.length}}">
+        <block wx:for="{{detail.observations}}" wx:key="renderKey">
+          <view wx:if="{{!editingObservation || editingObservation.renderKey !== item.renderKey}}" class="observation-swipe {{openObservationKey === item.renderKey ? 'open' : ''}}" data-key="{{item.renderKey}}" bindtouchstart="onObservationTouchStart" bindtouchend="onObservationTouchEnd">
+            <view class="observation-actions">
+              <view class="observation-edit" data-key="{{item.renderKey}}" data-direct="{{item.direct}}" data-recipe-id="{{item.recipeId}}" data-index="{{item.observationIndex}}" data-note="{{item.note}}" catchtap="onEditObservation" aria-role="button" aria-label="编辑这条材料观察">编辑</view>
+              <view class="observation-delete" data-direct="{{item.direct}}" data-recipe-id="{{item.recipeId}}" data-index="{{item.observationIndex}}" catchtap="onDeleteObservation" aria-role="button" aria-label="删除这条材料观察">删除</view>
+            </view>
+            <view class="observation-swipe-content note-card">
+              <text class="note">{{item.note}}</text><text wx:if="{{item.direct}}" class="note-source">{{item.createdAtLabel || '未记录日期'}}</text><text wx:else class="note-source">来自 {{item.recipeName || '未命名酒款'}} · {{item.createdAtLabel || '未记录日期'}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{undo}}" class="undo-bar"><text>已从手头鲜材移出</text><button bindtap="onUndoUseUp">撤销</button></view>
+</view>
