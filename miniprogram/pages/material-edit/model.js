@@ -1,4 +1,5 @@
 const { createMaterialDefaults } = require('../../domain/material')
+const { settleOperation } = require('../../services/maybe-promise')
 const { UNITS } = require('../../domain/constants')
 const { isValidDateString } = require('../../domain/date')
 
@@ -70,19 +71,18 @@ function orchestrateMaterialSave({ repository, form, materialId = '', notify = (
     notify(Object.values(validation.errors)[0])
     return { saved: false, item: null, form, errors: validation.errors }
   }
-  try {
-    const value = materialId ? { ...validation.value, id: materialId } : validation.value
-    const item = repository && repository.saveMaterial(value)
+  const value = materialId ? { ...validation.value, id: materialId } : validation.value
+  return settleOperation(() => repository && repository.saveMaterial(value), (item) => {
     if (!item || !item.id) throw new Error('Material not saved')
     notify('材料已保存')
     navigate(item)
     return { saved: true, item, form, errors: {} }
-  } catch (error) {
+  }, (error) => {
     const duplicate = error && error.message === 'Material already exists'
     const errors = duplicate ? { name: '同一分类下已经有这个材料' } : { form: '保存失败，请重试' }
     notify(duplicate ? '这个材料已经存在' : errors.form)
     return { saved: false, item: null, form, errors }
-  }
+  })
 }
 
 module.exports = { CATEGORIES, ACQUISITIONS, FORMS, createFormDefaults, validateMaterialForm, materialSaveNavigation, orchestrateMaterialSave }

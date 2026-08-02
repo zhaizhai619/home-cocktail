@@ -493,6 +493,54 @@ test('recipe save transaction reuses normalized materials and commits recipe plu
   assert.equal('draftKey' in first.ingredients[0], false)
 })
 
+test('untried recipes create every new material as unavailable regardless of category defaults', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `untried-${++id}` })() })
+  repository.initialize()
+  const drafts = [
+    { draftKey: 'base-spirit:金酒', category: 'base-spirit', name: '金酒', defaultUnit: 'ml' },
+    { draftKey: 'citrus:青柠汁', category: 'citrus', name: '青柠汁', defaultUnit: 'ml' },
+    { draftKey: 'syrup/staple:普通糖浆', category: 'syrup/staple', name: '普通糖浆', defaultUnit: 'ml' }
+  ]
+  repository.saveRecipeWithMaterials({
+    name: '待尝试酒款',
+    tried: false,
+    ingredients: drafts.map(({ draftKey }) => ({ materialId: '', draftKey, amount: 20, unit: 'ml' }))
+  }, drafts)
+
+  for (const material of repository.listMaterials()) {
+    assert.equal(material.owned, false, material.name)
+    assert.equal(material.freshOnHand, false, material.name)
+    assert.equal(material.assumedAvailable, false, material.name)
+  }
+})
+
+test('an untried recipe reuses an existing material without changing its availability', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `existing-${++id}` })() })
+  repository.initialize()
+  const citrus = repository.saveMaterial({ name: '青柠汁', category: 'citrus', owned: true, assumedAvailable: true })
+  repository.saveRecipeWithMaterials({
+    name: '待尝试酸酒',
+    tried: false,
+    ingredients: [{ materialId: '', draftKey: 'citrus:青柠汁', amount: 20, unit: 'ml' }]
+  }, [{ draftKey: 'citrus:青柠汁', category: 'citrus', name: '青柠汁', defaultUnit: 'ml' }])
+
+  assert.equal(repository.listMaterials().length, 1)
+  assert.equal(repository.getMaterial(citrus.id).owned, true)
+  assert.equal(repository.getMaterial(citrus.id).assumedAvailable, true)
+})
+
+test('tried recipes keep the category availability defaults for new materials', () => {
+  const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `tried-${++id}` })() })
+  repository.initialize()
+  repository.saveRecipeWithMaterials({
+    name: '已经调过',
+    tried: true,
+    ingredients: [{ materialId: '', draftKey: 'base-spirit:伏特加', amount: 45, unit: 'ml' }]
+  }, [{ draftKey: 'base-spirit:伏特加', category: 'base-spirit', name: '伏特加', defaultUnit: 'ml' }])
+
+  assert.equal(repository.listMaterials()[0].owned, true)
+})
+
 test('recipe transaction resolves advance input drafts without persisting the prepared output as a material', () => {
   const repository = createRepository(createMemoryAdapter(), { idFactory: (() => { let id = 0; return () => `advance-${++id}` })(), now: () => '2026-01-01T00:00:00.000Z' })
   repository.initialize()

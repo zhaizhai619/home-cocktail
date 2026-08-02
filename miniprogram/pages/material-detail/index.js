@@ -35,7 +35,13 @@ Page({
     openObservationKey: '',
     undo: null
   },
-  onLoad(query) { this.materialId = decodeMaterialId(query && query.id); this.reload() },
+  onLoad(query) {
+    this.materialId = decodeMaterialId(query && query.id)
+    this.reload()
+    const app = typeof getApp === 'function' ? getApp() : null
+    const ready = app && app.globalData && app.globalData.ready
+    if (ready && typeof ready.then === 'function') ready.then(() => { if (this.materialId) this.reload() })
+  },
   onShow() {
     if (this.hasShown) {
       if (this.materialId) this.reload()
@@ -60,29 +66,29 @@ Page({
   },
   onBack() { wx.navigateBack() },
   onEdit() { if (this.materialId) wx.navigateTo({ url: `/pages/material-edit/index?id=${encodeURIComponent(this.materialId)}` }) },
-  onToggleAvailable(event) {
+  async onToggleAvailable(event) {
     try {
-      const saved = repository().setMaterialAvailable(this.materialId, event.detail.value === true)
+      const saved = await repository().setMaterialAvailable(this.materialId, event.detail.value === true)
       if (!saved) throw new Error('not found')
       this.reload()
     } catch (_) { toast('更新失败，请重试') }
   },
-  onToggleTracking(event) {
+  async onToggleTracking(event) {
     try {
-      const saved = repository().setMaterialTracking(this.materialId, event.detail.value === true)
+      const saved = await repository().setMaterialTracking(this.materialId, event.detail.value === true)
       if (!saved) throw new Error('not found')
       this.reload()
     } catch (_) { toast('更新失败，请重试') }
   },
-  savePurchaseDate(value) {
+  async savePurchaseDate(value) {
     try {
-      const saved = repository().setMaterialPurchasedAt(this.materialId, value || null)
+      const saved = await repository().setMaterialPurchasedAt(this.materialId, value || null)
       if (!saved) throw new Error('not found')
       this.reload()
     } catch (_) { toast('购买日期保存失败') }
   },
-  onPurchaseDateChange(event) { this.savePurchaseDate(event.detail.value || null) },
-  onClearPurchaseDate() { this.savePurchaseDate(null) },
+  async onPurchaseDateChange(event) { await this.savePurchaseDate(event.detail.value || null) },
+  async onClearPurchaseDate() { await this.savePurchaseDate(null) },
   onOpenObservation() {
     this.setData({
       showObservationForm: true,
@@ -102,9 +108,9 @@ Page({
     })
   },
   onObservationInput(event) { this.setData({ observationNote: event.detail.value, observationError: '' }) },
-  onSaveObservation() {
+  async onSaveObservation() {
     const editing = this.data.editingObservation
-    const result = editing
+    const result = await (editing
       ? orchestrateMaterialObservationUpdate({
         repository: repository(),
         materialId: this.materialId,
@@ -119,7 +125,7 @@ Page({
         materialId: this.materialId,
         note: this.data.observationNote,
         notify: toast
-      })
+      }))
     if (!result.saved) {
       this.setData({ observationError: result.message })
       return
@@ -166,9 +172,9 @@ Page({
     if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return
     this.setData({ openObservationKey: deltaX < 0 ? key : '' })
   },
-  onDeleteObservation(event) {
+  async onDeleteObservation(event) {
     const dataset = event && event.currentTarget ? event.currentTarget.dataset : {}
-    const result = orchestrateMaterialObservationDelete({
+    const result = await orchestrateMaterialObservationDelete({
       repository: repository(),
       materialId: this.materialId,
       recipeId: dataset.recipeId || '',
@@ -178,9 +184,9 @@ Page({
     })
     if (result.deleted) this.reload()
   },
-  saveTrackingFields(fields) {
+  async saveTrackingFields(fields) {
     try {
-      const saved = repository().updateMaterialInventory(this.materialId, fields)
+      const saved = await repository().updateMaterialInventory(this.materialId, fields)
       if (!saved) throw new Error('not saved')
       this.reload()
     } catch (_) {
@@ -191,32 +197,32 @@ Page({
   onTrackingAmountInput(event) {
     this.setData({ 'freshDraft.remainingAmount': event.detail.value, freshError: '' })
   },
-  onTrackingAmountBlur(event) {
+  async onTrackingAmountBlur(event) {
     const raw = String((event.detail && event.detail.value) ?? this.data.freshDraft.remainingAmount).trim()
     if (!raw) return this.saveTrackingFields({ remainingAmount: null, remainingUnit: null })
-    this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: this.data.freshDraft.remainingUnit })
+    await this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: this.data.freshDraft.remainingUnit })
   },
-  onTrackingUnitChange(event) {
+  async onTrackingUnitChange(event) {
     const index = Number(event.detail.value)
     const safe = Number.isInteger(index) && UNITS[index] ? index : 0
     this.setData({ freshUnitIndex: safe, 'freshDraft.remainingUnit': UNITS[safe].value, freshError: '' })
     const raw = String(this.data.freshDraft.remainingAmount).trim()
-    if (raw) this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: UNITS[safe].value })
+    if (raw) await this.saveTrackingFields({ remainingAmount: Number(raw), remainingUnit: UNITS[safe].value })
   },
-  onTrackingExpiryChange(event) {
+  async onTrackingExpiryChange(event) {
     const expiresAt = event.detail.value || ''
     this.setData({ 'freshDraft.expiresAt': expiresAt, freshError: '' })
-    this.saveTrackingFields({ expiresAt: expiresAt || null })
+    await this.saveTrackingFields({ expiresAt: expiresAt || null })
   },
-  onUseUp() {
-    const undo = orchestrateFreshUseUp({ repository: repository(), materialId: this.materialId, notify: toast })
+  async onUseUp() {
+    const undo = await orchestrateFreshUseUp({ repository: repository(), materialId: this.materialId, notify: toast })
     if (!undo.removed) return
     this.setData({ undo }); this.reload()
     if (this.undoTimer) clearTimeout(this.undoTimer)
     this.undoTimer = setTimeout(() => this.setData({ undo: null }), 6000)
   },
-  onUndoUseUp() {
-    const result = orchestrateFreshUndo({ repository: repository(), undo: this.data.undo, notify: toast })
+  async onUndoUseUp() {
+    const result = await orchestrateFreshUndo({ repository: repository(), undo: this.data.undo, notify: toast })
     if (result.restored) { if (this.undoTimer) clearTimeout(this.undoTimer); this.setData({ undo: null }); this.reload() }
   }
 })

@@ -123,7 +123,7 @@ test('profile page stays minimal and makes only avatar and nickname editable', (
   assert.match(css, /\.avatar-shell\s*{[^}]*position:\s*relative[^}]*width:\s*144rpx[^}]*height:\s*144rpx[^}]*overflow:\s*hidden[^}]*border-radius:\s*50%/)
   assert.match(css, /\.avatar-picker\s*{[^}]*position:\s*absolute[^}]*inset:\s*0[^}]*width:\s*100%[^}]*height:\s*100%[^}]*opacity:\s*0/)
   assert.match(css, /\.avatar-image,\s*\.avatar-fallback\s*{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*border-radius:\s*50%/)
-  assert.match(css, /\.sync-row\s*{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/)
+  assert.match(css, /\.sync-row,\s*\.data-action\s*{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/)
   assert.match(script, /mediaFiles\.isManagedProfilePath\(previousPath\)/)
   assert.doesNotMatch(script, /mediaFiles\.isManagedPath\(previousPath\)/)
 })

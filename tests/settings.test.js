@@ -6,7 +6,7 @@ const { QUICK_TOOLS } = require('../miniprogram/domain/constants')
 const { calculateGlassCapacity, formatGlasswareLabel } = require('../miniprogram/domain/equipment')
 const { createRepository } = require('../miniprogram/services/repository')
 const { STORAGE_KEY, migrateState } = require('../miniprogram/services/schema')
-const { createMediaFileService } = require('../miniprogram/services/media-files')
+const { createMediaFileService, createCloudMediaFileService } = require('../miniprogram/services/media-files')
 const {
   buildSettingsView,
   validateGlasswareForm,
@@ -317,6 +317,44 @@ test('media service persists profile avatars in a separate managed directory', a
   assert.equal(service.isManagedProfilePath(result.path), true)
   assert.equal(service.isManagedProfilePath('/user/cocktail-recipes/recipe-image.png'), false)
   assert.equal(service.isManagedProfilePath('/user/cocktail-glassware/glass-image.png'), false)
+})
+
+test('cloud media service uploads images and reuses existing cloud files', async () => {
+  const uploads = []
+  const service = createCloudMediaFileService({
+    cloud: {
+      async uploadFile(options) {
+        uploads.push(options)
+        return { fileID: `cloud://cloud1.${options.cloudPath}` }
+      },
+      async deleteFile() { throw new Error('not expected') }
+    },
+    idFactory: () => 'image-1'
+  })
+
+  const uploaded = await service.persistRecipeImage('/tmp/cocktail.PNG')
+  assert.deepEqual(uploaded, { path: 'cloud://cloud1.user-media/recipes/image-1.png', created: true })
+  assert.deepEqual(uploads, [{ cloudPath: 'user-media/recipes/image-1.png', filePath: '/tmp/cocktail.PNG' }])
+  assert.deepEqual(await service.persistRecipeImage(uploaded.path), { path: uploaded.path, created: false })
+  assert.equal(uploads.length, 1)
+})
+
+test('cloud media service only deletes managed cloud files', async () => {
+  const deleted = []
+  const service = createCloudMediaFileService({
+    cloud: {
+      async uploadFile() { throw new Error('not expected') },
+      async deleteFile(options) { deleted.push(options); return {} }
+    }
+  })
+
+  assert.equal(service.isManagedPath('cloud://cloud1.user-media/profile/avatar.jpg'), true)
+  assert.equal(service.isManagedProfilePath('cloud://cloud1.user-media/profile/avatar.jpg'), true)
+  assert.equal(service.isManagedProfilePath('cloud://cloud1.user-media/recipes/drink.jpg'), false)
+  assert.deepEqual(await service.removeManagedFile('/tmp/local.jpg'), { removed: false })
+  assert.deepEqual(await service.removeManagedFile('cloud://cloud1.somewhere-else/file.jpg'), { removed: false })
+  assert.deepEqual(await service.removeManagedFile('cloud://cloud1.user-media/profile/avatar.jpg'), { removed: true })
+  assert.deepEqual(deleted, [{ fileList: ['cloud://cloud1.user-media/profile/avatar.jpg'] }])
 })
 
 test('glassware media save coordinates copy, repository commit, replacement cleanup and rollback cleanup', async () => {

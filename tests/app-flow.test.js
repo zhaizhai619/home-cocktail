@@ -30,6 +30,7 @@ test('personal recipe flow links generated materials, readiness, detail, observa
   const glass = repository.upsertGlassware({ name: '海波杯', capacityMl: 200 })
   const recipe = repository.saveRecipeWithMaterials({
     name: '冷冻西瓜金酒酸',
+    tried: true,
     ingredients: [
       { draftKey: 'gin', amount: 40, unit: 'ml' },
       { draftKey: 'watermelon', amount: 100, unit: 'ml' },

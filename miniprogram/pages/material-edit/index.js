@@ -2,6 +2,7 @@ const { UNITS } = require('../../domain/constants')
 const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, selectMaterialCategory } = require('../../domain/material')
 const { CATEGORIES, createFormDefaults, materialSaveNavigation, orchestrateMaterialSave } = require('./model')
 const { decodeMaterialId } = require('../material-detail/model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 const CATEGORY_OPTIONS = MATERIAL_CATEGORY_GROUPS.map(({ key, label }) => ({ value: key, label }))
 const ACQUISITION_OPTIONS = [{ value: 'long-term', label: '长期材料' }, { value: 'on-demand', label: '随买随用' }]
@@ -22,7 +23,8 @@ Page({
     acquisitionOptions: ACQUISITION_OPTIONS, acquisitionLabels: ACQUISITION_OPTIONS.map(({ label }) => label), acquisitionIndex: 1,
     units: UNITS, unitLabels: UNITS.map(({ label }) => label), unitIndex: 0, remainingUnitIndex: 0
   },
-  onLoad(query) {
+  async onLoad(query) {
+    await waitForCloudReady()
     this.materialId = decodeMaterialId(query && query.id)
     if (query && query.id && !this.materialId) return this.setData({ mode: 'edit', missing: true })
     if (!this.materialId) {
@@ -98,8 +100,8 @@ Page({
   onRemainingUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
   onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   onExpiryChange(event) { this.setData({ 'form.expiresAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
-  onSave() {
-    const result = orchestrateMaterialSave({
+  async onSave() {
+    const result = await orchestrateMaterialSave({
       repository: repository(), form: this.data.form, materialId: this.materialId, notify: toast,
       navigate: (saved) => {
         const target = materialSaveNavigation(this.data.mode, saved.id)
@@ -115,10 +117,10 @@ Page({
     if (usageCount) return wx.showModal({ title: '暂时不能删除', content: `有 ${usageCount} 款酒正在使用这个材料。可以先标记为“我没有”，或从配方中移除。`, showCancel: false, confirmText: '知道了' })
     wx.showModal({
       title: '删除这个材料？', content: '删除后无法撤销，但不会删除任何酒款。', confirmText: '删除', confirmColor: '#a54d36',
-      success: ({ confirm }) => {
+      success: async ({ confirm }) => {
         if (!confirm) return
         try {
-          const result = repo.deleteMaterial(this.materialId)
+          const result = await repo.deleteMaterial(this.materialId)
           if (!result || !result.deleted) throw new Error('not deleted')
           toast('材料已删除'); wx.switchTab({ url: '/pages/materials/index' })
         } catch (_) { toast('删除失败，请重试') }

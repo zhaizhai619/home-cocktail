@@ -1,5 +1,6 @@
 const { MATERIAL_CATEGORY_GROUPS, getMaterialIdentityKey } = require('../../domain/material')
 const { MATERIAL_LIBRARY_TABS, buildMaterialLibrary } = require('../materials/model')
+const { waitForCloudReady } = require('../../services/page-ready')
 
 const CREATION_CATEGORIES = MATERIAL_CATEGORY_GROUPS.map(({ key, label, category }) => ({ key, label, category }))
 
@@ -10,7 +11,7 @@ function repository() {
 
 Page({
   data: { categoryTabs: MATERIAL_LIBRARY_TABS, creationCategories: CREATION_CATEGORIES, categoryFilter: 'all', query: '', materials: [], canCreateMaterial: false, creatingMaterial: false, newMaterialName: '' },
-  onLoad(query) {
+  async onLoad(query) {
     const routeFilter = query && query.categoryFilter
     const validRouteFilter = MATERIAL_LIBRARY_TABS.some((item) => item.key === routeFilter)
     if (validRouteFilter) this.setData({ categoryFilter: routeFilter })
@@ -20,9 +21,10 @@ Page({
       this.setData({ categoryFilter: valid ? categoryFilter : 'all' })
       this.reload()
     })
+    await waitForCloudReady()
     this.reload()
   },
-  onShow() { this.reload() },
+  async onShow() { await waitForCloudReady(); this.reload() },
   reload() {
     const repo = repository()
     const newMaterialName = String(this.data.query || '').trim()

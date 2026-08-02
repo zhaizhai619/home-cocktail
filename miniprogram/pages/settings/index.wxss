@@ -65,28 +65,63 @@
   text-align: center;
 }
 
-.sync-row {
-  display: flex;
+.data-panel {
   max-width: 560rpx;
-  min-height: 92rpx;
   margin: 72rpx auto 0;
+  overflow: hidden;
+  background: transparent;
+  border: 1rpx solid #e7e4dd;
+  border-radius: 22rpx;
+}
+
+.sync-row,
+.data-action {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-height: 92rpx;
+  margin: 0;
   padding: 0 28rpx;
   align-items: center;
   justify-content: space-between;
-  color: #242321;
-  background: #ffffff;
-  border: 1rpx solid #e7e4dd;
-  border-radius: 22rpx;
-  font-size: 27rpx;
+  background: transparent;
 }
 
-.sync-value {
-  color: #6f6c66;
+.data-action {
+  border-top: 1rpx solid #ece9e2;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.data-action-active { background: #f3f0e9; }
+
+.sync-label,
+.data-action-title {
+  width: 180rpx;
+  flex-shrink: 0;
+  color: #242321;
+  font-size: 27rpx;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sync-value,
+.action-note {
+  min-width: 0;
+  margin-left: 24rpx;
+  flex: 1;
+  color: #77736d;
+  font-size: 23rpx;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .edit-hint {
   display: block;
-  margin-top: 28rpx;
+  margin-top: 2rpx;
   color: #6f6c66;
   font-size: 22rpx;
   text-align: center;

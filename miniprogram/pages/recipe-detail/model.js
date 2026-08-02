@@ -4,6 +4,7 @@ const { getMaterialDisplayName, getMaterialVisualState } = require('../../domain
 const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
 const { isValidGlassCapacity } = require('../../domain/equipment-invariants')
+const { settleOperation } = require('../../services/maybe-promise')
 
 const UNIT_LABELS = UNITS.reduce((labels, unit) => {
   labels[unit.value] = unit.label
@@ -197,16 +198,15 @@ function validateManualAbv(value) {
 function orchestrateManualAbvSave({ repository, recipe, value, notify = () => {} } = {}) {
   const validation = validateManualAbv(value)
   if (!validation.valid) { notify(validation.message); return { saved: false, recipe: null, message: validation.message } }
-  try {
-    const savedRecipe = repository && recipe && repository.upsertRecipe({ ...recipe, manualAbv: validation.value })
+  return settleOperation(() => repository && recipe && repository.upsertRecipe({ ...recipe, manualAbv: validation.value }), (savedRecipe) => {
     if (!savedRecipe) throw new Error('not saved')
     notify(validation.value === null ? '已恢复自动计算' : '酒精度已更新')
     return { saved: true, recipe: savedRecipe, message: '' }
-  } catch (_) {
+  }, () => {
     const message = '保存失败，请重试'
     notify(message)
     return { saved: false, recipe: null, message }
-  }
+  })
 }
 
 function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
@@ -292,15 +292,14 @@ function validateObservation(recipe, materialId, note) {
 function orchestrateObservationSave({ repository, recipe, materialId, note, notify = () => {} }) {
   const validation = validateObservation(recipe, materialId, note)
   if (!validation.valid) { notify(validation.message); return { saved: false, recipe: null } }
-  try {
-    const saved = repository && repository.appendRecipeObservation(recipe.id, { materialId: validation.materialId, note: validation.note })
+  return settleOperation(() => repository && repository.appendRecipeObservation(recipe.id, { materialId: validation.materialId, note: validation.note }), (saved) => {
     if (!saved) throw new Error('Observation not saved')
     notify('观察已保存')
     return { saved: true, recipe: saved }
-  } catch (_) {
+  }, () => {
     notify('保存失败，请重试')
     return { saved: false, recipe: null }
-  }
+  })
 }
 
 function orchestrateRatingToggle({ repository, recipe, rating, promotedFromUntried = false, notify = () => {} }) {
@@ -316,49 +315,45 @@ function orchestrateRatingToggle({ repository, recipe, rating, promotedFromUntri
     tried: isCancelling ? (previousPromotionState ? false : recipe.tried === true) : true,
     rating: isCancelling ? null : rating
   }
-  try {
-    const saved = repository && repository.upsertRecipe(nextRecipe)
+  return settleOperation(() => repository && repository.upsertRecipe(nextRecipe), (saved) => {
     if (!saved) throw new Error('Rating not saved')
     return { saved: true, recipe: saved, promotedFromUntried: nextPromotionState }
-  } catch (_) {
+  }, () => {
     notify('评价保存失败，请重试')
     return { saved: false, recipe: null, promotedFromUntried: previousPromotionState }
-  }
+  })
 }
 
 function orchestrateRecipeCopy({ repository, recipeId, notify = () => {} }) {
-  try {
-    const copy = repository && repository.duplicateRecipe(recipeId)
+  return settleOperation(() => repository && repository.duplicateRecipe(recipeId), (copy) => {
     if (!copy || !copy.id) throw new Error('Recipe not copied')
     notify('已创建副本')
     return { copied: true, recipeId: copy.id }
-  } catch (_) {
+  }, () => {
     notify('复制失败，请重试')
     return { copied: false, recipeId: '' }
-  }
+  })
 }
 
 function orchestrateObservationDelete({ repository, recipeId, observationIndex, notify = () => {} } = {}) {
-  try {
-    const recipe = repository && repository.deleteRecipeObservation(recipeId, observationIndex)
+  return settleOperation(() => repository && repository.deleteRecipeObservation(recipeId, observationIndex), (recipe) => {
     if (!recipe) throw new Error('Observation not deleted')
     notify('记录已删除')
     return { deleted: true, recipe }
-  } catch (_) {
+  }, () => {
     notify('删除失败，请重试')
     return { deleted: false, recipe: null }
-  }
+  })
 }
 
 function orchestrateRecipeDelete({ repository, recipeId, notify = () => {} }) {
-  try {
-    const deleted = repository && repository.deleteRecipe(recipeId)
+  return settleOperation(() => repository && repository.deleteRecipe(recipeId), (deleted) => {
     if (!deleted) throw new Error('Recipe not deleted')
     return { deleted: true }
-  } catch (_) {
+  }, () => {
     notify('删除失败，请重试')
     return { deleted: false }
-  }
+  })
 }
 
 module.exports = {
