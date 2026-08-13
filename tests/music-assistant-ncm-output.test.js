@@ -8,6 +8,7 @@ const {
   extractLyrics,
   extractLoginState,
   extractLoginCheckState,
+  extractPlaylistIdentifier,
   summarizePayloadStructure,
   validSongIdentifier,
   buildLoginStartState,
@@ -72,6 +73,21 @@ test('red-heart songs are discovered inside CLI resource wrappers', () => {
     album: '城',
     albumDescription: ''
   }])
+})
+
+test('a favorite playlist is not normalized as a song', () => {
+  const favorite = {
+    code: 200,
+    data: {
+      resource: {
+        originalId: 5159253725,
+        encryptedId: '0123456789abcdef0123456789abcdef',
+        name: '周末少吃一口-喜欢的音乐'
+      }
+    }
+  }
+  assert.deepEqual(extractSongs(favorite), [])
+  assert.equal(extractPlaylistIdentifier(favorite), '0123456789abcdef0123456789abcdef')
 })
 
 test('payload diagnostics reveal structure without logging values', () => {
@@ -139,6 +155,13 @@ test('cloud service logs only a structural summary when liked-song parsing is em
   const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
   assert.match(server, /if \(!songs\.length\)/)
   assert.match(server, /JSON\.stringify\(summarizePayloadStructure\(output\)\)/)
+})
+
+test('cloud service resolves the favorite playlist before requesting its tracks', () => {
+  const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
+  assert.match(server, /runCli\(\['user', 'favorite'/)
+  assert.match(server, /extractPlaylistIdentifier\(favoriteOutput\)/)
+  assert.match(server, /runCli\(\['playlist', 'tracks', '--playlistId', playlistId/)
 })
 
 test('login output preserves CLI failures so they cannot become an empty QR state', () => {

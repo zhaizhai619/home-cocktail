@@ -11,11 +11,34 @@ function findValue(value, keys) {
   return undefined
 }
 
+function isSongObject(value) {
+  return Boolean(
+    value &&
+    !Array.isArray(value) &&
+    typeof value === 'object' &&
+    (value.id || value.songId || value.originalId) &&
+    (value.name || value.title) &&
+    (value.artist !== undefined || value.artistName !== undefined || value.artists !== undefined || value.ar !== undefined || value.album !== undefined || value.al !== undefined)
+  )
+}
+
 function findSongArray(value) {
   if (!value || typeof value !== 'object') return []
-  if (!Array.isArray(value) && (value.id || value.songId || value.originalId) && (value.name || value.title)) return [value]
+  if (isSongObject(value)) return [value]
   const nestedValues = Array.isArray(value) ? value : Object.values(value)
   return nestedValues.flatMap((nested) => findSongArray(nested))
+}
+
+function extractPlaylistIdentifier(value) {
+  if (!value || typeof value !== 'object') return ''
+  if (!Array.isArray(value) && !isSongObject(value) && (value.playlistId || value.originalId || value.id)) {
+    return String(value.encryptedId || value.playlistId || value.originalId || value.id || '')
+  }
+  for (const nested of Object.values(value)) {
+    const found = extractPlaylistIdentifier(nested)
+    if (found) return found
+  }
+  return ''
 }
 
 function artistName(song) {
@@ -171,6 +194,7 @@ function cliInvocation(packageJsonPath, packageData) {
 
 module.exports = {
   extractSongs,
+  extractPlaylistIdentifier,
   extractLyrics,
   summarizePayloadStructure,
   validSongIdentifier,
