@@ -1,11 +1,18 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 
 const {
   cleanNeteaseLyrics,
   fetchNeteaseLyrics,
   fetchLikedPlaylistSongs
 } = require('../cloudrun/music-assistant/netease-web')
+
+test('CloudRun image includes the NetEase web integration module', () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '../cloudrun/music-assistant/Dockerfile'), 'utf8')
+  assert.match(dockerfile, /COPY[^\n]*netease-web\.js/)
+})
 
 function response(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body }
