@@ -22,7 +22,7 @@
     <image wx:if="{{ncmQrUrl && !ncmLoggedIn}}" class="login-qr" src="{{ncmQrUrl}}" mode="aspectFit" />
     <view class="row-actions">
       <button class="secondary" loading="{{loadingLogin}}" bindtap="onConnectNcm">连接网易云</button>
-      <button class="secondary" bindtap="onCheckNcmLogin">检查登录</button>
+      <button class="secondary" loading="{{checkingLogin}}" disabled="{{checkingLogin || loadingLogin}}" bindtap="onCheckNcmLogin">{{checkingLogin ? '检查中…' : '检查登录'}}</button>
     </view>
   </view>
 

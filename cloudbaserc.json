@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloud1-d3gbs4a2yb36e552b",
+  "functionRoot": "cloudfunctions",
+  "functions": [
+    {
+      "name": "userData",
+      "timeout": 10,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "installDependency": true
+    },
+    {
+      "name": "musicAssistant",
+      "timeout": 120,
+      "runtime": "Nodejs16.13",
+      "handler": "index.main",
+      "installDependency": true
+    }
+  ]
+}

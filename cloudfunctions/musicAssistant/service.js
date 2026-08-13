@@ -84,6 +84,7 @@ function createMusicAssistantService({
     if (!ncm || typeof ncm.listLikedSongs !== 'function') throw serviceError('NCM_UNAVAILABLE', '网易云音乐服务尚未配置')
     await claimNcmOwner(owner)
     const songs = await ncm.listLikedSongs(limit)
+    if (!songs.length) throw serviceError('NO_LIKED_SONGS', '没有读取到红心歌曲，请先确认网易云已登录且红心歌单不为空')
     const timestamp = now()
     const job = createAnalysisJob({ id: id(), songs, limit, model, now: timestamp })
     job.ownerOpenId = owner

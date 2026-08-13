@@ -78,6 +78,18 @@ test('job processes one song per call, resumes, caches output and never stores t
   assert.equal((await service.getStatus('openid-a')).analyzedCount, 2)
 })
 
+test('starting an import reports an empty liked-song result instead of completing a zero-song job', async () => {
+  const store = memoryStore()
+  const ncm = { async listLikedSongs() { return [] } }
+  const service = createMusicAssistantService({ store, ncm, ai: {} })
+
+  await assert.rejects(
+    service.startJob('openid-a', { limit: 20, model: 'deepseek-v4-flash' }),
+    (error) => error.code === 'NO_LIKED_SONGS' && /没有读取到红心歌曲/.test(error.message)
+  )
+  assert.equal(store.inspect().jobs.length, 0)
+})
+
 test('naming analyzes the cocktail, ranks stored profiles, then returns safe recommendations', async () => {
   const store = memoryStore()
   await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '夜航', preferredTitle: '夜航', summary: '夜路', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], fitScore: 90 })

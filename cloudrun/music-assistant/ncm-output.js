@@ -52,9 +52,11 @@ function extractLyrics(payload) {
 }
 
 function extractLoginState(payload) {
-  const rawStatus = findValue(payload, ['loggedIn', 'isLogin', 'loginStatus', 'authenticated'])
+  const rawStatus = findValue(payload, ['loggedIn', 'isLoggedIn', 'isLogin', 'loginStatus', 'authenticated'])
   const statusText = String(rawStatus == null ? '' : rawStatus).trim().toLowerCase()
-  const loggedIn = rawStatus === true || rawStatus === 1 || /^(true|1|logged.?in|已登录|online)$/.test(statusText)
+  const rawUserId = findValue(payload, ['userId', 'uid'])
+  const hasAuthenticatedUser = rawStatus == null && rawUserId != null && String(rawUserId) !== '' && String(rawUserId) !== '0'
+  const loggedIn = rawStatus === true || rawStatus === 1 || /^(true|1|logged.?in|已登录|online)$/.test(statusText) || hasAuthenticatedUser
   const state = {
     loggedIn,
     nickname: String(findValue(payload, ['nickname', 'userName', 'username']) || ''),
@@ -64,6 +66,15 @@ function extractLoginState(payload) {
     state.error = String(findValue(payload, ['message', 'errorMessage', 'error']) || '网易云 CLI 未能完成登录')
   }
   return state
+}
+
+function extractLoginCheckState(payload) {
+  const state = extractLoginState(payload)
+  return {
+    loggedIn: state.loggedIn || findValue(payload, ['success']) === true,
+    nickname: state.nickname,
+    qrUrl: state.qrUrl
+  }
 }
 
 function publicLoginError(message) {
@@ -143,6 +154,7 @@ module.exports = {
   extractSongs,
   extractLyrics,
   extractLoginState,
+  extractLoginCheckState,
   buildLoginStartState,
   publicLoginError,
   credentialScopedHome,

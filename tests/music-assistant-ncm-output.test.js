@@ -7,6 +7,7 @@ const {
   extractSongs,
   extractLyrics,
   extractLoginState,
+  extractLoginCheckState,
   buildLoginStartState,
   credentialScopedHome,
   validateRuntimeConfig,
@@ -26,6 +27,40 @@ test('login output exposes a small safe status object', () => {
     loggedIn: true, nickname: '阿孟', qrUrl: 'https://example.test/qr'
   })
   assert.equal(extractLoginState({ loginStatus: '未登录' }).loggedIn, false)
+})
+
+test('login status recognizes the CLI isLoggedIn field', () => {
+  assert.deepEqual(extractLoginState({ data: { isLoggedIn: true, nickname: '阿孟' } }), {
+    loggedIn: true,
+    nickname: '阿孟',
+    qrUrl: ''
+  })
+})
+
+test('login status recognizes an authenticated user profile', () => {
+  assert.deepEqual(extractLoginState({ data: { profile: { userId: 123, nickname: '阿孟' } } }), {
+    loggedIn: true,
+    nickname: '阿孟',
+    qrUrl: ''
+  })
+})
+
+test('login check understands the real CLI success payload', () => {
+  assert.deepEqual(extractLoginCheckState({ success: true, message: '已登录' }), {
+    loggedIn: true,
+    nickname: '',
+    qrUrl: ''
+  })
+  assert.deepEqual(extractLoginCheckState({ success: false, message: '未登录，请执行 ncm-cli login 完成登录' }), {
+    loggedIn: false,
+    nickname: '',
+    qrUrl: ''
+  })
+})
+
+test('cloud service uses the dedicated login-check parser', () => {
+  const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
+  assert.match(server, /extractLoginCheckState\(output\)/)
 })
 
 test('login output preserves CLI failures so they cannot become an empty QR state', () => {

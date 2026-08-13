@@ -17,7 +17,7 @@ Page({
     apiKey: '', model: 'deepseek-v4-flash', importCount: 20,
     job: null, processed: 0, total: 0, percent: 0, analyzedCount: 0,
     ncmLoggedIn: false, ncmNickname: '', ncmQrUrl: '',
-    loadingLogin: false, analyzing: false, statusText: '', error: ''
+    loadingLogin: false, checkingLogin: false, analyzing: false, statusText: '', error: ''
   },
   async onLoad() {
     await waitForCloudReady()
@@ -56,11 +56,20 @@ Page({
   },
   async onCheckNcmLogin() {
     const { musicAssistant } = services()
-    if (!musicAssistant) return
+    if (!musicAssistant || this.data.checkingLogin) return
+    this.setData({ checkingLogin: true, error: '', statusText: '正在检查网易云登录状态…' })
     try {
       const state = await musicAssistant.checkNcmLogin()
-      this.setData({ ncmLoggedIn: Boolean(state.loggedIn), ncmNickname: state.nickname || '', ncmQrUrl: state.qrUrl || this.data.ncmQrUrl, statusText: state.loggedIn ? '网易云已连接' : this.data.statusText })
-    } catch (_) {}
+      this.setData({
+        ncmLoggedIn: Boolean(state.loggedIn),
+        ncmNickname: state.nickname || '',
+        ncmQrUrl: state.qrUrl || this.data.ncmQrUrl,
+        statusText: state.loggedIn ? '网易云已连接' : '暂未检测到登录，请确认手机端已授权后再试'
+      })
+    } catch (error) {
+      this.setData({ error: error.message || '检查网易云登录状态失败' })
+    }
+    this.setData({ checkingLogin: false })
   },
   async onStartAnalysis() {
     if (this.data.analyzing) return

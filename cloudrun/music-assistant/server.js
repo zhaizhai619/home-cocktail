@@ -6,7 +6,7 @@ const { spawn } = require('child_process')
 const {
   extractSongs,
   extractLyrics,
-  extractLoginState,
+  extractLoginCheckState,
   buildLoginStartState,
   publicLoginError,
   credentialScopedHome,
@@ -89,7 +89,7 @@ async function handler(request, response) {
     }
     if (request.method === 'GET' && url.pathname === '/auth/status') {
       const output = await runCli(['login', '--check', '--output', 'json'])
-      return send(response, 200, { ok: true, data: extractLoginState(output) })
+      return send(response, 200, { ok: true, data: extractLoginCheckState(output) })
     }
     if (request.method === 'GET' && url.pathname === '/library/liked') {
       const limit = Math.max(1, Math.min(300, Number(url.searchParams.get('limit')) || 20))
