@@ -27,3 +27,18 @@ test('NCM proxy client merges lyrics into the supplied song metadata', async () 
   })
   assert.deepEqual(await client.getSongSource('42', { title: '夜航' }), { id: '42', title: '夜航', lyrics: '凌晨的街道' })
 })
+
+test('NCM proxy client forwards the safe backend error message to the mini program', async () => {
+  const client = createNcmClient({
+    baseUrl: 'https://music.example.test', token: 'token',
+    fetchImpl: async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({
+        ok: false,
+        error: { code: 'NCM_CONFIG_INVALID', message: '网易云登录失败，请检查 NCM_APP_ID 与 NCM_PRIVATE_KEY' }
+      })
+    })
+  })
+  await assert.rejects(client.startLogin(), /请检查 NCM_APP_ID 与 NCM_PRIVATE_KEY/)
+})

@@ -1,7 +1,8 @@
 const http = require('http')
 const crypto = require('crypto')
+const QRCode = require('qrcode')
 const { spawn } = require('child_process')
-const { extractSongs, extractLyrics, extractLoginState } = require('./ncm-output')
+const { extractSongs, extractLyrics, extractLoginState, buildLoginStartState, publicLoginError } = require('./ncm-output')
 
 const PORT = Number(process.env.PORT) || 8080
 const SERVICE_TOKEN = String(process.env.SERVICE_TOKEN || '')
@@ -60,7 +61,12 @@ async function handler(request, response) {
     const url = new URL(request.url, 'http://localhost')
     if (request.method === 'POST' && url.pathname === '/auth/start') {
       const output = await runCli(['login', '--background', '--output', 'json'])
-      return send(response, 200, { ok: true, data: extractLoginState(output) })
+      const state = await buildLoginStartState(output, (content) => QRCode.toDataURL(content, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 360
+      }))
+      return send(response, 200, { ok: true, data: state })
     }
     if (request.method === 'GET' && url.pathname === '/auth/status') {
       const output = await runCli(['login', '--check', '--output', 'json'])
@@ -81,7 +87,12 @@ async function handler(request, response) {
     return send(response, 404, { ok: false, error: 'not_found' })
   } catch (error) {
     console.error('music-assistant service failed', { message: error && error.message })
-    return send(response, 500, { ok: false, error: 'service_unavailable' })
+    const knownCode = error && /^NCM_/.test(String(error.code || ''))
+    const message = knownCode ? error.message : publicLoginError(error && error.message)
+    return send(response, 500, {
+      ok: false,
+      error: { code: knownCode ? error.code : 'NCM_SERVICE_UNAVAILABLE', message }
+    })
   }
 }
 

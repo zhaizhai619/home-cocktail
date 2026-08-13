@@ -52,11 +52,39 @@ function extractLoginState(payload) {
   const rawStatus = findValue(payload, ['loggedIn', 'isLogin', 'loginStatus', 'authenticated'])
   const statusText = String(rawStatus == null ? '' : rawStatus).trim().toLowerCase()
   const loggedIn = rawStatus === true || rawStatus === 1 || /^(true|1|logged.?in|已登录|online)$/.test(statusText)
-  return {
+  const state = {
     loggedIn,
     nickname: String(findValue(payload, ['nickname', 'userName', 'username']) || ''),
     qrUrl: String(findValue(payload, ['qrUrl', 'qrCodeUrl', 'url']) || '')
   }
+  if (findValue(payload, ['success']) === false) {
+    state.error = String(findValue(payload, ['message', 'errorMessage', 'error']) || '网易云 CLI 未能完成登录')
+  }
+  return state
 }
 
-module.exports = { extractSongs, extractLyrics, extractLoginState }
+function publicLoginError(message) {
+  const detail = String(message || '')
+  if (/RSA|SHA256|签名|private.?key|app.?id|credential|密钥/i.test(detail)) {
+    return '网易云登录失败，请检查 NCM_APP_ID 与 NCM_PRIVATE_KEY'
+  }
+  return '网易云登录暂时不可用，请稍后再试'
+}
+
+async function buildLoginStartState(payload, renderQr) {
+  const state = extractLoginState(payload)
+  if (state.error) {
+    const error = new Error(publicLoginError(state.error))
+    error.code = /NCM_APP_ID/.test(error.message) ? 'NCM_CONFIG_INVALID' : 'NCM_LOGIN_FAILED'
+    throw error
+  }
+  if (state.loggedIn) return state
+  if (!state.qrUrl) {
+    const error = new Error('网易云未返回登录二维码，请检查开放平台配置')
+    error.code = 'NCM_QR_MISSING'
+    throw error
+  }
+  return { ...state, qrUrl: await renderQr(state.qrUrl) }
+}
+
+module.exports = { extractSongs, extractLyrics, extractLoginState, buildLoginStartState, publicLoginError }

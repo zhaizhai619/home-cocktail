@@ -12,9 +12,13 @@ function createNcmClient({ baseUrl, token, fetchImpl = global.fetch } = {}) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceToken}` },
       body: options.body ? JSON.stringify(options.body) : undefined
     })
-    if (!response.ok) throw new Error(`网易云音乐服务请求失败（${response.status || '未知状态'}）`)
-    const payload = await response.json()
-    if (!payload || payload.ok === false) throw new Error('网易云音乐服务暂时不可用')
+    let payload = null
+    try { payload = await response.json() } catch (_) {}
+    const backendMessage = payload && payload.error && typeof payload.error === 'object'
+      ? payload.error.message
+      : ''
+    if (!response.ok) throw new Error(backendMessage || `网易云音乐服务请求失败（${response.status || '未知状态'}）`)
+    if (!payload || payload.ok === false) throw new Error(backendMessage || '网易云音乐服务暂时不可用')
     return payload.data || payload
   }
 
