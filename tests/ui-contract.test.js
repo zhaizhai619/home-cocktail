@@ -372,14 +372,35 @@ test('recipe editor opens a dedicated two-column glassware selection page with i
   assert.match(picker, /class="page-add"[^>]*bindtap="onAddGlassware"[^>]*>＋ 新增</)
   assert.doesNotMatch(picker, /点击酒杯后立即返回配方/)
   assert.match(picker, /wx:if="{{glassEditorOpen}}"/)
-  assert.match(picker, /名称（选填）/)
-  assert.match(picker, /容量 ml \*/)
+  assert.match(picker, />名称</)
+  assert.match(picker, />容量 ml</)
+  assert.doesNotMatch(picker, /名称（选填）|容量 ml \*|例如 420/)
   assert.match(picker, /bindtap="onSaveGlassware"/)
   assert.doesNotMatch(picker, /编辑|删除|onEditGlassware|onRequestDeleteGlassware/)
   assert.match(pickerCss, /\.glass-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
   assert.match(pickerCss, /\.page-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#242321[^}]*border-radius:\s*999rpx/)
   assert.match(barCss, /\.materials-page \.pane-add\s*{[^}]*height:\s*64rpx[^}]*padding:\s*0 20rpx[^}]*background:\s*#242321[^}]*border-radius:\s*999rpx/)
   assert.match(pickerCss, /padding-bottom:\s*calc\(40rpx \+ env\(safe-area-inset-bottom\)\)/)
+})
+
+test('both glassware editors share clean labels and the same form sizing', () => {
+  const picker = fs.readFileSync(path.join(MINI, 'pages/glass-select/index.wxml'), 'utf8')
+  const bar = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxml'), 'utf8')
+  const pickerCss = fs.readFileSync(path.join(MINI, 'pages/glass-select/index.wxss'), 'utf8')
+  const barCss = fs.readFileSync(path.join(MINI, 'pages/materials/index.wxss'), 'utf8')
+  for (const markup of [picker, bar]) {
+    assert.match(markup, />名称</)
+    assert.match(markup, />容量 ml</)
+    assert.doesNotMatch(markup, /名称（选填）|容量 ml \*|例如 420/)
+  }
+  for (const styles of [pickerCss, barCss]) {
+    assert.match(styles, /\.glass-input\s*{[^}]*height:\s*80rpx[^}]*border-radius:\s*18rpx/)
+    assert.match(styles, /\.sheet-heading\s*{[^}]*display:\s*flex[^}]*justify-content:\s*space-between/)
+  }
+  assert.match(pickerCss, /\.save-glass\s*{[^}]*width:\s*240rpx[^}]*height:\s*64rpx[^}]*margin:\s*20rpx auto 0[^}]*padding:\s*0 24rpx[^}]*line-height:\s*64rpx/)
+  assert.match(barCss, /\.glass-editor \.primary\s*{[^}]*width:\s*240rpx[^}]*height:\s*64rpx[^}]*margin:\s*20rpx auto 0[^}]*padding:\s*0 24rpx[^}]*line-height:\s*64rpx/)
+  assert.match(pickerCss, /\.glass-editor\s*{[^}]*padding-bottom:\s*calc\(16rpx \+ env\(safe-area-inset-bottom\)\)/)
+  assert.match(barCss, /\.glass-editor\s*{[^}]*padding-bottom:\s*28rpx/)
 })
 
 test('ingredient rows expose a compact long-press drag handle', () => {

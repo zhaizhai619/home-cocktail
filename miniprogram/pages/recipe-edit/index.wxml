@@ -14,7 +14,10 @@
     </scroll-view>
     <view class="basic-grid">
       <view class="basic-fields">
-        <input class="basic-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
+        <view class="name-row">
+          <input class="basic-input name-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
+          <button class="ai-name-button" bindtap="onOpenAiNaming">AI 起名</button>
+        </view>
         <input class="basic-input" data-field="source" value="{{form.source}}" placeholder="来源（可选）" bindinput="onBasicInput" />
       </view>
     </view>
@@ -91,4 +94,29 @@
 <view class="save-bar">
   <text wx:if="{{formError}}" class="error save-error" aria-live="assertive">{{formError}}</text>
   <button class="save-button {{savingRecipe ? 'is-disabled' : ''}}" disabled="{{savingRecipe}}" loading="{{savingRecipe}}" bindtap="onSave">{{savingRecipe ? '保存中…' : '保存配方'}}</button>
+</view>
+
+<view wx:if="{{aiNamingOpen}}" class="ai-mask" catchtap="onCloseAiNaming" catchtouchmove="noop">
+  <view class="ai-sheet" catchtap="noop">
+    <view class="ai-sheet-head"><text class="ai-sheet-title">用喜欢的歌给酒起名</text><button class="ai-close" disabled="{{aiThinking}}" bindtap="onCloseAiNaming">×</button></view>
+    <text class="ai-sheet-copy">AI 会结合材料和用量理解这杯酒。颜色和起名偏好可以不填，但能帮助结果更贴近你的想法。</text>
+    <text class="ai-field-label">酒的颜色（选填）</text>
+    <input class="ai-field" value="{{aiColor}}" data-field="aiColor" bindinput="onAiFieldInput" placeholder="例如：青绿色、琥珀色、莓红渐变" />
+    <text class="ai-field-label">起名偏好（选填）</text>
+    <input class="ai-preference" value="{{aiPreference}}" data-field="aiPreference" bindinput="onAiFieldInput" placeholder="例如：想要中文名、克制一点、不要太伤感" />
+
+    <view wx:if="{{aiThinking}}" class="ai-thinking"><view class="thinking-dot"></view><text>{{aiThinkingText}}</text></view>
+    <text wx:if="{{aiError}}" class="ai-error">{{aiError}}</text>
+    <button wx:if="{{aiNeedsSetup}}" class="ai-settings" bindtap="onOpenMusicSettings">前往配置</button>
+
+    <view wx:if="{{aiRecommendations.length}}" class="ai-results">
+      <text class="ai-results-title">推荐酒名</text>
+      <button wx:for="{{aiRecommendations}}" wx:key="song_id" class="ai-result" data-name="{{item.recommended_name}}" bindtap="onUseAiName">
+        <text class="ai-result-name">{{item.recommended_name}}</text>
+        <text class="ai-result-reason">{{item.reason}}</text>
+        <text class="ai-result-use">使用这个名字</text>
+      </button>
+    </view>
+    <button class="ai-generate" disabled="{{aiThinking}}" loading="{{aiThinking}}" bindtap="onGenerateAiNames">{{aiRecommendations.length ? '重新生成' : '开始匹配'}}</button>
+  </view>
 </view>

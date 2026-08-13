@@ -12,6 +12,50 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+function diffStateChanges(previousState, nextState) {
+  const previous = previousState && typeof previousState === 'object' ? previousState : {}
+  const next = nextState && typeof nextState === 'object' ? nextState : {}
+  const changes = {}
+  for (const [, collection] of ENTITY_COLLECTIONS) {
+    const before = Array.isArray(previous[collection]) ? previous[collection] : []
+    const after = Array.isArray(next[collection]) ? next[collection] : []
+    const beforeById = new Map(before.filter((item) => item && item.id).map((item) => [item.id, item]))
+    const afterIds = new Set(after.filter((item) => item && item.id).map((item) => item.id))
+    changes[collection] = {
+      upserts: after.filter((item) => item && item.id && !sameValue(beforeById.get(item.id), item)).map(clone),
+      deletes: before.filter((item) => item && item.id && !afterIds.has(item.id)).map((item) => item.id)
+    }
+  }
+  return changes
+}
+
+function applyStateChanges(baseState, changes) {
+  const next = clone(baseState && typeof baseState === 'object' ? baseState : {})
+  for (const [, collection] of ENTITY_COLLECTIONS) {
+    const change = changes && changes[collection] || {}
+    const deletes = new Set(Array.isArray(change.deletes) ? change.deletes : [])
+    const upserts = Array.isArray(change.upserts) ? change.upserts : []
+    const upsertsById = new Map(upserts.filter((item) => item && item.id).map((item) => [item.id, item]))
+    const current = Array.isArray(next[collection]) ? next[collection] : []
+    const merged = current
+      .filter((item) => !item || !item.id || !deletes.has(item.id))
+      .map((item) => item && item.id && upsertsById.has(item.id) ? clone(upsertsById.get(item.id)) : item)
+    const existingIds = new Set(merged.filter((item) => item && item.id).map((item) => item.id))
+    for (const item of upserts) {
+      if (item && item.id && !existingIds.has(item.id)) {
+        merged.push(clone(item))
+        existingIds.add(item.id)
+      }
+    }
+    next[collection] = merged
+  }
+  return next
+}
+
 function diffDeletedItems(previousState, nextState, deletedAt, requestId) {
   const previous = previousState && typeof previousState === 'object' ? previousState : {}
   const next = nextState && typeof nextState === 'object' ? nextState : {}
@@ -40,4 +84,12 @@ function restoreTrashItem(state, entry) {
   return next
 }
 
-module.exports = { ENTITY_COLLECTIONS, TRASH_RETENTION_MS, HISTORY_RETENTION_MS, diffDeletedItems, restoreTrashItem }
+module.exports = {
+  ENTITY_COLLECTIONS,
+  TRASH_RETENTION_MS,
+  HISTORY_RETENTION_MS,
+  diffStateChanges,
+  applyStateChanges,
+  diffDeletedItems,
+  restoreTrashItem
+}

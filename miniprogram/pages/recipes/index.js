@@ -133,6 +133,7 @@ Page({
     this.refreshCards()
   },
   noop() {},
+  onOpenMusicNaming() { wx.navigateTo({ url: '/pages/music-naming/index' }) },
   onAddRecipe() { wx.navigateTo({ url: '/pages/recipe-edit/index' }) },
   onSelectRecipe(event) {
     const id = event && event.detail && event.detail.id

@@ -10,7 +10,7 @@ function createWxCloudTransport({ cloud, functionName = 'userData' } = {}) {
 
   async function call(action, payload = {}) {
     const allowedPayload = {}
-    for (const key of ['state', 'profile', 'expectedRevision', 'requestId', 'trashId']) {
+    for (const key of ['state', 'changes', 'profile', 'expectedRevision', 'requestId', 'trashId']) {
       if (Object.prototype.hasOwnProperty.call(payload, key)) allowedPayload[key] = payload[key]
     }
     const response = await cloud.callFunction({ name: functionName, data: { action, ...allowedPayload } })
@@ -22,6 +22,7 @@ function createWxCloudTransport({ cloud, functionName = 'userData' } = {}) {
   return {
     load: () => call('load'),
     saveState: (payload) => call('saveState', payload),
+    saveChanges: (payload) => call('saveChanges', payload),
     saveProfile: (payload) => call('saveProfile', payload),
     listTrash: () => call('listTrash'),
     restoreTrash: (payload) => call('restoreTrash', payload)

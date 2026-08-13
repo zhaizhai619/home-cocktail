@@ -1,4 +1,5 @@
 const CLOUD_CACHE_KEY = 'home-cocktail-cloud-cache-v1'
+const { diffStateChanges } = require('./state-changes')
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -96,8 +97,8 @@ function createCloudUserSession({
       const built = buildMutation(clone(snapshot.state)) || {}
       let response
       try {
-        response = await transport.saveState({
-          state: clone(built.state),
+        response = await transport.saveChanges({
+          changes: diffStateChanges(snapshot.state, built.state),
           expectedRevision: snapshot.revision,
           requestId: requestIdFactory()
         })

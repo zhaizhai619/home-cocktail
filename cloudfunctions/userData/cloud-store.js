@@ -1,7 +1,11 @@
+const crypto = require('crypto')
+
 const USER_COLLECTION = 'user_data'
 const HISTORY_COLLECTION = 'user_history'
 const TRASH_COLLECTION = 'user_trash'
-const COLLECTIONS = [USER_COLLECTION, HISTORY_COLLECTION, TRASH_COLLECTION]
+const ENTITY_COLLECTION = 'user_entities'
+const COLLECTIONS = [USER_COLLECTION, HISTORY_COLLECTION, TRASH_COLLECTION, ENTITY_COLLECTION]
+const ENTITY_PAGE_SIZE = 100
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -15,6 +19,10 @@ function isMissingDocument(error) {
 function isMissingCollection(error) {
   const message = String(error && (error.errMsg || error.message) || '')
   return /collection.*not exist|DATABASE_COLLECTION_NOT_EXIST|-502005/i.test(message)
+}
+
+function entityDocumentId(openId, entityType, entityId) {
+  return crypto.createHash('sha256').update(`${openId}:${entityType}:${entityId}`).digest('hex')
 }
 
 async function readDocument(database, collection, id) {
@@ -37,6 +45,14 @@ function transactionStore(transaction) {
     },
     addHistory(value) { return transaction.collection(HISTORY_COLLECTION).add({ data: clone(value) }) },
     addTrash(value) { return transaction.collection(TRASH_COLLECTION).add({ data: clone(value) }) },
+    getEntityChange(openId, entityType, entityId) {
+      return readDocument(transaction, ENTITY_COLLECTION, entityDocumentId(openId, entityType, entityId))
+    },
+    setEntityChange(openId, entityType, entityId, value) {
+      return transaction.collection(ENTITY_COLLECTION).doc(entityDocumentId(openId, entityType, entityId)).set({
+        data: { ownerOpenId: openId, entityType, entityId, ...clone(value) }
+      })
+    },
     getTrash(id) { return readDocument(transaction, TRASH_COLLECTION, id) },
     markTrashRestored(id, restoredAt) {
       return transaction.collection(TRASH_COLLECTION).doc(id).update({ data: { restoredAt } })
@@ -82,6 +98,23 @@ function createCloudStore(db) {
       .map((item) => ({ ...clone(item), id: item._id }))
   }
 
+  async function listEntityChanges(openId) {
+    await ensureCollections()
+    const entries = []
+    let offset = 0
+    while (true) {
+      const result = await db.collection(ENTITY_COLLECTION)
+        .where({ ownerOpenId: openId })
+        .skip(offset)
+        .limit(ENTITY_PAGE_SIZE)
+        .get()
+      const page = result && result.data || []
+      entries.push(...page.map(clone))
+      if (page.length < ENTITY_PAGE_SIZE) return entries
+      offset += page.length
+    }
+  }
+
   async function removeWhere(collection, condition) {
     const result = await db.collection(collection).where(condition).remove()
     return Number(result && result.stats && result.stats.removed || 0)
@@ -102,6 +135,7 @@ function createCloudStore(db) {
       await ensureCollections()
       return readDocument(db, USER_COLLECTION, openId)
     },
+    listEntityChanges,
     listTrash,
     deleteExpired
   }
@@ -111,5 +145,7 @@ module.exports = {
   USER_COLLECTION,
   HISTORY_COLLECTION,
   TRASH_COLLECTION,
+  ENTITY_COLLECTION,
+  entityDocumentId,
   createCloudStore
 }

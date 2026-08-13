@@ -14,6 +14,8 @@ const { createWxCloudTransport } = require('../miniprogram/services/wx-cloud-tra
 const { createCloudAppServices } = require('../miniprogram/services/cloud-app-services')
 const {
   diffDeletedItems,
+  diffStateChanges,
+  applyStateChanges,
   restoreTrashItem
 } = require('../cloudfunctions/userData/domain')
 
@@ -43,6 +45,39 @@ function deferred() {
   })
   return { promise, resolve, reject }
 }
+
+test('state changes contain only added updated and deleted entities', () => {
+  const previous = createInitialState()
+  previous.recipes.push({ id: 'r1', name: 'Martini' })
+  previous.materials.push({ id: 'm1', name: '金酒' })
+  const next = clone(previous)
+  next.recipes[0].name = 'Dry Martini'
+  next.materials.push({ id: 'm2', name: '柠檬汁' })
+
+  const changes = diffStateChanges(previous, next)
+
+  assert.deepEqual(changes, {
+    recipes: { upserts: [{ id: 'r1', name: 'Dry Martini' }], deletes: [] },
+    materials: { upserts: [{ id: 'm2', name: '柠檬汁' }], deletes: [] },
+    glassware: { upserts: [], deletes: [] },
+    tools: { upserts: [], deletes: [] }
+  })
+  assert.deepEqual(applyStateChanges(previous, changes), next)
+})
+
+test('applying no entity changes preserves every legacy state field and malformed row', () => {
+  const legacy = {
+    version: 7,
+    recipes: [null, { name: '无 ID 旧配方' }],
+    materials: [],
+    glassware: [],
+    tools: [],
+    futureSetting: { enabled: true }
+  }
+  const unchanged = diffStateChanges(legacy, legacy)
+
+  assert.deepEqual(applyStateChanges(legacy, unchanged), legacy)
+})
 
 test('cloud session loads the remote snapshot and uses a separate rebuildable cache', async () => {
   const remoteState = createInitialState()
@@ -132,10 +167,15 @@ test('a business mutation becomes visible only after the cloud confirms it', asy
     requestIdFactory: () => 'request-1',
     transport: {
       async load() { return { state: createInitialState(), profile: initialProfile(), revision: 2 } },
-      saveState(input) {
+      saveChanges(input) {
         assert.equal(input.expectedRevision, 2)
         assert.equal(input.requestId, 'request-1')
-        assert.equal(input.state.materials[0].name, '金酒')
+        assert.equal(Object.prototype.hasOwnProperty.call(input, 'state'), false)
+        assert.equal(input.changes.materials.upserts.length, 1)
+        assert.equal(input.changes.materials.upserts[0].id, 'm1')
+        assert.equal(input.changes.materials.upserts[0].name, '金酒')
+        assert.deepEqual(input.changes.materials.deletes, [])
+        assert.deepEqual(input.changes.recipes, { upserts: [], deletes: [] })
         return pending.promise
       }
     }
@@ -174,7 +214,7 @@ test('a rejected cloud write leaves memory and cache at the last confirmed snaps
     initialProfile: initialProfile(),
     transport: {
       async load() { return { state: baseState, profile: initialProfile(), revision: 1 } },
-      async saveState() { throw new Error('network unavailable') }
+      async saveChanges() { throw new Error('network unavailable') }
     }
   })
   await session.initialize()
@@ -196,8 +236,8 @@ test('a lost save acknowledgement is reconciled from cloud without reporting a f
     initialProfile: initialProfile(),
     transport: {
       async load() { loads++; return { state: remoteState, profile: initialProfile(), revision } },
-      async saveState(input) {
-        remoteState = clone(input.state)
+      async saveChanges(input) {
+        remoteState = applyStateChanges(remoteState, input.changes)
         revision = 2
         throw new Error('reply lost')
       }

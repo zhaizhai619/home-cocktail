@@ -1,0 +1,20 @@
+.music-page { box-sizing: border-box; min-height: 100vh; padding: 28rpx 28rpx calc(48rpx + env(safe-area-inset-bottom)); background: #f8f5ee; }
+.hero { padding: 28rpx; color: #fff; background: #3b3936; border-radius: 24rpx; }
+.beta { display: inline-block; padding: 5rpx 12rpx; color: #3d2f25; background: #ead8c7; border-radius: 999rpx; font-size: 20rpx; }
+.hero-title { display: block; margin-top: 16rpx; font-size: 36rpx; font-weight: 700; }
+.hero-copy { display: block; margin-top: 12rpx; color: rgba(255,255,255,.72); font-size: 23rpx; line-height: 1.6; }
+.panel { margin-top: 18rpx; padding: 24rpx; background: #fffefc; border: 1rpx solid #e7e4dd; border-radius: 20rpx; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.panel-title { color: #242321; font-size: 28rpx; font-weight: 700; }
+.field-label { display: block; margin: 22rpx 0 8rpx; color: #6f6c66; font-size: 22rpx; }
+.field { box-sizing: border-box; width: 100%; height: 76rpx; padding: 0 18rpx; background: #f6f4ef; border: 1rpx solid #e7e4dd; border-radius: 12rpx; font-size: 24rpx; }
+.field-help, .connected-user, .status, .error { display: block; margin-top: 10rpx; color: #8a867f; font-size: 21rpx; line-height: 1.5; }
+.error { color: #985a54; }
+.connection { color: #985a54; font-size: 22rpx; }.connection.online { color: #547a60; }
+.login-qr { display: block; width: 280rpx; height: 280rpx; margin: 20rpx auto 0; }
+.row-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 20rpx; }
+.secondary, .resume { min-height: 70rpx; margin: 0; color: #54483e; background: #f1ede7; border-radius: 12rpx; font-size: 23rpx; line-height: 70rpx; }.secondary::after,.primary::after,.resume::after{border:0}
+.progress-track { height: 12rpx; margin-top: 20rpx; overflow: hidden; background: #eeeae3; border-radius: 999rpx; }.progress-value{height:100%;background:#957052;border-radius:999rpx;transition:width .2s}
+.percent { color: #957052; font-size: 26rpx; font-weight: 700; }
+.stats { display: grid; grid-template-columns: repeat(4,1fr); margin-top: 24rpx; text-align: center; }.stat-value,.stat-label{display:block}.stat-value{color:#242321;font-size:30rpx;font-weight:700}.stat-label{margin-top:6rpx;color:#8a867f;font-size:19rpx}
+.primary { width: 100%; min-height: 84rpx; margin-top: 22rpx; color: #fff; background: #242321; border-radius: 14rpx; font-size: 26rpx; line-height: 84rpx; }.resume{width:100%;margin-top:12rpx}

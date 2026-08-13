@@ -1,5 +1,12 @@
 .recipes-page { position: relative; box-sizing: border-box; min-height: 100vh; padding: 48rpx 32rpx 72rpx; background: #f8f5ee; }
 .recipes-page.filter-open { height: 100vh; overflow: hidden; }
+.ai-naming-banner { display: flex; align-items: center; box-sizing: border-box; min-height: 132rpx; margin-bottom: 18rpx; padding: 22rpx 24rpx; color: #ffffff; background: #3b3936; border-radius: 22rpx; box-shadow: 0 12rpx 30rpx rgba(55, 50, 43, .16); }
+.ai-banner-copy { flex: 1; min-width: 0; }
+.ai-banner-title-row { display: flex; align-items: center; gap: 12rpx; }
+.ai-badge { flex: none; padding: 4rpx 10rpx; color: #3d2f25; background: #ead8c7; border-radius: 999rpx; font-size: 19rpx; }
+.ai-banner-title { overflow: hidden; font-size: 27rpx; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
+.ai-banner-hint { display: block; margin-top: 10rpx; color: rgba(255,255,255,.72); font-size: 21rpx; line-height: 1.4; }
+.ai-banner-arrow { flex: none; margin-left: 14rpx; font-size: 48rpx; font-weight: 300; }
 .add-hit { flex: none; width: auto; height: 64rpx; min-height: 64rpx; margin: 0; padding: 0 20rpx; color: #ffffff; background: #242321; border-radius: 999rpx; font-size: 21rpx; line-height: 64rpx; }
 .add-hit::after, .filter-trigger::after, .filter-option::after, .filter-reset::after, .filter-collapse::after, .empty-button::after { border: 0; }
 .search-box { display: flex; align-items: center; height: 88rpx; margin-top: 0; padding: 0 24rpx; background: rgba(255, 254, 252, .94); border: 1rpx solid #ebe7df; border-radius: 20rpx; box-shadow: 0 8rpx 24rpx rgba(55, 50, 43, .055); }

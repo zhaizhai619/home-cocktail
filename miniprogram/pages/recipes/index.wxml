@@ -1,4 +1,11 @@
 <view class="page recipes-page {{filterPanelOpen ? 'filter-open' : ''}}">
+  <view class="ai-naming-banner" bindtap="onOpenMusicNaming" aria-role="button" aria-label="体验智能酒名功能">
+    <view class="ai-banner-copy">
+      <view class="ai-banner-title-row"><text class="ai-badge">体验版</text><text class="ai-banner-title">用喜欢的歌，为鸡尾酒起名</text></view>
+      <text class="ai-banner-hint">先导入网易云红心歌曲，添加酒品时即可智能匹配</text>
+    </view>
+    <text class="ai-banner-arrow">›</text>
+  </view>
   <view class="search-box">
     <text class="search-icon" aria-hidden="true">⌕</text>
     <input class="search-input" placeholder="搜索酒名或材料" value="{{search}}" bindinput="onSearchInput" aria-label="搜索酒名或材料" />

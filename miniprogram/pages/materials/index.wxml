@@ -117,8 +117,8 @@
   <view wx:if="{{glassEditorOpen}}" class="sheet-mask" bindtap="onCloseGlassEditor">
     <view class="sheet glass-editor {{savingGlass ? 'is-disabled' : ''}}" catchtap="noop">
       <view class="sheet-heading"><text class="sheet-title">{{glassEditorTitle}}</text><button size="mini" class="sheet-close" disabled="{{savingGlass}}" bindtap="onCloseGlassEditor" aria-label="关闭编辑">×</button></view>
-      <text class="field-label">名称（选填）</text><input class="glass-input" data-field="name" value="{{glassForm.name}}" maxlength="40" placeholder="留空将自动命名" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
-      <text class="field-label">容量 ml *</text><input class="glass-input" type="digit" data-field="capacityMl" value="{{glassForm.capacityMl}}" placeholder="例如 420" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
+      <text class="field-label">名称</text><input class="glass-input" data-field="name" value="{{glassForm.name}}" maxlength="40" placeholder="留空将自动命名" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
+      <text class="field-label">容量 ml</text><input class="glass-input" type="digit" data-field="capacityMl" value="{{glassForm.capacityMl}}" disabled="{{savingGlass}}" bindinput="onGlassFormInput" />
       <text wx:if="{{glassError}}" class="form-error">{{glassError}}</text><button class="primary" disabled="{{savingGlass}}" loading="{{savingGlass}}" bindtap="onSaveGlassware">{{savingGlass ? '保存中…' : '保存酒杯'}}</button>
     </view>
   </view>

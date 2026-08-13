@@ -4,6 +4,7 @@ const { createCloudUserSession, CLOUD_CACHE_KEY } = require('./cloud-user-sessio
 const { createCloudRepository, createCloudProfileRepository } = require('./cloud-repository')
 const { createWxCloudTransport } = require('./wx-cloud-transport')
 const { createWxCloudMediaFileService } = require('./media-files')
+const { createMusicAssistantClient, createMusicAssistantSettings } = require('./music-assistant')
 
 function createInitialProfile({ idFactory, now } = {}) {
   const memory = { value: undefined }
@@ -34,9 +35,11 @@ function createCloudAppServices({ wxApi, envId, profileIdFactory, now } = {}) {
   const repository = createCloudRepository(session, { now })
   const profileRepository = createCloudProfileRepository(session, { now })
   const mediaFiles = createWxCloudMediaFileService(wxApi)
+  const musicAssistant = createMusicAssistantClient(wxApi.cloud)
+  const musicAssistantSettings = createMusicAssistantSettings(wxApi)
   const ready = session.initialize()
 
-  return { repository, profileRepository, mediaFiles, cloudSession: session, ready }
+  return { repository, profileRepository, mediaFiles, musicAssistant, musicAssistantSettings, cloudSession: session, ready }
 }
 
 module.exports = { createCloudAppServices }

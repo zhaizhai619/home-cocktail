@@ -24,6 +24,7 @@ function categoryFilterForIngredient(row) {
 }
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
+function appServices() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData ? app.globalData : {} }
 function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
 function displayIngredient(row) {
   if (row && row.kind === 'prepared-output') return { ...row, nameLabel: row.name || '预调成品', isPrepared: true, ...unitView(row.unit) }
@@ -48,7 +49,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', aiNamingOpen: false, aiColor: '', aiPreference: '', aiThinking: false, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [], ...emptyData(createEmptyRecipeForm(), [], []) },
   async onLoad(query) {
     await waitForCloudReady()
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
@@ -73,6 +74,44 @@ Page({
   },
   sync(form, errors) { const nextErrors = errors || {}; this.setData({ ...emptyData(form, this.glassware, this.tools), errors: nextErrors, formError: nextErrors.form || '' }) },
   onBasicInput(event) { const field = event.currentTarget.dataset.field; this.sync({ ...this.data.form, [field]: event.detail.value }) },
+  onOpenAiNaming() { this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiThinkingText: 'AI 思考中…' }) },
+  onCloseAiNaming() { if (!this.data.aiThinking) this.setData({ aiNamingOpen: false }) },
+  onAiFieldInput(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },
+  onOpenMusicSettings() { wx.navigateTo({ url: '/pages/music-naming/index' }) },
+  async onGenerateAiNames() {
+    if (this.data.aiThinking) return
+    const { musicAssistant, musicAssistantSettings } = appServices()
+    if (!musicAssistant || !musicAssistantSettings) return this.setData({ aiError: '智能起名服务不可用' })
+    const settings = musicAssistantSettings.load()
+    if (!settings.apiKey) return this.setData({ aiError: '请先在体验版页面填写 DeepSeek API Key', aiNeedsSetup: true })
+    const ingredients = (this.data.form.ingredients || []).map((item) => ({
+      name: item.name || item.nameLabel || '', amount: Number(item.amount) || 0, unit: item.unit || ''
+    })).filter((item) => item.name)
+    if (!ingredients.length) return this.setData({ aiError: '请先添加至少一种材料，AI 才能理解这杯酒' })
+    this.setData({ aiThinking: true, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [] })
+    const thinkingTimer = setTimeout(() => this.setData({ aiThinkingText: '深度思考中…' }), 900)
+    try {
+      const result = await musicAssistant.recommendNames({
+        apiKey: settings.apiKey,
+        model: settings.model,
+        color: this.data.aiColor,
+        preference: this.data.aiPreference,
+        ingredients
+      })
+      this.setData({ aiRecommendations: result.recommendations || [] })
+    } catch (error) {
+      this.setData({ aiError: error.message || '暂时没有生成合适的名字' })
+    } finally {
+      clearTimeout(thinkingTimer)
+      this.setData({ aiThinking: false })
+    }
+  },
+  onUseAiName(event) {
+    const name = String(event.currentTarget.dataset.name || '').trim()
+    if (!name) return
+    this.sync({ ...this.data.form, name }, this.data.errors)
+    this.setData({ aiNamingOpen: false })
+  },
   onTriedTap(event) { this.sync(updateTriedState(this.data.form, event.currentTarget.dataset.tried === 'true')) },
   onOpenMaterialSelect(event) {
     if (this.data.savingRecipe || this._openingMaterialSelect || typeof wx === 'undefined' || !wx.navigateTo) return

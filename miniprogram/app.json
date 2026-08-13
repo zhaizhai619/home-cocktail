@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/recipes/index",
+    "pages/music-naming/index",
     "pages/recipe-edit/index",
     "pages/material-select/index",
     "pages/glass-select/index",

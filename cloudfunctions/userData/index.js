@@ -30,6 +30,7 @@ exports.main = async (event = {}) => {
     const { OPENID } = cloud.getWXContext()
     if (event.action === 'load') return success(await service.load(OPENID))
     if (event.action === 'saveState') return success(await service.saveState(OPENID, event))
+    if (event.action === 'saveChanges') return success(await service.saveChanges(OPENID, event))
     if (event.action === 'saveProfile') return success(await service.saveProfile(OPENID, event))
     if (event.action === 'listTrash') return success(await service.listTrash(OPENID))
     if (event.action === 'restoreTrash') return success(await service.restoreTrash(OPENID, event))

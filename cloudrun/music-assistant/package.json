@@ -1,0 +1,12 @@
+{
+  "name": "music-assistant-cloudrun",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@music163/ncm-cli": "0.1.6"
+  }
+}
