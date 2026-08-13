@@ -32,7 +32,7 @@ function findSongArray(value) {
 function extractPlaylistIdentifier(value) {
   if (!value || typeof value !== 'object') return ''
   if (!Array.isArray(value) && !isSongObject(value) && (value.playlistId || value.originalId || value.id)) {
-    return String(value.encryptedId || value.playlistId || value.originalId || value.id || '')
+    return String(value.encryptedId || value.playlistId || value.id || value.originalId || '')
   }
   for (const nested of Object.values(value)) {
     const found = extractPlaylistIdentifier(nested)

@@ -90,6 +90,20 @@ test('a favorite playlist is not normalized as a song', () => {
   assert.equal(extractPlaylistIdentifier(favorite), '0123456789abcdef0123456789abcdef')
 })
 
+test('favorite playlist uses its encrypted id before the numeric original id', () => {
+  const favorite = {
+    code: 200,
+    data: {
+      resource: {
+        id: '0123456789abcdef0123456789abcdef',
+        originalId: 5159253725,
+        name: '喜欢的音乐'
+      }
+    }
+  }
+  assert.equal(extractPlaylistIdentifier(favorite), '0123456789abcdef0123456789abcdef')
+})
+
 test('songs embedded in the favorite playlist are normalized without treating the playlist as a song', () => {
   assert.deepEqual(extractSongs({
     code: 200,
