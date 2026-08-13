@@ -97,16 +97,19 @@ async function handler(request, response) {
     if (request.method === 'GET' && url.pathname === '/library/liked') {
       const limit = Math.max(1, Math.min(300, Number(url.searchParams.get('limit')) || 20))
       const favoriteOutput = await runCli(['user', 'favorite', '--userInput', '获取红心歌单', '--output', 'json'])
-      const playlistId = extractPlaylistIdentifier(favoriteOutput)
-      if (!playlistId) {
-        console.warn('music-assistant favorite-playlist payload was not recognized', JSON.stringify(summarizePayloadStructure(favoriteOutput)))
-        const error = new Error('网易云未返回红心歌单 ID')
-        error.code = 'NCM_FAVORITE_PLAYLIST_MISSING'
-        throw error
+      let songs = extractSongs(favoriteOutput)
+      if (!songs.length) {
+        const playlistId = extractPlaylistIdentifier(favoriteOutput)
+        if (!playlistId) {
+          console.warn('music-assistant favorite-playlist payload was not recognized', JSON.stringify(summarizePayloadStructure(favoriteOutput)))
+          const error = new Error('网易云未返回红心歌单 ID')
+          error.code = 'NCM_FAVORITE_PLAYLIST_MISSING'
+          throw error
+        }
+        const output = await runCli(['playlist', 'tracks', '--playlistId', playlistId, '--userInput', '获取红心歌单曲目', '--output', 'json'])
+        songs = extractSongs(output)
+        if (!songs.length) console.warn('music-assistant liked-song payload was not recognized', JSON.stringify(summarizePayloadStructure(output)))
       }
-      const output = await runCli(['playlist', 'tracks', '--playlistId', playlistId, '--userInput', '获取红心歌单曲目', '--output', 'json'])
-      const songs = extractSongs(output)
-      if (!songs.length) console.warn('music-assistant liked-song payload was not recognized', JSON.stringify(summarizePayloadStructure(output)))
       return send(response, 200, { ok: true, data: { songs: songs.slice(0, limit) } })
     }
     const lyricMatch = request.method === 'GET' && url.pathname.match(/^\/songs\/([^/]+)\/lyrics$/)

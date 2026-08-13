@@ -90,6 +90,32 @@ test('a favorite playlist is not normalized as a song', () => {
   assert.equal(extractPlaylistIdentifier(favorite), '0123456789abcdef0123456789abcdef')
 })
 
+test('songs embedded in the favorite playlist are normalized without treating the playlist as a song', () => {
+  assert.deepEqual(extractSongs({
+    code: 200,
+    data: {
+      resource: {
+        originalId: 5159253725,
+        name: '周末少吃一口-喜欢的音乐',
+        songs: [{
+          originalId: 2049913337,
+          encryptedId: '0123456789abcdef0123456789abcdef',
+          name: '夜航',
+          artists: [{ name: '甲' }],
+          album: { name: '城' }
+        }]
+      }
+    }
+  }), [{
+    id: '2049913337',
+    encryptedId: '0123456789abcdef0123456789abcdef',
+    title: '夜航',
+    artist: '甲',
+    album: '城',
+    albumDescription: ''
+  }])
+})
+
 test('payload diagnostics reveal structure without logging values', () => {
   const summary = summarizePayloadStructure({
     accessToken: 'secret-access-token',
@@ -160,6 +186,8 @@ test('cloud service logs only a structural summary when liked-song parsing is em
 test('cloud service resolves the favorite playlist before requesting its tracks', () => {
   const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
   assert.match(server, /runCli\(\['user', 'favorite'/)
+  assert.match(server, /let songs = extractSongs\(favoriteOutput\)/)
+  assert.match(server, /if \(!songs\.length\) \{/)
   assert.match(server, /extractPlaylistIdentifier\(favoriteOutput\)/)
   assert.match(server, /runCli\(\['playlist', 'tracks', '--playlistId', playlistId/)
 })
