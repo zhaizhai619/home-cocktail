@@ -1,18 +1,32 @@
 const http = require('http')
 const crypto = require('crypto')
+const fs = require('fs')
 const QRCode = require('qrcode')
 const { spawn } = require('child_process')
-const { extractSongs, extractLyrics, extractLoginState, buildLoginStartState, publicLoginError } = require('./ncm-output')
+const {
+  extractSongs,
+  extractLyrics,
+  extractLoginState,
+  buildLoginStartState,
+  publicLoginError,
+  credentialScopedHome,
+  validateRuntimeConfig,
+  assertCliConfigured,
+  cliInvocation
+} = require('./ncm-output')
 
 const PORT = Number(process.env.PORT) || 8080
 const SERVICE_TOKEN = String(process.env.SERVICE_TOKEN || '')
 const APP_ID = String(process.env.NCM_APP_ID || '')
-const PRIVATE_KEY = String(process.env.NCM_PRIVATE_KEY || '').replace(/\\n/g, '\n')
-const CLI_HOME = String(process.env.NCM_HOME || '/data/ncm')
+const PRIVATE_KEY = String(process.env.NCM_PRIVATE_KEY || '')
+const CLI_ROOT = String(process.env.NCM_HOME || '/data/ncm')
+let CLI_HOME = CLI_ROOT
+const CLI_PACKAGE_PATH = require.resolve('@music163/ncm-cli/package.json')
+const CLI = cliInvocation(CLI_PACKAGE_PATH, require(CLI_PACKAGE_PATH))
 
 function runCli(args, timeout = 45000) {
   return new Promise((resolve, reject) => {
-    const child = spawn('ncm-cli', args, { env: { ...process.env, HOME: CLI_HOME }, shell: false })
+    const child = spawn(CLI.command, [...CLI.argsPrefix, ...args], { env: { ...process.env, HOME: CLI_HOME }, shell: false })
     let stdout = ''
     let stderr = ''
     const timer = setTimeout(() => { child.kill('SIGTERM'); reject(new Error('网易云 CLI 执行超时')) }, timeout)
@@ -35,12 +49,16 @@ function runCli(args, timeout = 45000) {
 }
 
 async function configure() {
-  if (!SERVICE_TOKEN || !APP_ID || !PRIVATE_KEY) throw new Error('缺少 SERVICE_TOKEN、NCM_APP_ID 或 NCM_PRIVATE_KEY')
-  await runCli(['config', 'set', 'appId', APP_ID])
-  await runCli(['config', 'set', 'privateKey', PRIVATE_KEY])
+  const config = validateRuntimeConfig({ serviceToken: SERVICE_TOKEN, appId: APP_ID, privateKey: PRIVATE_KEY })
+  CLI_HOME = credentialScopedHome(CLI_ROOT, config.appId, config.privateKey)
+  fs.mkdirSync(CLI_HOME, { recursive: true })
+  const appResult = await runCli(['config', 'set', 'appId', config.appId])
+  assertCliConfigured(appResult, 'appId')
+  const keyResult = await runCli(['config', 'set', 'privateKey', config.privateKey])
+  assertCliConfigured(keyResult, 'privateKey')
 }
 
-const configured = configure()
+const configured = configure().then(() => null, (error) => error)
 
 function authorized(header) {
   const supplied = Buffer.from(String(header || '').replace(/^Bearer\s+/i, ''))
@@ -57,7 +75,8 @@ async function handler(request, response) {
   if (request.url === '/health') return send(response, 200, { ok: true })
   if (!authorized(request.headers.authorization)) return send(response, 401, { ok: false, error: 'unauthorized' })
   try {
-    await configured
+    const configurationError = await configured
+    if (configurationError) throw configurationError
     const url = new URL(request.url, 'http://localhost')
     if (request.method === 'POST' && url.pathname === '/auth/start') {
       const output = await runCli(['login', '--background', '--output', 'json'])

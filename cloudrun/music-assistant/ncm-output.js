@@ -1,3 +1,6 @@
+const crypto = require('crypto')
+const path = require('path')
+
 function findValue(value, keys) {
   if (!value || typeof value !== 'object') return undefined
   for (const key of keys) if (value[key] !== undefined) return value[key]
@@ -87,4 +90,63 @@ async function buildLoginStartState(payload, renderQr) {
   return { ...state, qrUrl: await renderQr(state.qrUrl) }
 }
 
-module.exports = { extractSongs, extractLyrics, extractLoginState, buildLoginStartState, publicLoginError }
+function ncmConfigError(code, message) {
+  const error = new Error(message)
+  error.code = code
+  return error
+}
+
+function credentialScopedHome(root, appId, privateKey) {
+  const fingerprint = crypto.createHash('sha256').update(`${appId}\0${privateKey}`).digest('hex').slice(0, 16)
+  return path.join(String(root || '/data/ncm'), `session-${fingerprint}`)
+}
+
+function validateRuntimeConfig({ serviceToken, appId, privateKey }) {
+  const config = {
+    serviceToken: String(serviceToken || '').trim(),
+    appId: String(appId || '').trim(),
+    privateKey: String(privateKey || '').trim().replace(/\\n/g, '').replace(/\s/g, '')
+  }
+  const missing = []
+  if (!config.serviceToken) missing.push('SERVICE_TOKEN')
+  if (!config.appId) missing.push('NCM_APP_ID')
+  if (!config.privateKey) missing.push('NCM_PRIVATE_KEY')
+  if (missing.length) {
+    throw ncmConfigError('NCM_CONFIG_MISSING', `云托管运行实例未收到环境变量：${missing.join('、')}`)
+  }
+  try {
+    crypto.createPrivateKey({ key: Buffer.from(config.privateKey, 'base64'), format: 'der', type: 'pkcs8' })
+  } catch (_) {
+    throw ncmConfigError('NCM_PRIVATE_KEY_INVALID', '云托管运行实例收到的 NCM_PRIVATE_KEY 不完整或格式无效')
+  }
+  return config
+}
+
+function assertCliConfigured(output, key) {
+  const text = String(output && output.output || '')
+  if (!text.includes(`已设置 ${key}`)) {
+    throw ncmConfigError('NCM_CONFIG_WRITE_FAILED', `网易云 CLI 未能写入 ${key} 配置`)
+  }
+}
+
+function cliInvocation(packageJsonPath, packageData) {
+  const bin = packageData && packageData.bin
+  const entry = typeof bin === 'string' ? bin : bin && bin['ncm-cli']
+  if (!entry) throw ncmConfigError('NCM_CLI_MISSING', '网易云 CLI 安装包缺少启动入口')
+  return {
+    command: process.execPath,
+    argsPrefix: [path.resolve(path.dirname(packageJsonPath), entry)]
+  }
+}
+
+module.exports = {
+  extractSongs,
+  extractLyrics,
+  extractLoginState,
+  buildLoginStartState,
+  publicLoginError,
+  credentialScopedHome,
+  validateRuntimeConfig,
+  assertCliConfigured,
+  cliInvocation
+}
