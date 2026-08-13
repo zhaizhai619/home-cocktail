@@ -28,6 +28,7 @@ function digest(value) {
 function normalizeSongSource(song = {}) {
   return {
     id: String(song.id || song.songId || ''),
+    encryptedId: String(song.encryptedId || ''),
     title: cleanSongTitle(song.title || song.name),
     artist: cleanText(song.artist || song.artistName),
     album: cleanText(song.album || song.albumName),

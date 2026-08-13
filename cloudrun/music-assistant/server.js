@@ -6,6 +6,8 @@ const { spawn } = require('child_process')
 const {
   extractSongs,
   extractLyrics,
+  summarizePayloadStructure,
+  validSongIdentifier,
   extractLoginCheckState,
   buildLoginStartState,
   publicLoginError,
@@ -94,12 +96,14 @@ async function handler(request, response) {
     if (request.method === 'GET' && url.pathname === '/library/liked') {
       const limit = Math.max(1, Math.min(300, Number(url.searchParams.get('limit')) || 20))
       const output = await runCli(['user', 'favorite', '--userInput', '获取红心歌单', '--output', 'json'])
-      return send(response, 200, { ok: true, data: { songs: extractSongs(output).slice(0, limit) } })
+      const songs = extractSongs(output)
+      if (!songs.length) console.warn('music-assistant liked-song payload was not recognized', summarizePayloadStructure(output))
+      return send(response, 200, { ok: true, data: { songs: songs.slice(0, limit) } })
     }
     const lyricMatch = request.method === 'GET' && url.pathname.match(/^\/songs\/([^/]+)\/lyrics$/)
     if (lyricMatch) {
       const songId = decodeURIComponent(lyricMatch[1])
-      if (!/^\d+$/.test(songId)) return send(response, 400, { ok: false, error: 'invalid_song_id' })
+      if (!validSongIdentifier(songId)) return send(response, 400, { ok: false, error: 'invalid_song_id' })
       const output = await runCli(['song', 'lyric', '--songId', songId, '--userInput', '获取歌词', '--output', 'json'])
       return send(response, 200, { ok: true, data: { lyrics: extractLyrics(output) } })
     }

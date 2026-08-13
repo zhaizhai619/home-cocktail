@@ -8,6 +8,8 @@ const {
   extractLyrics,
   extractLoginState,
   extractLoginCheckState,
+  summarizePayloadStructure,
+  validSongIdentifier,
   buildLoginStartState,
   credentialScopedHome,
   validateRuntimeConfig,
@@ -20,6 +22,52 @@ test('CLI output normalization accepts common nested song and lyric shapes', () 
     { id: '1', title: '夜航', artist: '甲', album: '城', albumDescription: '' }
   ])
   assert.equal(extractLyrics({ data: { lrc: { lyric: '凌晨的街道' } } }), '凌晨的街道')
+})
+
+test('red-heart songs use the CLI originalId as their stable song id', () => {
+  assert.deepEqual(extractSongs({
+    success: true,
+    data: {
+      songs: [{
+        originalId: 2049913337,
+        encryptedId: 'encrypted-song-id',
+        name: '夜航',
+        artists: [{ name: '甲' }],
+        album: { name: '城', description: '专辑介绍' },
+        extMap: { addTime: 1720000000000 },
+        songTag: ['Hip-Hop']
+      }]
+    }
+  }), [
+    {
+      id: '2049913337',
+      encryptedId: 'encrypted-song-id',
+      title: '夜航',
+      artist: '甲',
+      album: '城',
+      albumDescription: '专辑介绍'
+    }
+  ])
+})
+
+test('payload diagnostics reveal structure without logging values', () => {
+  const summary = summarizePayloadStructure({
+    accessToken: 'secret-access-token',
+    data: { songs: [{ originalId: 1, name: '私密歌名' }] }
+  })
+  const text = JSON.stringify(summary)
+  assert.match(text, /accessToken/)
+  assert.match(text, /originalId/)
+  assert.match(text, /array/)
+  assert.doesNotMatch(text, /secret-access-token/)
+  assert.doesNotMatch(text, /私密歌名/)
+})
+
+test('lyric identifiers accept original numeric ids and encrypted hex ids only', () => {
+  assert.equal(validSongIdentifier('2049913337'), true)
+  assert.equal(validSongIdentifier('0123456789abcdef0123456789abcdef'), true)
+  assert.equal(validSongIdentifier('../credentials'), false)
+  assert.equal(validSongIdentifier('not-a-song-id'), false)
 })
 
 test('login output exposes a small safe status object', () => {
@@ -61,6 +109,12 @@ test('login check understands the real CLI success payload', () => {
 test('cloud service uses the dedicated login-check parser', () => {
   const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
   assert.match(server, /extractLoginCheckState\(output\)/)
+})
+
+test('cloud service logs only a structural summary when liked-song parsing is empty', () => {
+  const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
+  assert.match(server, /if \(!songs\.length\)/)
+  assert.match(server, /summarizePayloadStructure\(output\)/)
 })
 
 test('login output preserves CLI failures so they cannot become an empty QR state', () => {

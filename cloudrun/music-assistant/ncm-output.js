@@ -12,7 +12,7 @@ function findValue(value, keys) {
 }
 
 function findSongArray(value) {
-  if (Array.isArray(value) && value.some((item) => item && typeof item === 'object' && (item.id || item.songId) && (item.name || item.title))) return value
+  if (Array.isArray(value) && value.some((item) => item && typeof item === 'object' && (item.id || item.songId || item.originalId) && (item.name || item.title))) return value
   if (!value || typeof value !== 'object') return []
   for (const nested of Object.values(value)) {
     const found = findSongArray(nested)
@@ -36,14 +36,36 @@ function albumData(song) {
 function extractSongs(payload) {
   return findSongArray(payload).map((song) => {
     const album = albumData(song)
+    const encryptedId = String(song.encryptedId || '')
     return {
-      id: String(song.id || song.songId || ''),
+      id: String(song.originalId || song.songId || song.id || ''),
+      ...(encryptedId ? { encryptedId } : {}),
       title: String(song.title || song.name || ''),
       artist: String(artistName(song)),
       album: String(album.name),
       albumDescription: String(album.description)
     }
   }).filter((song) => song.id && song.title)
+}
+
+function validSongIdentifier(value) {
+  return /^\d+$/.test(String(value || '')) || /^[a-f\d]{32}$/i.test(String(value || ''))
+}
+
+function summarizePayloadStructure(value, depth = 0) {
+  if (value === null) return 'null'
+  if (typeof value !== 'object') return typeof value
+  if (Array.isArray(value)) {
+    const summary = { type: 'array', length: value.length }
+    if (value.length && depth < 3) summary.item = summarizePayloadStructure(value[0], depth + 1)
+    return summary
+  }
+  const entries = Object.entries(value).slice(0, 20)
+  if (depth >= 3) return { type: 'object', keys: entries.map(([key]) => key) }
+  return {
+    type: 'object',
+    fields: Object.fromEntries(entries.map(([key, nested]) => [key, summarizePayloadStructure(nested, depth + 1)]))
+  }
 }
 
 function extractLyrics(payload) {
@@ -153,6 +175,8 @@ function cliInvocation(packageJsonPath, packageData) {
 module.exports = {
   extractSongs,
   extractLyrics,
+  summarizePayloadStructure,
+  validSongIdentifier,
   extractLoginState,
   extractLoginCheckState,
   buildLoginStartState,

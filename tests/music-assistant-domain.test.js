@@ -46,3 +46,14 @@ test('analysis jobs persist progress without persisting the DeepSeek key', () =>
   assert.deepEqual(finished.progress, { total: 2, completed: 1, failed: 0, skipped: 1 })
   assert.equal(finished.status, 'completed')
 })
+
+test('analysis jobs retain the encrypted song id needed for lyric requests', () => {
+  const encryptedId = '0123456789abcdef0123456789abcdef'
+  const job = createAnalysisJob({
+    id: 'job-encrypted-id',
+    songs: [{ id: '42', encryptedId, title: '夜航' }],
+    limit: 1,
+    model: 'deepseek-v4-flash'
+  })
+  assert.equal(job.songs['42'].encryptedId, encryptedId)
+})

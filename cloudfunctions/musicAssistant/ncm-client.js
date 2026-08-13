@@ -27,6 +27,7 @@ function createNcmClient({ baseUrl, token, fetchImpl = global.fetch } = {}) {
       const data = await request(`/library/liked?limit=${Math.max(1, Math.min(300, Number(limit) || 20))}`)
       return (Array.isArray(data.songs) ? data.songs : []).map((song) => ({
         id: String(song.id || song.songId || ''),
+        encryptedId: String(song.encryptedId || ''),
         title: String(song.title || song.name || ''),
         artist: String(song.artist || song.artistName || ''),
         album: String(song.album || song.albumName || ''),
@@ -34,7 +35,8 @@ function createNcmClient({ baseUrl, token, fetchImpl = global.fetch } = {}) {
       })).filter((song) => song.id)
     },
     async getSongSource(songId, metadata = {}) {
-      const data = await request(`/songs/${encodeURIComponent(songId)}/lyrics`)
+      const requestId = String(metadata.encryptedId || songId)
+      const data = await request(`/songs/${encodeURIComponent(requestId)}/lyrics`)
       return { ...metadata, id: String(songId), lyrics: String(data.lyrics || data.lyric || '') }
     },
     startLogin() { return request('/auth/start', { method: 'POST' }) },
