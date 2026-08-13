@@ -97,7 +97,7 @@ async function handler(request, response) {
       const limit = Math.max(1, Math.min(300, Number(url.searchParams.get('limit')) || 20))
       const output = await runCli(['user', 'favorite', '--userInput', '获取红心歌单', '--output', 'json'])
       const songs = extractSongs(output)
-      if (!songs.length) console.warn('music-assistant liked-song payload was not recognized', summarizePayloadStructure(output))
+      if (!songs.length) console.warn('music-assistant liked-song payload was not recognized', JSON.stringify(summarizePayloadStructure(output)))
       return send(response, 200, { ok: true, data: { songs: songs.slice(0, limit) } })
     }
     const lyricMatch = request.method === 'GET' && url.pathname.match(/^\/songs\/([^/]+)\/lyrics$/)

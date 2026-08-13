@@ -50,6 +50,30 @@ test('red-heart songs use the CLI originalId as their stable song id', () => {
   ])
 })
 
+test('red-heart songs are discovered inside CLI resource wrappers', () => {
+  assert.deepEqual(extractSongs({
+    code: 200,
+    data: {
+      list: [{
+        resource: {
+          originalId: 2049913337,
+          encryptedId: '0123456789abcdef0123456789abcdef',
+          name: '夜航',
+          artists: [{ name: '甲' }],
+          album: { name: '城' }
+        }
+      }]
+    }
+  }), [{
+    id: '2049913337',
+    encryptedId: '0123456789abcdef0123456789abcdef',
+    title: '夜航',
+    artist: '甲',
+    album: '城',
+    albumDescription: ''
+  }])
+})
+
 test('payload diagnostics reveal structure without logging values', () => {
   const summary = summarizePayloadStructure({
     accessToken: 'secret-access-token',
@@ -114,7 +138,7 @@ test('cloud service uses the dedicated login-check parser', () => {
 test('cloud service logs only a structural summary when liked-song parsing is empty', () => {
   const server = require('node:fs').readFileSync(require('node:path').join(__dirname, '../cloudrun/music-assistant/server.js'), 'utf8')
   assert.match(server, /if \(!songs\.length\)/)
-  assert.match(server, /summarizePayloadStructure\(output\)/)
+  assert.match(server, /JSON\.stringify\(summarizePayloadStructure\(output\)\)/)
 })
 
 test('login output preserves CLI failures so they cannot become an empty QR state', () => {

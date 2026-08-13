@@ -12,13 +12,10 @@ function findValue(value, keys) {
 }
 
 function findSongArray(value) {
-  if (Array.isArray(value) && value.some((item) => item && typeof item === 'object' && (item.id || item.songId || item.originalId) && (item.name || item.title))) return value
   if (!value || typeof value !== 'object') return []
-  for (const nested of Object.values(value)) {
-    const found = findSongArray(nested)
-    if (found.length) return found
-  }
-  return []
+  if (!Array.isArray(value) && (value.id || value.songId || value.originalId) && (value.name || value.title)) return [value]
+  const nestedValues = Array.isArray(value) ? value : Object.values(value)
+  return nestedValues.flatMap((nested) => findSongArray(nested))
 }
 
 function artistName(song) {
