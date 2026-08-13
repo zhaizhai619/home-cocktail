@@ -41,6 +41,20 @@ function extractPlaylistIdentifier(value) {
   return ''
 }
 
+function extractPlaylistOriginalIdentifier(value) {
+  if (!value || typeof value !== 'object') return ''
+  if (!Array.isArray(value) && !isSongObject(value)) {
+    const candidates = [value.originalId, value.playlistId, value.id]
+    const numeric = candidates.find((candidate) => /^\d+$/.test(String(candidate || '')))
+    if (numeric !== undefined) return String(numeric)
+  }
+  for (const nested of Object.values(value)) {
+    const found = extractPlaylistOriginalIdentifier(nested)
+    if (found) return found
+  }
+  return ''
+}
+
 function artistName(song) {
   const raw = song.artist || song.artistName || song.artists || song.ar
   if (Array.isArray(raw)) return raw.map((item) => typeof item === 'string' ? item : item && item.name).filter(Boolean).join(' / ')
@@ -195,6 +209,7 @@ function cliInvocation(packageJsonPath, packageData) {
 module.exports = {
   extractSongs,
   extractPlaylistIdentifier,
+  extractPlaylistOriginalIdentifier,
   extractLyrics,
   summarizePayloadStructure,
   validSongIdentifier,

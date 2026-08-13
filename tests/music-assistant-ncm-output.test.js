@@ -9,6 +9,7 @@ const {
   extractLoginState,
   extractLoginCheckState,
   extractPlaylistIdentifier,
+  extractPlaylistOriginalIdentifier,
   summarizePayloadStructure,
   validSongIdentifier,
   buildLoginStartState,
@@ -102,6 +103,7 @@ test('favorite playlist uses its encrypted id before the numeric original id', (
     }
   }
   assert.equal(extractPlaylistIdentifier(favorite), '0123456789abcdef0123456789abcdef')
+  assert.equal(extractPlaylistOriginalIdentifier(favorite), '5159253725')
 })
 
 test('songs embedded in the favorite playlist are normalized without treating the playlist as a song', () => {

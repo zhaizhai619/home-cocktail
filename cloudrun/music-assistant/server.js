@@ -6,6 +6,7 @@ const { spawn } = require('child_process')
 const {
   extractSongs,
   extractPlaylistIdentifier,
+  extractPlaylistOriginalIdentifier,
   extractLyrics,
   summarizePayloadStructure,
   validSongIdentifier,
@@ -17,6 +18,7 @@ const {
   assertCliConfigured,
   cliInvocation
 } = require('./ncm-output')
+const { fetchNeteaseLyrics, fetchLikedPlaylistSongs } = require('./netease-web')
 
 const PORT = Number(process.env.PORT) || 8080
 const SERVICE_TOKEN = String(process.env.SERVICE_TOKEN || '')
@@ -98,6 +100,15 @@ async function handler(request, response) {
       const limit = Math.max(1, Math.min(300, Number(url.searchParams.get('limit')) || 20))
       const favoriteOutput = await runCli(['user', 'favorite', '--userInput', '获取红心歌单', '--output', 'json'])
       let songs = extractSongs(favoriteOutput)
+      const originalPlaylistId = extractPlaylistOriginalIdentifier(favoriteOutput)
+      if (originalPlaylistId) {
+        try {
+          const completeSongs = await fetchLikedPlaylistSongs(originalPlaylistId, limit)
+          if (completeSongs.length) songs = completeSongs
+        } catch (error) {
+          console.warn('music-assistant complete liked-song loading failed', { message: error && error.message })
+        }
+      }
       if (!songs.length) {
         const playlistId = extractPlaylistIdentifier(favoriteOutput)
         if (!playlistId) {
@@ -116,6 +127,7 @@ async function handler(request, response) {
     if (lyricMatch) {
       const songId = decodeURIComponent(lyricMatch[1])
       if (!validSongIdentifier(songId)) return send(response, 400, { ok: false, error: 'invalid_song_id' })
+      if (/^\d+$/.test(songId)) return send(response, 200, { ok: true, data: { lyrics: await fetchNeteaseLyrics(songId) } })
       const output = await runCli(['song', 'lyric', '--songId', songId, '--userInput', '获取歌词', '--output', 'json'])
       return send(response, 200, { ok: true, data: { lyrics: extractLyrics(output) } })
     }

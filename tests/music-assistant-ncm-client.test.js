@@ -34,7 +34,7 @@ test('NCM proxy client merges lyrics into the supplied song metadata', async () 
     await client.getSongSource('42', { encryptedId: '0123456789abcdef0123456789abcdef', title: '夜航' }),
     { id: '42', encryptedId: '0123456789abcdef0123456789abcdef', title: '夜航', lyrics: '凌晨的街道' }
   )
-  assert.equal(requests[0], 'https://music.example.test/songs/0123456789abcdef0123456789abcdef/lyrics')
+  assert.equal(requests[0], 'https://music.example.test/songs/42/lyrics')
 })
 
 test('NCM proxy client forwards the safe backend error message to the mini program', async () => {

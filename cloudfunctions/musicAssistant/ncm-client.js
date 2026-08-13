@@ -35,7 +35,7 @@ function createNcmClient({ baseUrl, token, fetchImpl = global.fetch } = {}) {
       })).filter((song) => song.id)
     },
     async getSongSource(songId, metadata = {}) {
-      const requestId = String(metadata.encryptedId || songId)
+      const requestId = String(songId)
       const data = await request(`/songs/${encodeURIComponent(requestId)}/lyrics`)
       return { ...metadata, id: String(songId), lyrics: String(data.lyrics || data.lyric || '') }
     },
