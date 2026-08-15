@@ -33,6 +33,7 @@ function normalizeSongSource(song = {}) {
     artist: cleanText(song.artist || song.artistName),
     album: cleanText(song.album || song.albumName),
     albumDescription: cleanText(song.albumDescription).slice(0, 800),
+    releaseDate: cleanText(song.releaseDate).slice(0, 10),
     lyrics: cleanText(song.lyrics).slice(0, 600)
   }
 }

@@ -54,10 +54,61 @@ test('cloud store keeps one current profile and an atomic per-song lease', async
   assert.equal((await store.findProfile('owner-a', 'flash')).model, 'flash')
 })
 
+test('cloud store puts readable song profile fields first and drops duplicate preferred titles', async () => {
+  const store = createMusicStore(memoryDatabase())
+  const saved = await store.saveProfile('owner-a', {
+    songId: '1',
+    cacheKey: 'profile-v2',
+    title: '夜航',
+    artist: '甲',
+    album: '城市',
+    emotion_keywords: ['克制'],
+    scene_sensory_keywords: ['夜路'],
+    summary: '一段夜间独行',
+    fitScore: 8.5,
+    preferredTitle: '重复歌名',
+    preferred_title: '重复歌名'
+  })
+
+  assert.deepEqual(Object.keys(saved).slice(0, 7), [
+    'title',
+    'artist',
+    'album',
+    'emotion_keywords',
+    'scene_sensory_keywords',
+    'summary',
+    'fitScore'
+  ])
+  assert.equal(Object.hasOwn(saved, 'preferredTitle'), false)
+  assert.equal(Object.hasOwn(saved, 'preferred_title'), false)
+})
+
 test('cloud store single-account claim rejects another WeChat owner', async () => {
   const store = createMusicStore(memoryDatabase())
   assert.equal(await store.checkNcmOwner('owner-a'), false)
   await store.claimNcmOwner('owner-a')
   assert.equal(await store.checkNcmOwner('owner-a'), true)
   await assert.rejects(store.claimNcmOwner('owner-b'), (error) => error.code === 'NCM_OWNER_MISMATCH')
+})
+
+test('cloud store returns each runnable job once despite the latest-job mirror', async () => {
+  const store = createMusicStore(memoryDatabase())
+  await store.saveJob('owner-a', { id: 'job-1', status: 'queued', updatedAt: '2026-08-15T12:00:00.000Z' })
+  await store.saveJob('owner-b', { id: 'job-2', status: 'running', updatedAt: '2026-08-15T12:01:00.000Z' })
+  await store.saveJob('owner-c', { id: 'job-3', status: 'completed', updatedAt: '2026-08-15T12:02:00.000Z' })
+
+  const jobs = await store.listRunnableJobs(10)
+  assert.deepEqual(jobs.map((job) => `${job.ownerOpenId}:${job.id}`).sort(), ['owner-a:job-1', 'owner-b:job-2'])
+})
+
+test('background updates to an older job do not replace the latest user task', async () => {
+  const store = createMusicStore(memoryDatabase())
+  await store.saveJob('owner-a', { id: 'job-1', status: 'queued' })
+  await store.saveJob('owner-a', { id: 'job-2', status: 'queued' })
+
+  await store.saveJobState('owner-a', { id: 'job-1', status: 'paused' })
+  assert.equal((await store.getLatestJob('owner-a')).id, 'job-2')
+
+  await store.saveJobState('owner-a', { id: 'job-2', status: 'completed' })
+  assert.equal((await store.getLatestJob('owner-a')).status, 'completed')
 })

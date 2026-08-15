@@ -1,9 +1,10 @@
 const { QUICK_TOOLS, normalizePreparationType } = require('../domain/constants')
-const { createMaterialDefaults, getMaterialIdentityKey, isMaterialAvailable, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
+const { createMaterialDefaults, getMaterialCategoryGroup, getMaterialIdentityKey, isMaterialAvailable, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
 const { normalizeEquipmentName, normalizeGlassCapacity, equipmentNameIdentity, makeUniqueEquipmentName } = require('../domain/equipment-invariants')
+const { normalizeMusicNaming } = require('../domain/recipe')
 const { isValidDateString } = require('../domain/date')
 
-const CURRENT_SCHEMA_VERSION = 1
+const CURRENT_SCHEMA_VERSION = 2
 const STORAGE_KEY = 'home-cocktail-state'
 
 function clone(value) {
@@ -67,6 +68,8 @@ function normalizeRecipe(recipe, now) {
   delete sourceWithoutLegacyAdvance.advancePreparations
   delete sourceWithoutLegacyAdvance.ingredients
   const advance = normalizeAdvancePreparations(source)
+  const musicNaming = normalizeMusicNaming(source.musicNaming)
+  delete sourceWithoutLegacyAdvance.musicNaming
   const createdAt = validDate(source.createdAt) ? source.createdAt : now
   return {
     ...clone(sourceWithoutLegacyAdvance),
@@ -74,6 +77,7 @@ function normalizeRecipe(recipe, now) {
     name: typeof source.name === 'string' ? source.name : '',
     imagePath: typeof source.imagePath === 'string' ? source.imagePath : '',
     source: typeof source.source === 'string' ? source.source : '',
+    ...(musicNaming ? { musicNaming } : {}),
     tried: source.tried === true,
     ingredientOrderCustomized: source.ingredientOrderCustomized === true,
     ingredients: advance.ingredients,
@@ -194,6 +198,22 @@ function normalizeMaterialCollection(materials, now) {
   }
 }
 
+function migrateLegacySpiceAvailability(material) {
+  const source = material && typeof material === 'object' && !Array.isArray(material) ? material : {}
+  if (getMaterialCategoryGroup(source.category).key !== 'spice') return source
+  return {
+    ...source,
+    acquisition: 'long-term',
+    owned: false,
+    freshOnHand: false,
+    assumedAvailable: false,
+    remainingAmount: null,
+    remainingUnit: null,
+    purchasedAt: null,
+    expiresAt: null
+  }
+}
+
 function repairIds(items, prefix, reservedIds = new Set()) {
   const used = new Set(reservedIds)
   let repaired = 0
@@ -249,7 +269,12 @@ function normalizeTools(tools) {
 function migrateState(raw, now = new Date().toISOString()) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createInitialState()
   const recipes = repairIds(Array.isArray(raw.recipes) ? raw.recipes.map((recipe) => normalizeRecipe(recipe, now)) : [], 'recipe')
-  const normalizedMaterials = normalizeMaterialCollection(raw.materials, now)
+  const sourceVersion = Number.isInteger(Number(raw.version)) ? Number(raw.version) : 0
+  const sourceMaterials = Array.isArray(raw.materials) ? raw.materials : []
+  const normalizedMaterials = normalizeMaterialCollection(
+    sourceVersion < 2 ? sourceMaterials.map(migrateLegacySpiceAvailability) : sourceMaterials,
+    now
+  )
   const normalizedTools = normalizeTools(raw.tools)
   for (const recipe of recipes) {
     const seen = new Set()

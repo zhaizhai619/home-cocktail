@@ -6,19 +6,18 @@
 .rating { flex: none; color: #957052; font-size: 22rpx; }
 .untried-label { flex: none; padding: 4rpx 10rpx; color: #6f6c66; background: #f1f0ec; border-radius: 999rpx; font-size: 20rpx; line-height: 1.3; }
 .recipe-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8rpx; margin-top: 10rpx; }
-.prep-label { display: inline-block; padding: 4rpx 12rpx; color: #7c6049; background: #f4eee8; border-radius: 999rpx; font-size: 21rpx; white-space: nowrap; }
-.abv-label { display: inline-block; padding: 4rpx 12rpx; color: #536274; background: #ebeff3; border: 1rpx solid #dbe2e9; border-radius: 999rpx; font-size: 21rpx; font-weight: 650; white-space: nowrap; }
+.prep-label { display: inline-block; padding: 4rpx 12rpx; color: #536274; background: #ebeff3; border: 1rpx solid #dbe2e9; border-radius: 999rpx; font-size: 21rpx; white-space: nowrap; }
+.abv-label { display: inline-block; padding: 4rpx 2rpx; color: #6f6c66; background: transparent; border: 0; border-radius: 0; font-size: 21rpx; font-weight: 400; white-space: nowrap; }
 .ingredient-list { display: flex; flex-wrap: wrap; gap: 10rpx; margin-top: 16rpx; }
-.ingredient { padding: 4rpx 10rpx; color: #6f6c66; background: #f1f0ec; border-radius: 10rpx; font-size: 22rpx; }
-.ingredient-amount { color: #6f6c66; }
-.ingredient.quick-buy { color: #957052; background: #f4eee8; }
-.ingredient.missing-long-term { color: #8b877f; background: #faf9f7; }
-.quick-buy-icon { margin-left: 6rpx; font-size: 19rpx; }
+.ingredient { padding: 4rpx 10rpx; color: #6f6c66; background: #f5f4f1; border-radius: 10rpx; font-size: 22rpx; }
+.ingredient-amount { color: inherit; }
+.quick-buy-icon { margin-left: 4rpx; font-size: 20rpx; line-height: 1; }
 
 .recipe-card { min-height: 176rpx; }
 .recipe-name { min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
 .ingredient { max-width: 100%; border: 2rpx solid transparent; overflow-wrap: anywhere; }
-.ingredient.quick-buy { border-color: #e7e4dd; color: #957052; }
-.ingredient.missing-long-term { color: #8b877f; background: #faf9f7; border-color: #c9c5bd; border-style: dashed; }
-.ingredient.prepared { color: #6f6c66; background: #f4eee8; border-color: #e7e4dd; }
-.ingredient.prepared .ingredient-amount { color: #6f6c66; }
+.ingredient.owned { color: #52665a; background: #eef3ef; border-color: #dce7df; }
+.ingredient.quick-buy,
+.ingredient.missing-long-term { color: #77736c; background: #f8f7f4; border-color: #c9c5bd; border-style: dashed; }
+.ingredient.prepared { color: #706a62; background: #f6f5f2; border-color: #d8d4cc; }
+.ingredient.prepared .ingredient-amount { color: inherit; }

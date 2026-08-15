@@ -2,26 +2,41 @@
   <view class="section basic-section">
     <view class="section-heading">
       <text class="title">基本信息</text>
+    </view>
+    <view class="basic-grid">
+      <view class="basic-fields">
+        <view class="name-row">
+          <input class="basic-input name-input prominent-name-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
+          <button class="ai-name-button" bindtap="onOpenAiNaming">AI 起名</button>
+        </view>
+      </view>
+    </view>
+    <view class="basic-status-row">
+      <text class="basic-row-label">状态</text>
       <view class="tried-toggle">
         <button class="tried-option {{form.tried ? 'selected' : ''}}" data-tried="true" bindtap="onTriedTap">调过</button>
         <button class="tried-option {{!form.tried ? 'selected' : ''}}" data-tried="false" bindtap="onTriedTap">未调过</button>
       </view>
     </view>
-    <scroll-view wx:if="{{form.tried}}" class="rating-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+    <view wx:if="{{form.tried}}" class="basic-rating-row">
+      <text class="basic-row-label">评价</text>
       <view class="rating-track">
         <button wx:for="{{ratings}}" wx:key="*this" data-rating="{{item}}" bindtap="onRating" class="rating-chip {{form.rating === item ? 'selected' : ''}}" aria-label="{{item}}{{form.rating === item ? '，已选择' : ''}}">{{item}}</button>
       </view>
-    </scroll-view>
-    <view class="basic-grid">
-      <view class="basic-fields">
-        <view class="name-row">
-          <input class="basic-input name-input" data-field="name" value="{{form.name}}" placeholder="酒名" bindinput="onBasicInput" />
-          <button class="ai-name-button" bindtap="onOpenAiNaming">AI 起名</button>
-        </view>
-        <input class="basic-input" data-field="source" value="{{form.source}}" placeholder="来源（可选）" bindinput="onBasicInput" />
+    </view>
+    <view class="basic-summary-row">
+      <view class="basic-summary-cell glassware-summary" bindtap="onOpenGlasswareSelect" aria-role="button" aria-label="选择酒杯，当前{{glasswareLabel}}">
+        <text class="basic-summary-label">酒杯</text>
+        <text class="basic-summary-value">{{glasswareLabel}}</text>
+      </view>
+      <view class="basic-summary-cell abv-summary">
+        <text class="basic-summary-label">预估酒精度</text>
+        <text class="basic-summary-value">{{preview.abvLabel}}{{preview.status === 'ok' ? '%' : ''}}</text>
       </view>
     </view>
+    <text wx:if="{{preview.abvHint}}" class="abv-hint basic-abv-hint">{{preview.abvHint}}</text>
     <text wx:if="{{errors.name}}" class="error">{{errors.name}}</text>
+    <text wx:if="{{errors.equipment}}" class="error">{{errors.equipment}}</text>
   </view>
 
   <view class="section ingredient-section">
@@ -36,6 +51,7 @@
         <button size="mini" class="shortcut" data-filter="liqueur" bindtap="onOpenMaterialSelect">＋利口酒</button>
         <button size="mini" class="shortcut" data-filter="produce" bindtap="onOpenMaterialSelect">＋果汁/果蔬</button>
         <button size="mini" class="shortcut" data-filter="mixer" bindtap="onOpenMaterialSelect">＋混合饮品</button>
+        <button size="mini" class="shortcut" data-filter="spice" bindtap="onOpenMaterialSelect">＋香料</button>
         <button size="mini" class="shortcut" data-filter="all" bindtap="onOpenMaterialSelect">＋材料库</button>
       </view>
     </view>
@@ -45,13 +61,14 @@
     <view wx:else class="advance-pane">
       <view wx:for="{{advanceCards}}" wx:for-item="preparation" wx:key="id" class="advance-card">
         <text class="compact-label">预调成品名称</text>
-        <input class="advance-name" data-preparation-id="{{preparation.id}}" data-field="outputName" value="{{preparation.outputName}}" bindinput="onAdvanceInput" />
+        <input class="advance-name prominent-name-input" data-preparation-id="{{preparation.id}}" data-field="outputName" value="{{preparation.outputName}}" bindinput="onAdvanceInput" />
         <view class="material-shortcuts advance-material-shortcuts">
           <view class="shortcut-track">
             <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="base" bindtap="onOpenMaterialSelect">＋基酒</button>
             <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="liqueur" bindtap="onOpenMaterialSelect">＋利口酒</button>
             <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="produce" bindtap="onOpenMaterialSelect">＋果汁/果蔬</button>
             <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="mixer" bindtap="onOpenMaterialSelect">＋混合饮品</button>
+            <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="spice" bindtap="onOpenMaterialSelect">＋香料</button>
             <button size="mini" class="shortcut advance-add-material" data-stage="advance" data-preparation-id="{{preparation.id}}" data-index="-1" data-filter="all" bindtap="onOpenMaterialSelect">＋材料库</button>
           </view>
         </view>
@@ -74,16 +91,6 @@
     <text wx:if="{{errors.preparations}}" class="error">{{errors.preparations}}</text>
   </view>
 
-  <view class="section calculation-section">
-    <text class="title">酒杯与酒精度</text>
-    <view class="select" bindtap="onOpenGlasswareSelect" aria-role="button" aria-label="选择酒杯，当前{{glasswareLabel}}"><text>{{glasswareLabel}}</text></view>
-    <view class="calculation-card">
-      <view class="abv-row"><text>预估酒精度</text><text class="abv-value">{{preview.abvLabel}}{{preview.status === 'ok' ? '%' : ''}}</text></view>
-      <text wx:if="{{preview.abvHint}}" class="abv-hint">{{preview.abvHint}}</text>
-    </view>
-    <text wx:if="{{errors.equipment}}" class="error">{{errors.equipment}}</text>
-  </view>
-
   <view class="section note-section">
     <text class="title">备注与步骤</text>
     <textarea class="note-input" data-field="steps" value="{{form.steps}}" bindinput="onBasicInput" />
@@ -98,12 +105,12 @@
 
 <view wx:if="{{aiNamingOpen}}" class="ai-mask" catchtap="onCloseAiNaming" catchtouchmove="noop">
   <view class="ai-sheet" catchtap="noop">
-    <view class="ai-sheet-head"><text class="ai-sheet-title">用喜欢的歌给酒起名</text><button class="ai-close" disabled="{{aiThinking}}" bindtap="onCloseAiNaming">×</button></view>
+    <view class="ai-sheet-head"><text class="ai-sheet-title">用喜欢的歌给酒起名</text><button size="mini" class="ai-close" disabled="{{aiThinking}}" bindtap="onCloseAiNaming" aria-label="关闭">×</button></view>
     <text class="ai-sheet-copy">AI 会结合材料和用量理解这杯酒。颜色和起名偏好可以不填，但能帮助结果更贴近你的想法。</text>
-    <text class="ai-field-label">酒的颜色（选填）</text>
-    <input class="ai-field" value="{{aiColor}}" data-field="aiColor" bindinput="onAiFieldInput" placeholder="例如：青绿色、琥珀色、莓红渐变" />
-    <text class="ai-field-label">起名偏好（选填）</text>
-    <input class="ai-preference" value="{{aiPreference}}" data-field="aiPreference" bindinput="onAiFieldInput" placeholder="例如：想要中文名、克制一点、不要太伤感" />
+    <text class="ai-field-label">酒的颜色</text>
+    <input class="ai-field" value="{{aiColor}}" data-field="aiColor" bindinput="onAiFieldInput" />
+    <text class="ai-field-label">起名偏好</text>
+    <input class="ai-preference" value="{{aiPreference}}" data-field="aiPreference" bindinput="onAiFieldInput" />
 
     <view wx:if="{{aiThinking}}" class="ai-thinking"><view class="thinking-dot"></view><text>{{aiThinkingText}}</text></view>
     <text wx:if="{{aiError}}" class="ai-error">{{aiError}}</text>
@@ -111,11 +118,11 @@
 
     <view wx:if="{{aiRecommendations.length}}" class="ai-results">
       <text class="ai-results-title">推荐酒名</text>
-      <button wx:for="{{aiRecommendations}}" wx:key="song_id" class="ai-result" data-name="{{item.recommended_name}}" bindtap="onUseAiName">
-        <text class="ai-result-name">{{item.recommended_name}}</text>
+      <view wx:for="{{aiRecommendations}}" wx:key="song_id" class="ai-result" data-song-id="{{item.song_id}}" bindtap="onUseAiName" aria-role="button" aria-label="使用歌曲 {{item.recommended_name}} 作为酒名">
+        <view class="ai-result-heading"><text class="ai-result-name">{{item.recommended_name}}</text><text wx:if="{{item.artist}}" class="ai-result-artist">· {{item.artist}}</text></view>
         <text class="ai-result-reason">{{item.reason}}</text>
         <text class="ai-result-use">使用这个名字</text>
-      </button>
+      </view>
     </view>
     <button class="ai-generate" disabled="{{aiThinking}}" loading="{{aiThinking}}" bindtap="onGenerateAiNames">{{aiRecommendations.length ? '重新生成' : '开始匹配'}}</button>
   </view>

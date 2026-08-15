@@ -34,10 +34,10 @@ test('buildRecipeCard shows its longest preparation and material visual states',
     image: '/images/negroni.png',
     rating: '常喝',
     preparationLabel: '冷冻 · 提前1天',
-    abvLabel: '32.5%',
+    abvLabel: '',
     ingredients: [
       { name: '金酒', amountLabel: '30ml', state: 'owned', quickBuyIcon: '', accessibilityLabel: '金酒，30ml，当前可用' },
-      { name: '青柠', amountLabel: '1个', state: 'quick-buy', quickBuyIcon: '🛍', accessibilityLabel: '青柠，1个，可随买随用' },
+      { name: '青柠', amountLabel: '1个', state: 'quick-buy', quickBuyIcon: '🛍️', accessibilityLabel: '青柠，1个，可随买随用' },
       { name: '金巴利', amountLabel: '30ml', state: 'missing-long-term', quickBuyIcon: '', accessibilityLabel: '金巴利，30ml，长期材料当前没有' }
     ]
   })
@@ -50,6 +50,12 @@ test('buildRecipeCard marks an untried recipe instead of showing a stale rating'
   assert.equal(card.rating, '')
 })
 
+test('recipe card shows an optional-time preparation without a dangling separator', () => {
+  const card = buildRecipeCard({ id: 'cold', name: '冷冻酒', preparations: [{ type: '冷冻', durationText: '' }], ingredients: [] }, {})
+
+  assert.equal(card.preparationLabel, '冷冻')
+})
+
 test('recipe card hides ABV when the recipe contains an embedded prepared output', () => {
   const card = buildRecipeCard({
     id: 'pineapple-rum', name: '菠萝朗姆嗨棒', tried: true,
@@ -58,6 +64,34 @@ test('recipe card hides ABV when the recipe contains an embedded prepared output
   }, { soda: { name: '苏打水', alcoholic: false, acquisition: 'long-term', owned: true } })
   assert.equal(card.abvLabel, '')
   assert.equal(buildRecipeCard({ ...card, id: 'manual-prepared', name: '手动预调', manualAbv: 18, advancePreparations: [{ id: 'prep' }], ingredients: [] }, {}).abvLabel, '18%')
+})
+
+test('prepared output turns green only when every advance ingredient is currently available', () => {
+  const recipe = {
+    id: 'prepared-readiness', name: '预调材料状态', tried: true,
+    ingredients: [
+      { kind: 'prepared-output', preparationId: 'ready', amount: 60, unit: 'ml' },
+      { kind: 'prepared-output', preparationId: 'missing', amount: 30, unit: 'ml' },
+      { kind: 'prepared-output', preparationId: 'empty', amount: 10, unit: 'ml' }
+    ],
+    advancePreparations: [
+      { id: 'ready', outputName: '黄瓜汁', ingredients: [{ materialId: 'cucumber' }, { materialId: 'syrup' }] },
+      { id: 'missing', outputName: '香料液', ingredients: [{ materialId: 'cinnamon' }, { materialId: 'mint' }] },
+      { id: 'empty', outputName: '未填材料', ingredients: [] }
+    ]
+  }
+  const materials = {
+    cucumber: { id: 'cucumber', name: '黄瓜', acquisition: 'on-demand', freshOnHand: true },
+    syrup: { id: 'syrup', name: '糖浆', acquisition: 'long-term', owned: false, assumedAvailable: true, trackFreshness: false },
+    cinnamon: { id: 'cinnamon', name: '肉桂', acquisition: 'long-term', owned: true },
+    mint: { id: 'mint', name: '薄荷', acquisition: 'on-demand', freshOnHand: false }
+  }
+
+  assert.deepEqual(buildRecipeCard(recipe, materials).ingredients, [
+    { name: '黄瓜汁', amountLabel: '60ml', state: 'owned', quickBuyIcon: '', accessibilityLabel: '黄瓜汁，60ml，预调材料齐全' },
+    { name: '香料液', amountLabel: '30ml', state: 'prepared', quickBuyIcon: '', accessibilityLabel: '香料液，30ml，预调材料未齐' },
+    { name: '未填材料', amountLabel: '10ml', state: 'prepared', quickBuyIcon: '', accessibilityLabel: '未填材料，10ml，预调材料未齐' }
+  ])
 })
 
 test('recipe cards shorten ordinary syrup while keeping flavored syrup names explicit', () => {

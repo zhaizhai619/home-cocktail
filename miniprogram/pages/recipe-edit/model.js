@@ -1,6 +1,6 @@
 const { QUICK_BASE_SPIRITS, PREP_TYPES } = require('../../domain/constants')
 const { createMaterialDefaults, getMaterialDisplayName, getMaterialIdentityKey } = require('../../domain/material')
-const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
+const { getPreparationDurationText, normalizeMusicNaming, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateAbv } = require('../../domain/abv')
 const { calculateGlassCapacity, formatGlasswareLabel } = require('../../domain/equipment')
 const { settleOperation } = require('../../services/maybe-promise')
@@ -61,7 +61,7 @@ function hydrateRecipeIngredient(ingredient, material, preparation) {
 
 function createEmptyRecipeForm() {
   return {
-    id: '', name: '', imagePath: '', source: '', tried: true,
+    id: '', name: '', imagePath: '', source: '', musicNaming: null, tried: true,
     ingredients: [EMPTY_INGREDIENT('citrus', '柠檬汁'), EMPTY_INGREDIENT('syrup', '糖浆')],
     ingredientOrderCustomized: false,
     advancePreparations: [],
@@ -254,7 +254,7 @@ function normalizeAndValidateForm(input) {
   form.preparations = (Array.isArray(form.preparations) ? form.preparations : []).map((item) => {
     if (!item || typeof item !== 'object') return item
     if (item.type === '即调') return { type: item.type, ...(item.note ? { note: item.note } : {}) }
-    const { amount, amountEnd, unit, ...rest } = item
+    const { amount, amountEnd, unit, durationUnit, ...rest } = item
     return { ...rest, durationText: getPreparationDurationText(item) }
   })
   const normalizedPreps = normalizePrepSelections(form.preparations)
@@ -266,7 +266,7 @@ function normalizeAndValidateForm(input) {
   if (!form.ingredients.some(usableIngredient)) errors.ingredients = '请至少填写一种有效材料和用量'
   if (form.ingredients.some((row) => hasName(row) && !hasValidIngredientAmount(row))) errors.ingredients = '请填写有效的材料用量'
   if (form.ingredients.some((row) => row && row.alcoholic && hasSuppliedAbv(row.abv) && !hasValidAbv(row.abv))) errors.ingredients = '酒精度需大于 0 且不超过 100'
-  if (form.preparations.length === 0 || form.preparations.some((prep) => !PREP_TYPES.includes(prep.type) || (prep.type !== '即调' && !String(prep.durationText || '').trim()))) errors.preparations = '请填写提前时间'
+  if (form.preparations.length === 0 || form.preparations.some((prep) => !PREP_TYPES.includes(prep.type))) errors.preparations = '请选择制作方式'
   if (form.advancePreparations.length) {
     form.advancePreparations = form.advancePreparations.map((preparation) => ({ ...preparation, outputName: String(preparation.outputName || '').trim(), steps: String(preparation.steps || '').trim(), ingredients: (Array.isArray(preparation.ingredients) ? preparation.ingredients : []).map((row) => ({ ...row, name: String(row.name || '').trim() })) }))
     if (form.advancePreparations.some(({ outputName }) => !outputName)) errors.advancePreparation = '请填写每一种预调成品名称'
@@ -312,6 +312,7 @@ function buildRecipePayload(input) {
   return {
     recipe: {
       ...(form.id ? { id: form.id } : {}), name: form.name, imagePath: form.imagePath || '', source: form.source || '', tried: form.tried === true,
+      musicNaming: normalizeMusicNaming(form.musicNaming),
       ingredientOrderCustomized: form.ingredientOrderCustomized === true,
       ingredients: ingredients.map((row) => isPreparedOutput(row)
         ? { kind: 'prepared-output', preparationId: row.preparationId, amount: ingredientAmount(row), unit: row.unit || 'ml' }

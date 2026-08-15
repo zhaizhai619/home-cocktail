@@ -19,6 +19,6 @@
     </view>
 
     <text wx:if="{{errors.form}}" class="error-text form-error" aria-live="assertive">{{errors.form}}</text>
-    <view class="form-actions"><button class="save" bindtap="onSave">保存材料</button><button wx:if="{{mode === 'edit'}}" class="delete" bindtap="onDelete">删除材料</button></view>
+    <view class="form-actions"><button class="save" disabled="{{savingMaterial}}" loading="{{savingMaterial}}" bindtap="onSave">{{savingMaterial ? '保存中…' : '保存材料'}}</button><button wx:if="{{mode === 'edit'}}" class="delete" disabled="{{savingMaterial}}" bindtap="onDelete">删除材料</button></view>
   </block>
 </view>

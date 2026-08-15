@@ -3,7 +3,11 @@
 .hero-card, .section { margin-top: 20rpx; padding: 28rpx; background: #ffffff; border-radius: 22rpx; box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, .05); }
 .hero-card { margin-top: 0; padding-top: 40rpx; }.hero-image + .hero-card { margin-top: 20rpx; }
 .hero-heading, .ingredient-row, .ingredient-main { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.recipe-name-row { display: flex; min-width: 0; flex: 1; align-items: center; gap: 10rpx; }
 .recipe-name { color: #242321; font-size: 42rpx; font-weight: 700; line-height: 1.25; }
+.music-naming-mark { position: relative; display: flex; width: 50rpx; height: 50rpx; flex: none; overflow: hidden; align-items: center; justify-content: center; border-radius: 50%; }
+.music-naming-logo { position: relative; z-index: 1; display: block; width: 50rpx; height: 46rpx; background: #ffffff; transform: scale(2.2); }
+.music-naming-fallback { position: absolute; color: #4d9e8c; font-size: 38rpx; line-height: 1; }
 .rating-badge, .prep-badge, .tool-chip, .rating-option { display: inline-flex; align-items: center; min-height: 48rpx; padding: 0 18rpx; border-radius: 999rpx; font-size: 23rpx; }
 .rating-badge { flex: none; color: #957052; background: #f4eee8; font-weight: 600; }
 .muted { color: #6f6c66; font-size: 25rpx; line-height: 1.6; }
@@ -46,3 +50,10 @@
 .bottom-space { height: 24rpx; }
 .ingredient-side{display:flex;align-items:center;flex:none}
 .abv-sheet-mask{position:fixed;z-index:12;inset:0;display:flex;align-items:flex-end;background:rgba(0, 0, 0,.42)}.abv-sheet{box-sizing:border-box;width:100%;padding:28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));background:#ffffff;border-radius:28rpx 28rpx 0 0}.abv-sheet-title{display:block;margin-bottom:18rpx;color:#242321;font-size:30rpx;font-weight:650}.abv-input{display:flex;align-items:center;box-sizing:border-box;height:82rpx;padding:0 20rpx;background:#ffffff;border:1rpx solid #e7e4dd;border-radius:16rpx}.abv-input input{flex:1;font-size:28rpx}.abv-input text{color:#6f6c66;font-size:27rpx}.abv-sheet-actions{display:flex;gap:14rpx;margin-top:22rpx}.abv-sheet-actions button{box-sizing:border-box;min-width:0;margin:0;line-height:82rpx;border-radius:16rpx;font-size:26rpx}.clear-abv{flex:1;color:#6f6c66;background:#f1f0ec}.save-abv{flex:2;color:#ffffff;background:#242321}
+.music-reason-mask { position: fixed; z-index: 14; inset: 0; display: flex; padding: 32rpx; align-items: center; justify-content: center; background: rgba(0, 0, 0, .38); }
+.music-reason-window { box-sizing: border-box; width: 100%; max-width: 560rpx; padding: 30rpx; background: #242321; border-radius: 24rpx; box-shadow: 0 18rpx 48rpx rgba(0, 0, 0, .22); }
+.music-reason-head { display: flex; align-items: center; }
+.music-reason-song { display: flex; min-width: 0; align-items: baseline; gap: 7rpx; }
+.music-reason-title { min-width: 0; color: #ffffff; font-size: 27rpx; font-weight: 650; }
+.music-reason-artist { min-width: 0; overflow: hidden; color: #bdb9b3; font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
+.music-reason-copy { display: block; margin-top: 18rpx; color: #ffffff; font-size: 22rpx; line-height: 1.65; }

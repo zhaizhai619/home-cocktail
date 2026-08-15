@@ -18,6 +18,7 @@ function createMusicAssistantClient(cloud) {
   return {
     getStatus: () => call('getStatus'),
     startJob: (payload) => call('startJob', payload),
+    resumeJob: (payload) => call('resumeJob', payload),
     processNext: (payload) => call('processNext', payload),
     recommendNames: (payload) => call('recommendNames', payload),
     startNcmLogin: () => call('startNcmLogin'),

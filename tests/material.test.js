@@ -3,10 +3,12 @@ const test = require('node:test')
 
 const {
   PREP_TYPES,
+  PREP_ENTRY_TYPES,
   QUICK_BASE_SPIRITS,
   QUICK_TOOLS,
   RATINGS,
-  UNITS
+  UNITS,
+  RECIPE_UNITS
 } = require('../miniprogram/domain/constants')
 const {
   createMaterialDefaults,
@@ -44,6 +46,13 @@ test('exports the approved preparation types and ratings in display order', () =
     '低温慢煮',
     '其他预调'
   ])
+  assert.deepEqual(PREP_ENTRY_TYPES, [
+    '即调',
+    '冷冻',
+    '冷泡/浸泡',
+    '奶洗',
+    '低温慢煮'
+  ])
   assert.deepEqual(RATINGS, ['夯', '顶尖', '人上人', 'NPC', '拉完了'])
 })
 
@@ -73,6 +82,15 @@ test('exports stable values and Chinese labels for all supported units', () => {
     { value: 'chunk', label: '块' },
     { value: 'top-up', label: '补满' },
     { value: 'to-taste', label: '适量' }
+  ])
+  assert.deepEqual(RECIPE_UNITS, [
+    { value: 'ml', label: 'ml' },
+    { value: 'g', label: 'g' },
+    { value: 'piece', label: '个' },
+    { value: 'top-up', label: '补满' },
+    { value: 'to-taste', label: '适量' },
+    { value: 'chunk', label: '块' },
+    { value: 'drop', label: '滴' }
   ])
 })
 
@@ -115,6 +133,18 @@ test('fruit defaults to an unprepared freshness-tracked solid', () => {
   assert.equal(fruit.defaultUnit, 'ml')
   assert.equal(fruit.trackFreshness, true)
   assert.equal(fruit.freshOnHand, false)
+})
+
+test('spice creation defaults to a long-term solid material', () => {
+  const spiceGroup = MATERIAL_CATEGORY_GROUPS.find(({ key }) => key === 'spice')
+  const spice = createMaterialDefaults(spiceGroup.category, '肉桂')
+
+  assert.equal(spice.category, 'other-solid')
+  assert.equal(spice.acquisition, 'long-term')
+  assert.equal(spice.form, 'solid')
+  assert.equal(spice.defaultUnit, 'g')
+  assert.equal(spice.owned, false)
+  assert.equal(spice.freshOnHand, false)
 })
 
 test('tonic defaults to an unprepared on-demand top-up liquid', () => {
@@ -170,7 +200,7 @@ test('all plan material categories have stable defaults', () => {
       owned: false, freshOnHand: false
     },
     'other-solid': {
-      acquisition: 'on-demand', form: 'solid', alcoholic: false, abv: null,
+      acquisition: 'long-term', form: 'solid', alcoholic: false, abv: null,
       defaultUnit: 'g', trackFreshness: false, assumedAvailable: false,
       owned: false, freshOnHand: false
     },

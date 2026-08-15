@@ -20,13 +20,40 @@ Page({
     loadingLogin: false, checkingLogin: false, analyzing: false, statusText: '', error: ''
   },
   async onLoad() {
+    this._visible = true
     await waitForCloudReady()
     const { musicAssistantSettings } = services()
     if (musicAssistantSettings) this.setData(musicAssistantSettings.load())
     await this.refreshStatus()
     await this.onCheckNcmLogin()
+    this.startStatusPolling()
+    if (this.data.job && ['queued', 'running'].includes(this.data.job.status)) {
+      this.setData({ analyzing: true, error: '', statusText: '云端任务解析中，退出页面后仍会继续' })
+      this.runJob(musicAssistantSettings ? musicAssistantSettings.load() : {})
+    }
   },
-  onUnload() { this._active = false },
+  onShow() {
+    this._visible = true
+    this.startStatusPolling()
+  },
+  onHide() {
+    this._visible = false
+    this._active = false
+    this.stopStatusPolling()
+  },
+  onUnload() {
+    this._visible = false
+    this._active = false
+    this.stopStatusPolling()
+  },
+  startStatusPolling() {
+    if (this._statusTimer) return
+    this._statusTimer = setInterval(() => this.refreshStatus(), 2000)
+  },
+  stopStatusPolling() {
+    if (this._statusTimer) clearInterval(this._statusTimer)
+    this._statusTimer = null
+  },
   onFieldInput(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },
   saveLocalSettings() {
     const { musicAssistantSettings } = services()
@@ -41,7 +68,10 @@ Page({
     try {
       const result = await musicAssistant.getStatus()
       const job = result.job || null
-      this.setData({ job, analyzedCount: result.analyzedCount || 0, ...progress(job) })
+      const update = { job, analyzedCount: result.analyzedCount || 0, ...progress(job) }
+      if (job && job.status === 'completed') update.statusText = '歌曲解析完成，可以去添加酒品并使用智能起名了'
+      if (job && job.status === 'paused') update.error = job.lastError || '云端解析已暂停，请点击继续上次进度'
+      this.setData(update)
     } catch (error) { this.setData({ error: error.message || '读取进度失败' }) }
   },
   async onConnectNcm() {
@@ -80,7 +110,7 @@ Page({
     if (!musicAssistant) return this.setData({ error: '智能起名服务不可用' })
     this.setData({ analyzing: true, error: '', statusText: '正在读取红心歌曲…' })
     try {
-      const job = await musicAssistant.startJob({ model: settings.model, limit: settings.importCount })
+      const job = await musicAssistant.startJob({ model: settings.model, limit: settings.importCount, apiKey: settings.apiKey })
       this.setData({ job, ...progress(job) })
       await this.runJob(settings)
     } catch (error) {
@@ -92,7 +122,16 @@ Page({
     const settings = this.saveLocalSettings()
     if (!settings.apiKey) return this.setData({ error: '请填写 DeepSeek API Key' })
     this.setData({ analyzing: true, error: '' })
-    await this.runJob(settings)
+    try {
+      if (this.data.job.status === 'paused') {
+        const { musicAssistant } = services()
+        const job = await musicAssistant.resumeJob({ jobId: this.data.job.id, apiKey: settings.apiKey })
+        this.setData({ job, ...progress(job) })
+      }
+      await this.runJob(settings)
+    } catch (error) {
+      this.setData({ error: error.message || '无法继续解析', analyzing: false })
+    }
   },
   async runJob(settings) {
     const { musicAssistant } = services()
@@ -101,13 +140,16 @@ Page({
     try {
       while (this._active && job && job.status !== 'completed') {
         this.setData({ statusText: `正在解析第 ${progress(job).processed + 1} 首…` })
-        job = await musicAssistant.processNext({ jobId: job.id, apiKey: settings.apiKey, model: settings.model })
+        job = await musicAssistant.processNext({ jobId: job.id })
+        if (!this._active) break
         this.setData({ job, ...progress(job) })
         if (job.busy) await new Promise((resolve) => setTimeout(resolve, 800))
       }
-      if (job && job.status === 'completed') this.setData({ statusText: '歌曲解析完成，可以去添加酒品并使用智能起名了' })
-      await this.refreshStatus()
-    } catch (error) { this.setData({ error: error.message || '解析中断，可稍后继续' }) }
-    this.setData({ analyzing: false })
+      if (this._active && job && job.status === 'completed') this.setData({ statusText: '歌曲解析完成，可以去添加酒品并使用智能起名了' })
+      if (this._active) await this.refreshStatus()
+    } catch (error) {
+      if (this._active) this.setData({ error: error.message || '解析中断，可稍后继续' })
+    }
+    if (this._active) this.setData({ analyzing: false })
   }
 })

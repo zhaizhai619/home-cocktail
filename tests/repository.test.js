@@ -34,9 +34,9 @@ test('initialization persists the exact canonical empty state', () => {
     builtIn: true
   }))
 
-  assert.equal(CURRENT_SCHEMA_VERSION, 1)
+  assert.equal(CURRENT_SCHEMA_VERSION, 2)
   assert.deepEqual(state, {
-    version: 1,
+    version: 2,
     recipes: [],
     materials: [],
     glassware: [],
@@ -71,6 +71,42 @@ test('migration is idempotent and gives invalid recipe dates the supplied timest
   })
   assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
   assert.deepEqual(migrateState(null, now), createInitialState())
+})
+
+test('version one migration makes every existing spice a missing long-term material', () => {
+  const migrated = migrateState({
+    version: 1,
+    materials: [
+      { id: 'cinnamon', name: '肉桂', category: 'other-solid', acquisition: 'on-demand', freshOnHand: true, trackFreshness: true, remainingAmount: 12, remainingUnit: 'g', purchasedAt: '2026-08-01', expiresAt: '2026-09-01' },
+      { id: 'bitters', name: '苦精', category: 'bitters', acquisition: 'on-demand', freshOnHand: true },
+      { id: 'lime', name: '青柠', category: 'fruit', acquisition: 'on-demand', freshOnHand: true }
+    ]
+  }, '2026-08-13T00:00:00.000Z')
+
+  for (const id of ['cinnamon', 'bitters']) {
+    const spice = migrated.materials.find((material) => material.id === id)
+    assert.equal(spice.acquisition, 'long-term')
+    assert.equal(spice.owned, false)
+    assert.equal(spice.freshOnHand, false)
+    assert.equal(spice.assumedAvailable, false)
+    assert.equal(spice.remainingAmount, null)
+    assert.equal(spice.remainingUnit, null)
+    assert.equal(spice.purchasedAt, null)
+    assert.equal(spice.expiresAt, null)
+  }
+  assert.equal(migrated.materials.find((material) => material.id === 'lime').freshOnHand, true)
+  assert.equal(migrated.version, 2)
+  assert.deepEqual(migrateState(migrated, '2030-01-01T00:00:00.000Z'), migrated)
+})
+
+test('current schema preserves a user-selected quick-buy spice', () => {
+  const migrated = migrateState({
+    version: CURRENT_SCHEMA_VERSION,
+    materials: [{ id: 'mint', name: '薄荷', category: 'other-solid', acquisition: 'on-demand', freshOnHand: true }]
+  }, '2026-08-13T00:00:00.000Z')
+
+  assert.equal(migrated.materials[0].acquisition, 'on-demand')
+  assert.equal(migrated.materials[0].freshOnHand, true)
 })
 
 test('migration preserves the full recipe shape, user fields, and uses steps canonically', () => {

@@ -9,7 +9,7 @@
     <text class="panel-title">大模型设置</text>
     <text class="field-label">DeepSeek API Key</text>
     <input class="field" password="true" value="{{apiKey}}" data-field="apiKey" bindinput="onFieldInput" placeholder="仅保存在当前设备" />
-    <text class="field-help">密钥不会写入腾讯云数据库。</text>
+    <text class="field-help">明文仅保存在当前设备；解析期间云端只临时保存加密密文，任务结束后自动删除。</text>
     <text class="field-label">模型名称</text>
     <input class="field" value="{{model}}" data-field="model" bindinput="onFieldInput" placeholder="例如 deepseek-v4-flash" />
     <text class="field-label">导入歌曲数量</text>
@@ -36,9 +36,10 @@
       <view><text class="stat-value">{{analyzedCount}}</text><text class="stat-label">云端画像</text></view>
     </view>
     <text wx:if="{{statusText}}" class="status">{{statusText}}</text>
+    <text wx:if="{{job && job.status !== 'completed'}}" class="status">退出此页面后，云端仍会继续解析。</text>
     <text wx:if="{{error}}" class="error">{{error}}</text>
   </view>
 
   <button class="primary" loading="{{analyzing}}" disabled="{{analyzing}}" bindtap="onStartAnalysis">{{analyzing ? '解析中…' : '导入并开始解析'}}</button>
-  <button wx:if="{{job && job.status !== 'completed' && !analyzing}}" class="resume" bindtap="onResumeAnalysis">继续上次进度</button>
+  <button wx:if="{{job && job.status === 'paused' && !analyzing}}" class="resume" bindtap="onResumeAnalysis">继续上次进度</button>
 </view>

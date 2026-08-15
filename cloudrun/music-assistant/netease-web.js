@@ -30,6 +30,15 @@ async function fetchNeteaseLyrics(songId, fetchImpl = global.fetch) {
   return cleanNeteaseLyrics(payload && payload.lrc && payload.lrc.lyric)
 }
 
+function formatReleaseDate(value) {
+  const timestamp = Number(value)
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return ''
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]))
+  return parts.year && parts.month && parts.day ? `${parts.year}-${parts.month}-${parts.day}` : ''
+}
+
 function songData(song) {
   const artists = song && (song.artists || song.ar)
   const album = song && (song.album || song.al)
@@ -38,7 +47,8 @@ function songData(song) {
     title: String(song && (song.name || song.title) || ''),
     artist: (Array.isArray(artists) ? artists : []).map((item) => item && item.name).filter(Boolean).join(' / '),
     album: String(album && album.name || ''),
-    albumDescription: String(album && (album.description || album.desc) || '')
+    albumDescription: String(album && (album.description || album.desc) || ''),
+    releaseDate: formatReleaseDate(album && album.publishTime || song && song.publishTime)
   }
 }
 

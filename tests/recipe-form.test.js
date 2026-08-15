@@ -36,6 +36,19 @@ test('empty recipe form includes the fast-entry defaults', () => {
   assert.deepEqual(form.preparations, [{ type: '即调', note: '' }])
   assert.equal(form.tried, true)
   for (const key of ['name', 'imagePath', 'source', 'glasswareId', 'steps', 'rating', 'tastingNote']) assert.equal(form[key], '')
+  assert.equal(form.musicNaming, null)
+})
+
+test('AI song selection saves only the song title as the recipe name and keeps its explanation metadata', () => {
+  const form = createEmptyRecipeForm()
+  form.name = 'No No No'
+  form.musicNaming = { songId: 'song-1', songTitle: 'No No No', artist: 'Shark', reason: '歌曲的反抗感和这杯酒的清爽气质很契合。' }
+  form.ingredients[0].amount = 20
+  form.ingredients[1].amount = 10
+
+  const recipe = buildRecipePayload(form).recipe
+  assert.equal(recipe.name, 'No No No')
+  assert.deepEqual(recipe.musicNaming, form.musicNaming)
 })
 
 test('ingredient render keys are unique and survive row replacements', () => {
@@ -268,7 +281,8 @@ test('validation accepts top-up and missing alcoholic abv but rejects incomplete
   assert.match(normalizeAndValidateForm(form).errors.ingredients, /用量/)
   form.ingredients[0].amount = 30
   form.preparations = [{ type: '冷冻', durationText: '', note: '' }]
-  assert.match(normalizeAndValidateForm(form).errors.preparations, /提前时间/)
+  assert.equal(normalizeAndValidateForm(form).valid, true)
+  assert.deepEqual(normalizeAndValidateForm(form).form.preparations, [{ type: '冷冻', durationText: '', note: '' }])
   form.preparations = [{ type: '即调', note: '' }, { type: '冷冻', durationText: '1小时', note: '' }]
   assert.deepEqual(normalizeAndValidateForm(form).form.preparations.map((item) => item.type), ['冷冻'])
 })

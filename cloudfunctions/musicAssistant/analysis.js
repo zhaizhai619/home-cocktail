@@ -13,9 +13,9 @@ function keywords(value, max = 4) {
   return [...new Set((Array.isArray(value) ? value : []).map((item) => text(item, 24)).filter(Boolean))].slice(0, max)
 }
 
-function score(value) {
+function namingScore(value) {
   const number = Number(value)
-  return Number.isFinite(number) ? Math.max(0, Math.min(100, number)) : 0
+  return Number.isFinite(number) ? Math.max(0, Math.min(10, number)) : 0
 }
 
 function jsonMessages(system, payload) {
@@ -27,7 +27,17 @@ function jsonMessages(system, payload) {
 
 function buildSongProfileMessages(song = {}) {
   return jsonMessages(
-    `你是懂中文说唱语境的歌曲编辑。只根据提供的信息分析，不补写歌词事实。输出纯 JSON：{"summary":"一句话主题","emotion_keywords":["2至4个情绪词"],"scene_sensory_keywords":["2至4个场景或感官词"],"naming":{"preferred_title":"必须原样复制输入title，不翻译不改写","fit_score":0,"risks":["可能影响酒名使用的问题"]},"analysis_confidence":0}。分数均为0至100。${SONG_PROFILE_PROMPT_VERSION}`,
+    `你是懂中文说唱语境的歌曲编辑。任务是从输入资料中提取可复核的歌曲画像，并单独评价歌名作为鸡尾酒名字的适用性。
+
+分析规则：
+1. 只使用输入中明确提供的 title、artist、album、album_description 和 lyrics，不补写歌词、歌曲背景、流行度或创作事实。
+2. summary 用一句简洁中文概括歌曲主要表达。
+3. emotion_keywords 提取 0 至 4 个主要情绪或表达态度，合并近义词，不把人物、主题或场景当成情绪。
+4. scene_sensory_keywords 提取 0 至 4 个有明确文字依据的场景或感官意象，例如时间、空间、自然物、城市元素、颜色、温度、质感和动作；没有明确依据时输出空数组，不要为了凑数量而推测。
+5. fit_score 只评价 title 这段文字单独作为鸡尾酒名字是否合适，与歌词、音乐内容、歌曲情绪、歌手、专辑、语言和热度无关。评分为 0 至 10，可使用一位小数，不要默认给高分：0-2 明显不适合；3-4 生硬或缺乏命名感；5-6 普通可用；7-8 自然、易记且有画面；9-10 独特、自然、有情调。
+6. risks 只记录歌名本身可能影响鸡尾酒命名的问题，最多 3 个；没有则输出空数组。
+
+输出纯 JSON：{"summary":"一句话主题","emotion_keywords":[],"scene_sensory_keywords":[],"naming":{"fit_score":0,"risks":[]}}。${SONG_PROFILE_PROMPT_VERSION}`,
     {
       title: text(song.title, 120),
       artist: text(song.artist, 160),
@@ -45,11 +55,9 @@ function normalizeSongProfile(value = {}) {
     emotion_keywords: keywords(value.emotion_keywords),
     scene_sensory_keywords: keywords(value.scene_sensory_keywords),
     naming: {
-      preferred_title: text(naming.preferred_title, 120),
-      fit_score: score(naming.fit_score),
+      fit_score: namingScore(naming.fit_score),
       risks: keywords(naming.risks, 3)
-    },
-    analysis_confidence: score(value.analysis_confidence)
+    }
   }
 }
 
@@ -82,16 +90,19 @@ function compactCandidate(candidate = {}) {
   return {
     song_id: text(candidate.songId || candidate.song_id, 80),
     title: text(candidate.title, 120),
+    artist: text(candidate.artist, 160),
+    album: text(candidate.album, 160),
+    release_date: text(candidate.releaseDate || candidate.release_date, 10),
     summary: text(candidate.summary, 240),
     emotion_keywords: keywords(candidate.emotion_keywords),
     scene_sensory_keywords: keywords(candidate.scene_sensory_keywords),
-    fit_score: score(candidate.fitScore || candidate.fit_score)
+    fit_score: namingScore(candidate.fitScore || candidate.fit_score)
   }
 }
 
 function buildNamingMessages({ cocktail, candidates } = {}) {
   return jsonMessages(
-    `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。结合鸡尾酒气质、用户偏好和歌曲含义，返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"一段简洁自然的中文理由"}]}。${NAMING_PROMPT_VERSION}`,
+    `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。推荐理由应先简要说明歌曲表达的主题，再分析它与鸡尾酒气质、材料、颜色或用户偏好的契合点。若候选数据中的歌手、专辑或发行日期具有介绍价值，可自然补充一句歌曲背景；不是每条理由都必须写背景。只能使用输入中明确提供的事实，不得编造发行时间、专辑归属、热度、播放量或歌曲经历。理由保持为一段简洁自然的中文。返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"一段简洁自然的中文理由"}]}。${NAMING_PROMPT_VERSION}`,
     { cocktail: normalizeCocktailProfile(cocktail), candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate) }
   )
 }

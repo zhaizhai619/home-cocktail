@@ -31,7 +31,8 @@ function createNcmClient({ baseUrl, token, fetchImpl = global.fetch } = {}) {
         title: String(song.title || song.name || ''),
         artist: String(song.artist || song.artistName || ''),
         album: String(song.album || song.albumName || ''),
-        albumDescription: String(song.albumDescription || '')
+        albumDescription: String(song.albumDescription || ''),
+        releaseDate: String(song.releaseDate || '')
       })).filter((song) => song.id)
     },
     async getSongSource(songId, metadata = {}) {

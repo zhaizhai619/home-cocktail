@@ -29,7 +29,24 @@ test('counts fruit recorded in ml regardless of material form', () => {
   ]).abv, 20)
 })
 
-test('ignores nonalcoholic entries recorded in non-volume units', () => {
+test('does not generate ABV when incorporated solids have no calculable volume', () => {
+  const result = calculateAbv([
+    { name: '金酒', amount: 60, unit: 'ml', alcoholic: true, abv: 40 },
+    { name: '柠檬汁', amount: 15, unit: 'ml', alcoholic: false },
+    { name: '黄瓜', amount: '半', unit: 'piece', alcoholic: false },
+    { name: '冰淇淋', amount: 1, unit: 'piece', alcoholic: false }
+  ])
+
+  assert.deepEqual(result, {
+    status: 'missing',
+    abv: null,
+    liquidVolume: 75,
+    missing: ['黄瓜', '冰淇淋'],
+    ignored: []
+  })
+})
+
+test('blocks unknown-volume units while ignoring only drops and legacy garnish slices', () => {
   const ingredients = ['g', 'piece', 'slice', 'drop', 'chunk', 'to-taste']
     .map((unit, index) => ({
       name: `配料${index + 1}`,
@@ -42,11 +59,11 @@ test('ignores nonalcoholic entries recorded in non-volume units', () => {
     { name: '金酒', amount: 40, unit: 'ml', alcoholic: true, abv: 40 },
     ...ingredients
   ]), {
-    status: 'ok',
-    abv: 40,
+    status: 'missing',
+    abv: null,
     liquidVolume: 40,
-    missing: [],
-    ignored: ingredients.map(({ name }) => name)
+    missing: ['配料1', '配料2', '配料5', '配料6'],
+    ignored: ['配料3', '配料4']
   })
 })
 

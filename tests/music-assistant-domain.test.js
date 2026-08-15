@@ -57,3 +57,13 @@ test('analysis jobs retain the encrypted song id needed for lyric requests', () 
   })
   assert.equal(job.songs['42'].encryptedId, encryptedId)
 })
+
+test('analysis jobs retain the release date used in recommendation background', () => {
+  const job = createAnalysisJob({
+    id: 'job-release-date',
+    songs: [{ id: '42', title: '夜航', artist: '甲', album: '城市', releaseDate: '2024-07-13' }],
+    limit: 1,
+    model: 'deepseek-v4-flash'
+  })
+  assert.equal(job.songs['42'].releaseDate, '2024-07-13')
+})

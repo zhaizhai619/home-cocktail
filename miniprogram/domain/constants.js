@@ -7,6 +7,8 @@ const PREP_TYPES = Object.freeze([
   '其他预调'
 ])
 
+const PREP_ENTRY_TYPES = Object.freeze(PREP_TYPES.filter((type) => type !== '其他预调'))
+
 function normalizePreparationType(type) {
   return type === '其他预制' ? '其他预调' : type
 }
@@ -46,11 +48,23 @@ const UNITS = Object.freeze([
   Object.freeze({ value: 'to-taste', label: '适量' })
 ])
 
+const RECIPE_UNITS = Object.freeze([
+  Object.freeze({ value: 'ml', label: 'ml' }),
+  Object.freeze({ value: 'g', label: 'g' }),
+  Object.freeze({ value: 'piece', label: '个' }),
+  Object.freeze({ value: 'top-up', label: '补满' }),
+  Object.freeze({ value: 'to-taste', label: '适量' }),
+  Object.freeze({ value: 'chunk', label: '块' }),
+  Object.freeze({ value: 'drop', label: '滴' })
+])
+
 module.exports = {
   PREP_TYPES,
+  PREP_ENTRY_TYPES,
   RATINGS,
   QUICK_BASE_SPIRITS,
   QUICK_TOOLS,
   UNITS,
+  RECIPE_UNITS,
   normalizePreparationType
 }

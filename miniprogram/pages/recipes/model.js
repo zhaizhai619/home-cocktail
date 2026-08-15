@@ -17,6 +17,7 @@ function formatPreparation(primary) {
   if (!primary) return ''
   if (primary.type === '即调') return '即调'
   const duration = getPreparationDurationText(primary)
+  if (!duration) return primary.type
   return `${primary.type} · ${duration.startsWith('提前') ? duration : `提前${duration}`}`
 }
 
@@ -25,6 +26,17 @@ function formatAmount(ingredient) {
   if (ingredient && ingredient.unit === 'to-taste') return '适量'
   if (!ingredient || ingredient.amount === null || ingredient.amount === undefined || String(ingredient.amount).trim() === '') return ''
   return `${String(ingredient.amount).trim()}${UNIT_LABELS[ingredient.unit] || ingredient.unit || ''}`
+}
+
+function preparationMaterialsAreAvailable(preparation, materialsById) {
+  const ingredients = Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : []
+  if (!ingredients.length) return false
+  return ingredients.every((ingredient) => {
+    const materialId = ingredient && ingredient.materialId
+    if (typeof materialId !== 'string' || !Object.prototype.hasOwnProperty.call(materialsById, materialId)) return false
+    const material = materialsById[materialId]
+    return material && typeof material === 'object' && getMaterialVisualState(material) === 'owned'
+  })
 }
 
 function buildRecipeCard(recipe, materialsById = {}) {
@@ -57,7 +69,14 @@ function buildRecipeCard(recipe, materialsById = {}) {
         if (!preparation) return items
         const name = String(preparation.outputName || '预调成品').trim() || '预调成品'
         const amountLabel = formatAmount(ingredient)
-        items.push({ name, amountLabel, state: 'prepared', quickBuyIcon: '', accessibilityLabel: [name, amountLabel].filter(Boolean).join('，') })
+        const ready = preparationMaterialsAreAvailable(preparation, safeMaterials)
+        items.push({
+          name,
+          amountLabel,
+          state: ready ? 'owned' : 'prepared',
+          quickBuyIcon: '',
+          accessibilityLabel: [name, amountLabel, ready ? '预调材料齐全' : '预调材料未齐'].filter(Boolean).join('，')
+        })
         return items
       }
       if (!ingredient || typeof ingredient.materialId !== 'string') return items
@@ -77,7 +96,7 @@ function buildRecipeCard(recipe, materialsById = {}) {
         name: displayName,
         amountLabel,
         state,
-        quickBuyIcon: state === 'quick-buy' ? '🛍' : '',
+        quickBuyIcon: state === 'quick-buy' ? '🛍️' : '',
         accessibilityLabel: [displayName, amountLabel, availabilityText].filter(Boolean).join('，')
       })
       return items

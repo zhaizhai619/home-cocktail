@@ -4,7 +4,7 @@
 .chip::after { border: 0; }
 .prep-row { display: flex; align-items: center; box-sizing: border-box; width: 100%; min-height: 68rpx; gap: 6rpx; border-bottom: 1rpx solid #f1f0ec; }
 .prep-name { flex: 1; min-width: 0; color: #242321; font-size: 22rpx; font-weight: 600; }
-.prep-duration-control { display: flex; flex: none; align-items: stretch; box-sizing: border-box; width: 300rpx; max-width: 64%; gap: 6rpx; }
+.prep-duration-control { display: flex; flex: none; align-items: stretch; justify-content: flex-end; box-sizing: border-box; width: 300rpx; max-width: 64%; margin-left: auto; gap: 6rpx; }
 .prep-duration-text { box-sizing: border-box; flex: none; width: 50%; min-height: 58rpx; padding: 0 10rpx; color: #242321; background: #ffffff; border: 1rpx solid #e7e4dd; border-radius: 9rpx; font-size: 21rpx; }
 .prep-duration-unit { display: flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box; width: 88rpx; min-height: 58rpx; color: #242321; background: #f1f0ec; border-radius: 9rpx; font-size: 21rpx; }
 .prep-duration-unit text { line-height: 58rpx; }

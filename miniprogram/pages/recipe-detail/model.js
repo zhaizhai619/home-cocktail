@@ -1,7 +1,7 @@
 const { RATINGS, UNITS } = require('../../domain/constants')
 const { analyzeLiquidVolume, calculateAbv, recipeIngredientsForAbv } = require('../../domain/abv')
 const { getMaterialDisplayName, getMaterialVisualState } = require('../../domain/material')
-const { getPreparationDurationText, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
+const { getPreparationDurationText, normalizeMusicNaming, normalizePrepSelections, sortIngredientsByDefault } = require('../../domain/recipe')
 const { calculateGlassCapacity } = require('../../domain/equipment')
 const { isValidGlassCapacity } = require('../../domain/equipment-invariants')
 const { settleOperation } = require('../../services/maybe-promise')
@@ -34,6 +34,7 @@ function formatAmount(ingredient) {
 function formatPreparation(preparation) {
   if (preparation.type === '即调') return '即调'
   const duration = getPreparationDurationText(preparation)
+  if (!duration) return preparation.type
   return `${preparation.type} · ${duration.startsWith('提前') ? duration : `提前${duration}`}`
 }
 
@@ -256,9 +257,12 @@ function buildRecipeDetail(recipe, materials = [], glassware = [], tools = []) {
 
   const abv = buildAbv(recipe, materialsById)
   const manualAbv = manualAbvValue(recipe.manualAbv)
+  const musicNaming = normalizeMusicNaming(recipe.musicNaming)
   return {
     status: 'ok', id: recipe.id, name: typeof recipe.name === 'string' ? recipe.name : '',
     imagePath: typeof recipe.imagePath === 'string' ? recipe.imagePath : '', source: typeof recipe.source === 'string' ? recipe.source : '',
+    musicNaming,
+    hasMusicNaming: Boolean(musicNaming),
     tried: recipe.tried === true, preparations,
     ingredients: displayedIngredients.map((ingredient) => buildIngredient(ingredient, materialsById, preparationsById)),
     advancePreparations,

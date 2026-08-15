@@ -1,6 +1,6 @@
 const { createMaterialDefaults, getMaterialIdentityKey, isMaterialAvailable, materialAvailabilityFields, normalizeMaterialName, normalizeMaterialObservations } = require('../domain/material')
 const { UNITS } = require('../domain/constants')
-const { STORAGE_KEY, migrateState } = require('./schema')
+const { CURRENT_SCHEMA_VERSION, STORAGE_KEY, migrateState } = require('./schema')
 const { MAX_GLASS_CAPACITY_ML, normalizeEquipmentName, equipmentNameIdentity } = require('../domain/equipment-invariants')
 const { isValidDateString, toLocalDateValue } = require('../domain/date')
 
@@ -170,7 +170,7 @@ function createRepository(adapter, options = {}) {
   function recipe(value, existing) {
     const timestamp = now()
     const source = { ...(existing || {}), ...(value || {}) }
-    return migrateState({ recipes: [{ ...source, id: source.id || idFactory(), createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).recipes[0]
+    return migrateState({ version: CURRENT_SCHEMA_VERSION, recipes: [{ ...source, id: source.id || idFactory(), createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).recipes[0]
   }
   function material(value, existing, preserveExplicitDefaults = false) {
     const incoming = value && typeof value === 'object' ? value : {}
@@ -188,7 +188,7 @@ function createRepository(adapter, options = {}) {
         }
       }
     }
-    return migrateState({ materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
+    return migrateState({ version: CURRENT_SCHEMA_VERSION, materials: [{ ...normalizedSource, id: source.id || idFactory(), freshOnHand: normalizedSource.freshOnHand === true, createdAt: existing ? existing.createdAt : timestamp, updatedAt: timestamp }] }, timestamp).materials[0]
   }
   function materialKey(value) {
     const source = value && typeof value === 'object' ? value : {}

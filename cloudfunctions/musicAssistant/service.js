@@ -15,6 +15,7 @@ const { SONG_PROFILE_PROMPT_VERSION } = require('./prompts')
 const { selectSongCandidates } = require('./matching')
 
 const DEFAULT_MODEL_PARAMS = { temperature: 0.2, maxTokens: 1600, thinking: 'disabled', responseFormat: 'json_object' }
+const DEFAULT_CREDENTIAL_TTL_MS = 6 * 60 * 60 * 1000
 
 function serviceError(code, message) {
   const error = new Error(message)
@@ -49,8 +50,23 @@ function publicJob(job) {
     progress: job.progress,
     currentSongId: job.currentSongId || '',
     createdAt: job.createdAt,
-    updatedAt: job.updatedAt
+    updatedAt: job.updatedAt,
+    lastError: job.lastError || ''
   }
+}
+
+function credentialContext(owner, jobId) { return `${owner}:${jobId}` }
+
+function withoutCredential(job) {
+  const clean = { ...job }
+  delete clean.apiCredential
+  delete clean.credentialExpiresAt
+  return clean
+}
+
+function processedCount(job) {
+  const progress = job && job.progress || {}
+  return Number(progress.completed || 0) + Number(progress.failed || 0) + Number(progress.skipped || 0)
 }
 
 function createMusicAssistantService({
@@ -59,7 +75,9 @@ function createMusicAssistantService({
   ai,
   now = () => new Date().toISOString(),
   id = () => `music-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  leaseId = () => `lease-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  leaseId = () => `lease-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  credentials,
+  credentialTtlMs = DEFAULT_CREDENTIAL_TTL_MS
 } = {}) {
   if (!store || !ai) throw new Error('Music assistant dependencies unavailable')
 
@@ -77,6 +95,10 @@ function createMusicAssistantService({
     return { job: publicJob(job), analyzedCount: Number(analyzedCount) || 0 }
   }
 
+  async function saveJobState(owner, job) {
+    return typeof store.saveJobState === 'function' ? store.saveJobState(owner, job) : store.saveJob(owner, job)
+  }
+
   async function startJob(openId, input = {}) {
     const owner = ownerId(openId)
     const model = requireModel(input.model)
@@ -89,22 +111,40 @@ function createMusicAssistantService({
     const job = createAnalysisJob({ id: id(), songs, limit, model, now: timestamp })
     job.ownerOpenId = owner
     job.modelParams = DEFAULT_MODEL_PARAMS
+    if (credentials) {
+      const apiKey = requiredKey(input.apiKey)
+      job.apiCredential = credentials.seal(apiKey, credentialContext(owner, job.id))
+      job.credentialExpiresAt = new Date(new Date(timestamp).getTime() + credentialTtlMs).toISOString()
+    }
     await store.saveJob(owner, job)
     return publicJob(job)
   }
 
+  function apiKeyFor(owner, job, input = {}) {
+    if (String(input.apiKey || '').trim()) return requiredKey(input.apiKey)
+    if (!credentials || !job.apiCredential) throw serviceError('JOB_CREDENTIAL_MISSING', '后台解析凭证已失效，请点击继续进度')
+    if (job.credentialExpiresAt && new Date(job.credentialExpiresAt).getTime() <= new Date(now()).getTime()) {
+      throw serviceError('JOB_CREDENTIAL_EXPIRED', '后台解析凭证已过期，请点击继续进度')
+    }
+    return requiredKey(credentials.open(job.apiCredential, credentialContext(owner, job.id)))
+  }
+
   async function processNext(openId, input = {}) {
     const owner = ownerId(openId)
-    const apiKey = requiredKey(input.apiKey)
     let job = await store.getJob(owner, String(input.jobId || ''))
     if (!job) throw serviceError('JOB_NOT_FOUND', '没有找到这次歌曲解析任务')
-    if (job.status === 'completed') return publicJob(job)
+    if (job.status === 'completed') {
+      if (job.apiCredential) await saveJobState(owner, withoutCredential(job))
+      return publicJob(job)
+    }
+    const apiKey = apiKeyFor(owner, job, input)
     const songId = job.songIds.find((candidate) => !job.results[candidate])
     if (!songId) {
       job.status = 'completed'
       job.currentSongId = ''
       job.updatedAt = now()
-      await store.saveJob(owner, job)
+      job = withoutCredential(job)
+      await saveJobState(owner, job)
       return publicJob(job)
     }
 
@@ -122,12 +162,13 @@ function createMusicAssistantService({
       job.status = 'running'
       job.currentSongId = songId
       job.updatedAt = now()
-      await store.saveJob(owner, job)
+      await saveJobState(owner, job)
     }
 
     async function finish(updated) {
-      if (typeof store.finishSongClaim === 'function') return store.finishSongClaim(owner, updated, leaseToken)
-      return store.saveJob(owner, updated)
+      const saved = updated.status === 'completed' ? withoutCredential(updated) : updated
+      if (typeof store.finishSongClaim === 'function') return store.finishSongClaim(owner, saved, leaseToken)
+      return saveJobState(owner, saved)
     }
 
     async function release() {
@@ -150,7 +191,7 @@ function createMusicAssistantService({
     const cached = await store.findProfile(owner, identity.cacheKey)
     if (cached) {
       try {
-        await store.saveProfile(owner, { ...cached, title: identity.source.title, preferredTitle: identity.source.title, updatedAt: now() })
+        await store.saveProfile(owner, { ...cached, title: identity.source.title, updatedAt: now() })
         const updated = applySongResult(job, { songId, status: 'cached' }, now())
         await finish(updated)
         return publicJob(updated)
@@ -189,13 +230,12 @@ function createMusicAssistantService({
         title: identity.source.title,
         artist: identity.source.artist,
         album: identity.source.album,
+        releaseDate: identity.source.releaseDate,
         summary: analyzed.summary,
         emotion_keywords: analyzed.emotion_keywords,
         scene_sensory_keywords: analyzed.scene_sensory_keywords,
-        preferredTitle: identity.source.title,
         fitScore: analyzed.naming.fit_score,
         namingRisks: analyzed.naming.risks,
-        analysisConfidence: analyzed.analysis_confidence,
         createdAt: now(),
         updatedAt: now()
       })
@@ -206,6 +246,73 @@ function createMusicAssistantService({
       await release()
       throw error
     }
+  }
+
+  async function pauseJob(owner, jobId, message) {
+    const current = await store.getJob(owner, jobId)
+    if (!current || current.status === 'completed') return current
+    const paused = withoutCredential({
+      ...current,
+      status: 'paused',
+      currentSongId: '',
+      lastError: String(message || '后台解析已暂停，请稍后继续'),
+      updatedAt: now()
+    })
+    delete paused.lease
+    return saveJobState(owner, paused)
+  }
+
+  async function resumeJob(openId, input = {}) {
+    const owner = ownerId(openId)
+    if (!credentials) throw serviceError('CREDENTIAL_ENCRYPTION_UNAVAILABLE', '后台任务加密能力尚未配置')
+    const job = await store.getJob(owner, String(input.jobId || ''))
+    if (!job) throw serviceError('JOB_NOT_FOUND', '没有找到这次歌曲解析任务')
+    if (job.status === 'completed') return publicJob(job)
+    const timestamp = now()
+    if (job.lease && new Date(job.lease.expiresAt).getTime() > new Date(timestamp).getTime()) return publicJob(job)
+    const resumed = {
+      ...withoutCredential(job),
+      status: 'queued',
+      currentSongId: '',
+      lastError: '',
+      apiCredential: credentials.seal(requiredKey(input.apiKey), credentialContext(owner, job.id)),
+      credentialExpiresAt: new Date(new Date(timestamp).getTime() + credentialTtlMs).toISOString(),
+      updatedAt: timestamp
+    }
+    delete resumed.lease
+    await store.saveJob(owner, resumed)
+    return publicJob(resumed)
+  }
+
+  async function runBackground({ maxSongs = 6 } = {}) {
+    if (typeof store.listRunnableJobs !== 'function') return { completed: 0, paused: 0 }
+    const max = Math.max(1, Math.min(20, Number(maxSongs) || 6))
+    let completed = 0
+    let paused = 0
+    let attempts = 0
+    while (attempts < max) {
+      const jobs = await store.listRunnableJobs(Math.min(10, max - attempts))
+      if (!jobs.length) break
+      let progressed = false
+      for (const queued of jobs) {
+        if (attempts >= max) break
+        attempts += 1
+        try {
+          const before = processedCount(queued)
+          const result = await processNext(queued.ownerOpenId, { jobId: queued.id })
+          if (result && result.busy) continue
+          const delta = Math.max(0, processedCount(result) - before)
+          completed += delta
+          progressed = progressed || delta > 0 || result.status === 'completed'
+        } catch (error) {
+          await pauseJob(queued.ownerOpenId, queued.id, error && error.message)
+          paused += 1
+          progressed = true
+        }
+      }
+      if (!progressed) break
+    }
+    return { completed, paused }
   }
 
   async function recommendNames(openId, input = {}) {
@@ -233,7 +340,8 @@ function createMusicAssistantService({
     const candidateById = new Map(candidates.map((item) => [item.songId, item]))
     const recommendations = normalizeRecommendations(rawNaming).filter((item) => candidateById.has(item.song_id)).map((item) => ({
       ...item,
-      recommended_name: candidateById.get(item.song_id).title
+      recommended_name: candidateById.get(item.song_id).title,
+      artist: candidateById.get(item.song_id).artist
     }))
     if (!recommendations.length) throw serviceError('NO_RECOMMENDATIONS', '暂时没有找到合适的歌曲名，请换一种偏好再试')
     return { cocktailProfile, recommendations }
@@ -253,7 +361,7 @@ function createMusicAssistantService({
     return ncm.loginStatus()
   }
 
-  return { getStatus, startJob, processNext, recommendNames, startNcmLogin, checkNcmLogin }
+  return { getStatus, startJob, resumeJob, processNext, runBackground, recommendNames, startNcmLogin, checkNcmLogin }
 }
 
-module.exports = { DEFAULT_MODEL_PARAMS, createMusicAssistantService, serviceError }
+module.exports = { DEFAULT_MODEL_PARAMS, DEFAULT_CREDENTIAL_TTL_MS, createMusicAssistantService, serviceError }

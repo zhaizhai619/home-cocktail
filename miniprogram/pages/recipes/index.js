@@ -9,8 +9,7 @@ const PREP_OPTIONS = [
   { key: '冷冻', label: '冷冻' },
   { key: '冷泡/浸泡', label: '冷泡/浸泡', shortLabel: '冷泡' },
   { key: '奶洗', label: '奶洗' },
-  { key: '低温慢煮', label: '低温慢煮', shortLabel: '低温' },
-  { key: '其他预调', label: '其他预调', shortLabel: '其他' }
+  { key: '低温慢煮', label: '低温慢煮', shortLabel: '低温' }
 ]
 const MATERIAL_OPTIONS = [
   { key: 'all', label: '全部' },

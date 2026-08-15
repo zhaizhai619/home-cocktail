@@ -32,11 +32,14 @@ test('JSON parser accepts fenced model output', () => {
 
 test('candidate ranking uses compact keywords and never forwards stored lyrics', () => {
   const candidates = selectSongCandidates({ emotion_keywords: ['平静'], scene_sensory_keywords: ['绿色', '夏日'] }, [
-    { songId: '1', title: 'Summer Night', preferredTitle: '模型曾经翻译成夏夜', emotion_keywords: ['平静'], scene_sensory_keywords: ['夏日'], lyrics: '不应进入匹配请求' },
+    { songId: '1', title: 'Summer Night', artist: 'Shark', album: 'Blue Hour', releaseDate: '2024-07-13', preferredTitle: '模型曾经翻译成夏夜', emotion_keywords: ['平静'], scene_sensory_keywords: ['夏日'], lyrics: '不应进入匹配请求' },
     { songId: '2', title: '烈火', emotion_keywords: ['愤怒'], scene_sensory_keywords: ['红色'], lyrics: '不应进入匹配请求' }
   ], 1)
   assert.equal(candidates[0].songId, '1')
   assert.equal(candidates[0].title, 'Summer Night')
+  assert.equal(candidates[0].artist, 'Shark')
+  assert.equal(candidates[0].album, 'Blue Hour')
+  assert.equal(candidates[0].releaseDate, '2024-07-13')
   assert.equal(Object.hasOwn(candidates[0], 'lyrics'), false)
 })
 

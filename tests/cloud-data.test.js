@@ -157,6 +157,46 @@ test('app cloud services initialize the selected environment without reading leg
   assert.equal(services.mediaFiles.isManagedPath('cloud://cloud1.user-media/profile/a.jpg'), true)
 })
 
+test('app cloud services persist the spice schema migration once during initialization', async () => {
+  const legacyState = {
+    ...createInitialState(),
+    version: 1,
+    materials: [{ id: 'mint', name: '薄荷', category: 'other-solid', acquisition: 'on-demand', freshOnHand: true }],
+    futureSetting: { retained: true }
+  }
+  const calls = []
+  const wxApi = {
+    getStorageSync() { return undefined },
+    setStorageSync() {},
+    cloud: {
+      init() {},
+      async callFunction(options) {
+        calls.push(clone(options.data))
+        if (options.data.action === 'load') return { result: { ok: true, data: { state: legacyState, profile: initialProfile(), revision: 7 } } }
+        assert.equal(options.data.action, 'saveState')
+        assert.equal(options.data.expectedRevision, 7)
+        assert.equal(options.data.state.version, 2)
+        assert.equal(options.data.state.futureSetting.retained, true)
+        assert.equal(options.data.state.materials[0].acquisition, 'long-term')
+        assert.equal(options.data.state.materials[0].owned, false)
+        assert.equal(options.data.state.materials[0].freshOnHand, false)
+        return { result: { ok: true, data: { revision: 8 } } }
+      },
+      async uploadFile() { return { fileID: 'cloud://cloud1.user-media/test.jpg' } },
+      async deleteFile() { return {} }
+    }
+  }
+
+  const services = createCloudAppServices({ wxApi, envId: 'cloud1-test', profileIdFactory: () => 'ABC123' })
+  const status = await services.ready
+
+  assert.equal(status.online, true)
+  assert.deepEqual(calls.map(({ action }) => action), ['load', 'saveState'])
+  assert.equal(services.cloudSession.getSnapshot().revision, 8)
+  assert.equal(services.repository.getMaterial('mint').acquisition, 'long-term')
+  assert.equal(services.repository.getMaterial('mint').owned, false)
+})
+
 test('a business mutation becomes visible only after the cloud confirms it', async () => {
   const pending = deferred()
   const cache = memoryCache()

@@ -82,7 +82,7 @@ test('material libraries distinguish owned white cards from softer gray missing 
   assert.match(picker, /\.material-card\.state-owned\s*{[^}]*background:\s*#fffefc[^}]*border-color:\s*#e7e4dd/)
 })
 
-test('recipe list assigns neutral, amber, and blue-gray roles consistently', () => {
+test('recipe list maps preparation and ingredient states to the revised visual roles', () => {
   const recipes = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8').toLowerCase()
   const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8').toLowerCase()
 
@@ -92,11 +92,11 @@ test('recipe list assigns neutral, amber, and blue-gray roles consistently', () 
   assert.match(recipes, /\.filter-symbol\.active \.filter-symbol-line\s*{[^}]*background:\s*#957052/)
   assert.match(recipes, /\.filter-option\.selected\s*{[^}]*color:\s*#7c6049[^}]*background:\s*#f4eee8/)
   assert.match(recipes, /\.filter-reset,\s*\.filter-collapse\s*{[^}]*color:\s*#242321[^}]*font-weight:\s*400/)
-  assert.match(card, /\.abv-label\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
-  assert.match(card, /\.ingredient\.missing-long-term\s*{[^}]*color:\s*#8b877f[^}]*background:\s*#faf9f7/)
-  assert.match(card, /\.ingredient\.missing-long-term\s*{[^}]*border-color:\s*#c9c5bd[^}]*border-style:\s*dashed/)
-  assert.match(card, /\.ingredient\.quick-buy\s*{[^}]*border-color:\s*#e7e4dd[^}]*color:\s*#957052/)
-  assert.match(card, /\.ingredient\.prepared\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*#f4eee8[^}]*border-color:\s*#e7e4dd/)
+  assert.match(card, /\.prep-label\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(card, /\.abv-label\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*transparent[^}]*border:\s*0/)
+  assert.match(card, /\.ingredient\.owned\s*{[^}]*color:\s*#52665a[^}]*background:\s*#eef3ef[^}]*border-color:\s*#dce7df/)
+  assert.match(card, /\.ingredient\.quick-buy,\s*\.ingredient\.missing-long-term\s*{[^}]*color:\s*#77736c[^}]*background:\s*#f8f7f4[^}]*border-color:\s*#c9c5bd[^}]*border-style:\s*dashed/)
+  assert.match(card, /\.ingredient\.prepared\s*{[^}]*color:\s*#706a62[^}]*background:\s*#f6f5f2[^}]*border-color:\s*#d8d4cc/)
 })
 
 test('recipe detail uses notes wording, plain selected ratings, and a compact action bar', () => {

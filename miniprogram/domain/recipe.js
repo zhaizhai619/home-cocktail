@@ -11,6 +11,19 @@ const PREPARATION_UNITS = new Set([
 ])
 const LEADING_ALCOHOL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur'])
 
+function normalizeMusicNaming(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const songTitle = String(value.songTitle || '').trim()
+  const reason = String(value.reason || '').trim()
+  if (!songTitle || !reason) return null
+  return {
+    songId: String(value.songId || '').trim(),
+    songTitle,
+    artist: String(value.artist || '').trim(),
+    reason
+  }
+}
+
 function getIngredientOrderPriority(ingredient, material) {
   if (ingredient && ingredient.kind === 'prepared-output') return 0
   const category = ingredient && ingredient.category || material && material.category
@@ -79,7 +92,10 @@ function isValidPreparation(preparation) {
     return true
   }
 
-  if (typeof preparation.durationText === 'string') return Boolean(preparation.durationText.trim())
+  if (typeof preparation.durationText === 'string') return true
+
+  const hasLegacyDuration = preparation.amount !== undefined || preparation.amountEnd !== undefined || preparation.unit !== undefined
+  if (!hasLegacyDuration) return true
 
   return Number.isFinite(preparation.amount) &&
     preparation.amount > 0 &&
@@ -267,6 +283,7 @@ function sortRecipes(recipes, sortKey) {
 }
 
 module.exports = {
+  normalizeMusicNaming,
   normalizePrepSelections,
   getPreparationDurationText,
   getPreparationDurationParts,

@@ -323,6 +323,18 @@ test('material editor pairs acquisition with default unit and hides material for
   assert.doesNotMatch(editor, /bindchange="onFormChange"/)
 })
 
+test('material editor shows cloud save progress and prevents duplicate submissions', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/material-edit/index.wxml'), 'utf8')
+  const editorScript = fs.readFileSync(path.join(MINI, 'pages/material-edit/index.js'), 'utf8')
+  assert.match(editorScript, /savingMaterial:\s*false/)
+  assert.match(editorScript, /if \(this\._savingMaterial\) return/)
+  assert.match(editorScript, /this\._savingMaterial = true/)
+  assert.match(editorScript, /finally\s*\{[\s\S]*this\._savingMaterial = false[\s\S]*savingMaterial:\s*false/)
+  assert.match(editorScript, /toast\('保存成功',\s*'success'\)/)
+  assert.match(editor, /<button class="save[^\"]*"[^>]*disabled="{{savingMaterial}}"[^>]*loading="{{savingMaterial}}"[^>]*bindtap="onSave"/)
+  assert.match(editor, /{{savingMaterial \? '保存中…' : '保存材料'}}/)
+})
+
 test('bar page swipes between material and two-column glass libraries without equipment UI', () => {
   const app = JSON.parse(fs.readFileSync(path.join(MINI, 'app.json'), 'utf8'))
   const barConfig = JSON.parse(fs.readFileSync(path.join(MINI, 'pages/materials/index.json'), 'utf8'))
@@ -422,13 +434,13 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(editor, /bindtap="onCreateAdvancePreparation"/)
   assert.doesNotMatch(editor, /还没有提前准备|class="advance-empty"/)
   assert.match(editor, />预调成品名称</)
-  const advanceName = editor.match(/<input[^>]*class="advance-name"[^>]*>/)[0]
+  const advanceName = editor.match(/<input[^>]*class="advance-name [^"]*"[^>]*>/)[0]
   assert.match(advanceName, /data-field="outputName"/)
   assert.doesNotMatch(advanceName, /placeholder=/)
   assert.doesNotMatch(editor, /internal-output-row|（本配方预制）|不加入材料库/)
   assert.match(editor, /class="advance-card-delete"[^>]*bindtap="onRemoveAdvancePreparation"/)
   assert.match(editor, /class="add-advance"[^>]*bindtap="onCreateAdvancePreparation"/)
-  assert.match(editor, /class="advance-name"[\s\S]*class="shortcut advance-add-material"[\s\S]*class="ingredient-list advance-ingredients"/)
+  assert.match(editor, /class="advance-name [^"]*"[\s\S]*class="shortcut advance-add-material"[\s\S]*class="ingredient-list advance-ingredients"/)
   assert.doesNotMatch(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*min-height:\s*40rpx/)
   assert.match(editor, /bindtap="onRemoveAdvancePreparation"/)
   assert.match(editor, />制作方式</)
@@ -440,7 +452,7 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(detail, /<block wx:if="{{item\.preparation}}">[\s\S]*class="advance-group"[\s\S]*class="advance-summary"[\s\S]*class="advance-inline-ingredients"/)
   assert.doesNotMatch(detail, /wx:for="{{detail\.advancePreparations}}"|>提前准备 ·/)
   assert.match(editorCss, /\.advance-card\s*\{[^}]*background:\s*#f1f0ec/)
-  assert.match(editorCss, /\.advance-name\s*\{[^}]*height:\s*52rpx[^}]*padding:\s*0 8rpx/)
+  assert.match(editorCss, /\.prominent-name-input\s*\{[^}]*height:\s*76rpx[^}]*padding:\s*0 14rpx/)
   assert.match(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*background:\s*#ffffff[^}]*border-color:\s*#e7e4dd/)
   assert.match(editorCss, /\.advance-card-actions\s*\{[^}]*justify-content:\s*flex-end/)
   assert.match(editorCss, /\.edit-page \.advance-card-delete\s*\{[^}]*width:\s*104rpx[^}]*min-height:\s*48rpx/)
@@ -480,7 +492,7 @@ test('recipe detail nests advance materials and independently toggles non-empty 
   assert.doesNotMatch(css, /\.advance-step-index\s*{/)
 })
 
-test('all preparation copy uses 预调 while retaining only one internal legacy alias', () => {
+test('preparation entry omits the legacy other option while old data remains supported', () => {
   const constants = fs.readFileSync(path.join(MINI, 'domain/constants.js'), 'utf8')
   const editorModel = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/model.js'), 'utf8')
   const editorController = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.js'), 'utf8')
@@ -488,7 +500,8 @@ test('all preparation copy uses 预调 while retaining only one internal legacy 
   const listController = fs.readFileSync(path.join(MINI, 'pages/recipes/index.js'), 'utf8')
   assert.match(constants, /'其他预调'/)
   assert.equal((constants.match(/其他预制/g) || []).length, 1)
-  assert.match(listController, /key: '其他预调', label: '其他预调'/)
+  assert.match(editorController, /PREP_ENTRY_TYPES/)
+  assert.doesNotMatch(listController, /key: '其他预调'/)
   for (const source of [editorModel, editorController, detailModel]) assert.doesNotMatch(source, /预制成品|预制材料|预制方式/)
 })
 
@@ -499,8 +512,26 @@ test('preparation editor uses one duration field with a compact hour or day unit
   assert.match(prep, /class="prep-duration-text"[^>]*data-field="durationValue"/)
   assert.doesNotMatch(prep, /class="prep-duration-text"[^>]*placeholder=/)
   assert.match(prepCss, /\.prep-duration-text\s*\{[^}]*flex:\s*none[^}]*width:\s*50%/)
+  assert.match(prepCss, /\.prep-duration-control\s*\{[^}]*justify-content:\s*flex-end[^}]*margin-left:\s*auto/)
   assert.match(prep, /<picker[^>]*range="{{item\.units}}"[^>]*range-key="label"[^>]*bindchange="unit"/)
   assert.doesNotMatch(prep, /data-field="amount"|data-field="amountEnd"|最短|最长/)
+})
+
+test('preparation unit can be selected before its optional duration value', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
+  const context = {
+    data: JSON.parse(JSON.stringify(page.data)),
+    materials: [], glassware: [], tools: [],
+    setData(patch) { Object.assign(this.data, patch) },
+    sync: page.sync
+  }
+  context.data.form = { ...context.data.form, preparations: [{ type: '冷冻', durationText: '', durationUnit: 'hour', note: '' }] }
+  page.sync.call(context, context.data.form)
+  page.onPrepChange.call(context, { detail: { index: 0, field: 'durationUnit', value: 'day' } })
+  assert.equal(context.data.form.preparations[0].durationUnit, 'day')
+  assert.equal(context.data.form.preparations[0].durationText, '')
+  page.onPrepChange.call(context, { detail: { index: 0, field: 'durationValue', value: '2' } })
+  assert.equal(context.data.form.preparations[0].durationText, '2天')
 })
 
 test('recipe editor opens a reusable single-select material library with approved shortcut labels', () => {
@@ -510,14 +541,15 @@ test('recipe editor opens a reusable single-select material library with approve
   const pickerCss = fs.readFileSync(path.join(MINI, 'pages/material-select/index.wxss'), 'utf8')
   const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
   assert.ok(app.pages.includes('pages/material-select/index'))
-  assert.deepEqual(Array.from(page.data.addCategories, ({ label }) => label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '材料库'])
-  assert.equal((editor.match(/bindtap="onOpenMaterialSelect"/g) || []).length, 10)
-  assert.equal((editor.match(/class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"/g) || []).length, 5)
+  assert.deepEqual(Array.from(page.data.addCategories, ({ label }) => label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '香料', '材料库'])
+  assert.equal((editor.match(/bindtap="onOpenMaterialSelect"/g) || []).length, 12)
+  assert.equal((editor.match(/class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"/g) || []).length, 6)
   for (const [filter, label] of [
     ['base', '基酒'],
     ['liqueur', '利口酒'],
     ['produce', '果汁/果蔬'],
     ['mixer', '混合饮品'],
+    ['spice', '香料'],
     ['all', '材料库']
   ]) {
     assert.match(editor, new RegExp(`class="[^"]*advance-add-material[^"]*"[^>]*data-stage="advance"[^>]*data-filter="${filter}"[^>]*>＋${label}<`))
@@ -712,7 +744,7 @@ test('all material availability and optional tracking are controlled from detail
   assert.doesNotMatch(fs.readFileSync(path.join(MINI, 'pages/material-detail/index.js'), 'utf8'), /showFreshForm|onOpenTrackingForm|onConfirmTracking/)
   assert.doesNotMatch(detail, />加入手头鲜材</)
   const actions = editor.match(/<view class="form-actions">[\s\S]*?<\/view>/)[0]
-  assert.match(actions, /class="save"[^>]*>保存材料<\/button>/)
+  assert.match(actions, /class="save[^\"]*"[^>]*>{{savingMaterial \? '保存中…' : '保存材料'}}<\/button>/)
   assert.match(actions, /class="delete"[^>]*>删除材料<\/button>/)
   assert.match(editorCss, /\.form-actions\s*{[^}]*display:\s*flex[^}]*align-items:\s*stretch/)
   assert.match(editorCss, /\.form-actions \.save\s*{[^}]*flex:\s*1/)
@@ -743,7 +775,7 @@ test('home collapses every filter group behind one all trigger', () => {
   assert.equal(page.data.sortOptions.find((option) => option.key === 'rating').shortLabel, '评价')
   assert.equal(page.data.sortOptions.find((option) => option.key === 'name').shortLabel, '名称')
   assert.equal(page.data.prepOptions.find((option) => option.key === '低温慢煮').shortLabel, '低温')
-  assert.equal(page.data.prepOptions.find((option) => option.key === '其他预调').shortLabel, '其他')
+  assert.equal(page.data.prepOptions.find((option) => option.key === '其他预调'), undefined)
   assert.equal(page.data.statusOptions.find((option) => option.key === 'untried').shortLabel, '未调过')
   assert.match(recipes, /wx:for="{{sortOptions}}"[\s\S]*class="filter-option-label">\{\{option\.shortLabel \|\| option\.label\}\}<\/text><\/view>/)
   assert.match(css, /\.recipes-page\s*{[^}]*position:\s*relative/)
@@ -841,13 +873,14 @@ test('home uses the same labeled dark pill add button as the bar page', () => {
   assert.doesNotMatch(css, /linear-gradient\(145deg,\s*#bd7b31,\s*#9d5f22\)/)
 })
 
-test('recipe cards place a distinct ABV badge after the preparation badge', () => {
+test('recipe cards give preparation the blue badge and render ABV without a colored background', () => {
   const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
   assert.match(card, /class="recipe-meta"[\s\S]*class="prep-label"[\s\S]*class="abv-label"/)
   assert.match(card, /wx:if="{{recipe\.abvLabel}}"[^>]*class="abv-label"/)
   assert.match(css, /\.recipe-meta\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*flex-wrap:\s*wrap/)
-  assert.match(css, /\.abv-label\s*{[^}]*color:\s*#[0-9a-fA-F]{6}[^}]*background:\s*#[0-9a-fA-F]{6}/)
+  assert.match(css, /\.prep-label\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(css, /\.abv-label\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*transparent[^}]*border:\s*0/)
 })
 
 test('recipe detail ratings keep the original tag sizing while saving directly', () => {
@@ -871,11 +904,23 @@ test('recipe detail shows combined notes only in the notes section', () => {
   assert.match(template, /<text class="section-title">备注<\/text>[\s\S]*wx:for="\{\{detail\.steps\}\}"/)
 })
 
-test('recipe cards distinguish prepared outputs with a quiet neutral ingredient label', () => {
+test('recipe cards distinguish prepared outputs with the former purchase material fill', () => {
   const card = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
   assert.match(card, /class="ingredient \{\{item\.state\}\}"/)
-  assert.match(css, /\.ingredient\.prepared\s*{[^}]*color:\s*#[0-9a-fA-F]{6}[^}]*background:\s*#[0-9a-fA-F]{6}[^}]*border-color:\s*#[0-9a-fA-F]{6}/)
+  assert.match(css, /\.ingredient\.prepared\s*{[^}]*color:\s*#706a62[^}]*background:\s*#f6f5f2[^}]*border-color:\s*#d8d4cc/)
+})
+
+test('recipe cards share missing outlines for unavailable materials and reserve purchase emoji for quick buy', () => {
+  const css = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
+  const model = fs.readFileSync(path.join(MINI, 'pages/recipes/model.js'), 'utf8')
+  assert.match(css, /\.prep-label\s*\{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3/)
+  assert.match(css, /\.ingredient\.owned\s*\{[^}]*color:\s*#52665a[^}]*background:\s*#eef3ef[^}]*border-color:\s*#dce7df/)
+  assert.match(css, /\.ingredient\.quick-buy,\s*\.ingredient\.missing-long-term\s*\{[^}]*color:\s*#77736c[^}]*background:\s*#f8f7f4[^}]*border-color:\s*#c9c5bd[^}]*border-style:\s*dashed/)
+  assert.match(css, /\.ingredient\.prepared\s*\{[^}]*color:\s*#706a62[^}]*background:\s*#f6f5f2[^}]*border-color:\s*#d8d4cc/)
+  assert.match(css, /\.ingredient-amount\s*\{[^}]*color:\s*inherit/)
+  assert.doesNotMatch(model, /可购/)
+  assert.match(model, /quickBuyIcon:\s*state === 'quick-buy' \? '\u{1F6CD}\u{FE0F}' : ''/u)
 })
 
 test('recipe cards identify untried recipes in the rating position', () => {
@@ -914,25 +959,106 @@ test('recipe editor script starts with executable source rather than stray route
   assert.doesNotMatch(controller, /^pages\//)
 })
 
-test('recipe entry keeps ratings scrollable while compact material shortcuts wrap', () => {
+test('recipe entry keeps ratings fitted to one row while compact material shortcuts wrap', () => {
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
-  assert.match(editor, /class="rating-scroll"[^>]*scroll-x="true"/)
+  assert.match(editor, /class="basic-rating-row"/)
+  assert.doesNotMatch(editor, /class="rating-scroll"[^>]*scroll-x="true"/)
+  assert.match(css, /\.rating-track\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/)
   assert.doesNotMatch(editor, /<text wx:if="{{form\.rating === item}}">✓ <\/text>/)
   assert.match(editor, /<view[^>]*class="material-shortcuts">/)
   assert.doesNotMatch(editor, /class="material-shortcuts"[^>]*scroll-x=/)
   assert.match(css, /\.shortcut-track\s*{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/)
 })
 
-test('each recipe material stage exposes the same five approved material-library shortcuts', () => {
+test('each recipe material stage exposes the same six approved material-library shortcuts', () => {
   const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
-  assert.deepEqual(Array.from(page.data.addCategories, (item) => item.label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '材料库'])
-  assert.equal((editor.match(/<button[^>]*size="mini"[^>]*class="shortcut(?: advance-add-material)?"/g) || []).length, 10)
+  assert.deepEqual(Array.from(page.data.addCategories, (item) => item.label), ['基酒', '利口酒', '果汁/果蔬', '混合饮品', '香料', '材料库'])
+  assert.equal((editor.match(/<button[^>]*size="mini"[^>]*class="shortcut(?: advance-add-material)?"/g) || []).length, 12)
   assert.doesNotMatch(editor, /class="shortcut primary/)
-  for (const filter of ['base', 'liqueur', 'produce', 'mixer', 'all']) {
+  for (const filter of ['base', 'liqueur', 'produce', 'mixer', 'spice', 'all']) {
     assert.equal((editor.match(new RegExp(`data-filter="${filter}"`, 'g')) || []).length, 2)
   }
+})
+
+test('prepared serving output requires confirmation before removing its advance preparation', () => {
+  const modals = []
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), { showModal(options) { modals.push(options) } })
+  const form = {
+    ...page.data.form,
+    ingredients: [{ renderKey: 'prepared-a', kind: 'prepared-output', preparationId: 'prep-a', name: '香料液', amount: 30, unit: 'ml' }],
+    advancePreparations: [{ id: 'prep-a', outputName: '香料液', ingredients: [], steps: '' }]
+  }
+  const context = { data: { form, errors: {} }, sync(next) { this.savedForm = next } }
+
+  page.onRemoveIngredient.call(context, { detail: { index: 0 } })
+  assert.equal(context.savedForm, undefined)
+  assert.equal(modals.length, 1)
+  assert.match(modals[0].title, /删除/)
+  assert.match(modals[0].content, /提前准备/)
+  modals[0].success({ confirm: false })
+  assert.equal(context.savedForm, undefined)
+
+  page.onRemoveIngredient.call(context, { detail: { index: 0 } })
+  modals[1].success({ confirm: true })
+  assert.equal(context.savedForm.advancePreparations.length, 0)
+  assert.equal(context.savedForm.ingredients.length, 0)
+})
+
+test('recipe entry emphasizes the cocktail name and hides the source field', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
+  assert.doesNotMatch(editor, /data-field="source"|placeholder="来源/)
+  assert.match(editor, /class="basic-input name-input prominent-name-input"/)
+  assert.match(css, /\.name-input\s*\{[^}]*font-size:\s*30rpx[^}]*font-weight:\s*650/)
+  assert.match(css, /\.prominent-name-input\s*\{[^}]*min-height:\s*76rpx/)
+})
+
+test('recipe basic information orders name, rating, then glassware and estimated ABV', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
+  const basicStart = editor.indexOf('<view class="section basic-section">')
+  const ingredientStart = editor.indexOf('<view class="section ingredient-section">')
+  const basic = editor.slice(basicStart, ingredientStart)
+
+  assert.ok(basic.indexOf('class="name-row"') < basic.indexOf('class="basic-rating-row"'))
+  assert.ok(basic.indexOf('class="basic-rating-row"') < basic.indexOf('class="basic-summary-row"'))
+  assert.match(basic, /class="basic-summary-row"[\s\S]*bindtap="onOpenGlasswareSelect"[\s\S]*>酒杯<[\s\S]*>预估酒精度</)
+  assert.equal((editor.match(/>酒杯与酒精度</g) || []).length, 0)
+  assert.equal((editor.match(/bindtap="onOpenGlasswareSelect"/g) || []).length, 1)
+  assert.match(css, /\.basic-summary-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/)
+})
+
+test('recipe basic information keeps tried state and conditional ratings on separate rows', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
+  const basicStart = editor.indexOf('<view class="section basic-section">')
+  const ingredientStart = editor.indexOf('<view class="section ingredient-section">')
+  const basic = editor.slice(basicStart, ingredientStart)
+
+  assert.ok(basic.indexOf('class="name-row"') < basic.indexOf('class="basic-status-row"'))
+  assert.ok(basic.indexOf('class="basic-status-row"') < basic.indexOf('class="basic-rating-row"'))
+  assert.ok(basic.indexOf('class="basic-rating-row"') < basic.indexOf('class="basic-summary-row"'))
+  assert.match(basic, /class="basic-status-row"[\s\S]*class="tried-toggle"/)
+  assert.match(basic, /wx:if="{{form\.tried}}" class="basic-rating-row"/)
+  assert.doesNotMatch(basic, /<scroll-view[^>]*class="rating-scroll"/)
+  assert.match(css, /\.rating-track\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/)
+  assert.match(css, /\.basic-status-row \.tried-toggle\s*\{[^}]*margin-left:\s*0/)
+})
+
+test('recipe and advance preparation name inputs share height and horizontal padding', () => {
+  const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
+
+  assert.match(editor, /class="basic-input name-input prominent-name-input"/)
+  assert.match(editor, /class="advance-name prominent-name-input"/)
+  assert.match(css, /\.prominent-name-input\s*\{[^}]*height:\s*76rpx[^}]*padding:\s*0 14rpx/)
+})
+
+test('recipe ingredient unit picker uses the compact seven-option order without slices', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'))
+  assert.deepEqual(Array.from(page.data.units, ({ label }) => label), ['ml', 'g', '个', '补满', '适量', '块', '滴'])
 })
 
 test('recipe ingredient suggestions show ordinary syrup once using its short name', () => {
@@ -979,10 +1105,10 @@ test('recipe preparation, equipment and notes show only the requested compact fi
   assert.match(prepCss, /\.chips\s*{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap/)
   assert.match(prepCss, /\.chip\.selected\s*{[^}]*box-shadow:/)
   assert.doesNotMatch(editor, /tool-scroll|capacity-line|preview\.capacity|class="warning"/)
-  assert.match(editor, /class="select"/)
-  assert.doesNotMatch(editor, /class="select"[^>]*>[\s\S]*?›[\s\S]*?<\/view>/)
-  assert.match(editor, /class="abv-row"/)
-  assert.match(editor, /wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint"/)
+  assert.match(editor, /class="basic-summary-cell glassware-summary"/)
+  assert.doesNotMatch(editor, /class="basic-summary-cell glassware-summary"[^>]*>[\s\S]*?›[\s\S]*?<\/view>/)
+  assert.match(editor, /class="basic-summary-cell abv-summary"/)
+  assert.match(editor, /wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint basic-abv-hint"/)
   assert.equal((editor.match(/<textarea\b/g) || []).length, 2)
   assert.match(editor, /<textarea[^>]*data-field="steps"[^>]*>/)
   assert.match(editor, /<textarea[^>]*class="advance-steps"[^>]*data-field="steps"/)

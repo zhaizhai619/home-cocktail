@@ -63,13 +63,14 @@ test('liked playlist loading crosses the 30-song boundary and preserves playlist
         id,
         name: `歌曲${id}`,
         artists: [{ name: '歌手' }],
-        album: { name: '专辑' }
+        album: { name: '专辑', publishTime: Date.UTC(2024, 6, 12, 16) }
       }))
     })
   })
 
   assert.equal(songs.length, 31)
   assert.deepEqual(songs.map((song) => song.id), ids.slice(0, 31).map(String))
+  assert.equal(songs[0].releaseDate, '2024-07-13')
   assert.equal(requests.filter((url) => url.includes('/song/detail')).length, 1)
 })
 

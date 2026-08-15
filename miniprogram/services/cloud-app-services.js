@@ -1,4 +1,4 @@
-const { createInitialState } = require('./schema')
+const { createInitialState, migrateState } = require('./schema')
 const { createProfileRepository } = require('./profile-repository')
 const { createCloudUserSession, CLOUD_CACHE_KEY } = require('./cloud-user-session')
 const { createCloudRepository, createCloudProfileRepository } = require('./cloud-repository')
@@ -13,6 +13,11 @@ function createInitialProfile({ idFactory, now } = {}) {
     set(_, value) { memory.value = value }
   }, { idFactory, now })
   return repository.initialize()
+}
+
+function normalizeCloudState(state) {
+  const migrated = migrateState(state)
+  return state && typeof state === 'object' && !Array.isArray(state) ? { ...state, ...migrated } : migrated
 }
 
 function createCloudAppServices({ wxApi, envId, profileIdFactory, now } = {}) {
@@ -30,6 +35,7 @@ function createCloudAppServices({ wxApi, envId, profileIdFactory, now } = {}) {
     cacheKey: CLOUD_CACHE_KEY,
     initialState: createInitialState(),
     initialProfile: createInitialProfile({ idFactory: profileIdFactory, now }),
+    normalizeState: normalizeCloudState,
     now
   })
   const repository = createCloudRepository(session, { now })

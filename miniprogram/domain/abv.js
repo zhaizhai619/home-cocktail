@@ -1,9 +1,14 @@
 const TOP_UP_VOLUME = 100
 const NO_LIQUID_REASON = '没有可计算的液体材料'
+const NEGLIGIBLE_VOLUME_UNITS = new Set(['drop', 'slice'])
 
 function classifyLiquidIngredient(ingredient) {
   if (ingredient.unit === 'top-up') return ingredient.alcoholic ? { kind: 'missing', volume: 0 } : { kind: 'volume', volume: TOP_UP_VOLUME }
-  if (ingredient.unit !== 'ml') return ingredient.alcoholic ? { kind: 'missing', volume: 0 } : { kind: 'ignored', volume: 0 }
+  if (ingredient.unit !== 'ml') {
+    return !ingredient.alcoholic && NEGLIGIBLE_VOLUME_UNITS.has(ingredient.unit)
+      ? { kind: 'ignored', volume: 0 }
+      : { kind: 'missing', volume: 0 }
+  }
   return Number.isFinite(ingredient.amount) && ingredient.amount >= 0 ? { kind: 'volume', volume: ingredient.amount } : { kind: 'missing', volume: 0 }
 }
 

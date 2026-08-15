@@ -83,6 +83,38 @@ test('buildRecipeDetail returns an explicit missing state for an absent recipe',
   })
 })
 
+test('recipe detail shows an optional-time preparation without a dangling separator', () => {
+  const detail = buildRecipeDetail({ id: 'cold', name: '冷冻酒', preparations: [{ type: '冷冻', durationText: '' }], ingredients: [] })
+
+  assert.equal(detail.preparations[0].label, '冷冻')
+})
+
+test('recipe detail exposes a saved AI song reason only when its metadata is complete', () => {
+  const musicNaming = { songId: 'song-1', songTitle: 'No No No', artist: 'Shark', reason: '歌曲的反抗感和这杯酒的清爽气质很契合。' }
+  const detail = buildRecipeDetail({ id: 'music', name: 'No No No', ingredients: [], preparations: [], musicNaming })
+  const incomplete = buildRecipeDetail({ id: 'plain', name: '普通酒名', ingredients: [], preparations: [], musicNaming: { reason: '没有歌曲名' } })
+
+  assert.deepEqual(detail.musicNaming, musicNaming)
+  assert.equal(detail.hasMusicNaming, true)
+  assert.equal(incomplete.musicNaming, null)
+  assert.equal(incomplete.hasMusicNaming, false)
+})
+
+test('AI naming provenance survives later recipe edits and a repository reload', () => {
+  const adapter = createMemoryAdapter()
+  const options = { idFactory: () => 'music-recipe', now: () => '2026-08-15T00:00:00.000Z' }
+  const first = createRepository(adapter, options)
+  first.initialize()
+  const musicNaming = { songId: 'song-1', songTitle: 'No No No', artist: 'Shark', reason: '歌曲的反抗感和这杯酒的清爽气质很契合。' }
+  const created = first.upsertRecipe({ name: 'No No No', ingredients: [], musicNaming })
+  first.upsertRecipe({ ...created, rating: '顶尖' })
+
+  const reloaded = createRepository(adapter, options)
+  reloaded.initialize()
+  assert.deepEqual(reloaded.getRecipe(created.id).musicNaming, musicNaming)
+  assert.deepEqual(buildRecipeDetail(reloaded.getRecipe(created.id)).musicNaming, musicNaming)
+})
+
 test('recipe detail renders multiple prepared outputs as normal serving rows without suffix copy', () => {
   const detail = buildRecipeDetail({
     id: 'prepared', name: '双预制嗨棒', ingredients: [

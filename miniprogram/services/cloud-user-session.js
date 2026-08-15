@@ -20,6 +20,7 @@ function createCloudUserSession({
   initialState,
   initialProfile,
   cacheKey = CLOUD_CACHE_KEY,
+  normalizeState,
   requestIdFactory = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   now = () => new Date().toISOString()
 } = {}) {
@@ -65,10 +66,21 @@ function createCloudUserSession({
   async function initialize() {
     try {
       const remote = await transport.load()
+      const loadedState = remote && remote.state != null ? remote.state : initialState
+      const normalizedState = typeof normalizeState === 'function' ? normalizeState(clone(loadedState)) : loadedState
+      let revision = remote && remote.revision
+      if (!sameValue(normalizedState, loadedState) && typeof transport.saveState === 'function') {
+        const saved = await transport.saveState({
+          state: clone(normalizedState),
+          expectedRevision: validRevision(revision),
+          requestId: requestIdFactory()
+        })
+        revision = saved && saved.revision
+      }
       applyConfirmed({
-        state: remote && remote.state != null ? remote.state : initialState,
+        state: normalizedState,
         profile: remote && remote.profile != null ? remote.profile : initialProfile,
-        revision: remote && remote.revision,
+        revision,
         syncedAt: now()
       })
       online = true

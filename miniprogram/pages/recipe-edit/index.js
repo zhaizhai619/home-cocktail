@@ -1,4 +1,4 @@
-const { PREP_TYPES, RATINGS, UNITS } = require('../../domain/constants')
+const { PREP_ENTRY_TYPES, RATINGS, UNITS, RECIPE_UNITS } = require('../../domain/constants')
 const { formatPreparationDurationText, getPreparationDurationParts } = require('../../domain/recipe')
 const { getMaterialCategoryGroup, getMaterialDisplayName, getMaterialIdentityKey, materialNameMatchesQuery } = require('../../domain/material')
 const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
@@ -16,6 +16,7 @@ const MATERIAL_SHORTCUTS = [
   { key: 'liqueur', label: '利口酒' },
   { key: 'produce', label: '果汁/果蔬' },
   { key: 'mixer', label: '混合饮品' },
+  { key: 'spice', label: '香料' },
   { key: 'all', label: '材料库' }
 ]
 
@@ -25,7 +26,7 @@ function categoryFilterForIngredient(row) {
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
 function appServices() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData ? app.globalData : {} }
-function unitView(unit) { const index = UNITS.findIndex((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (UNITS[index < 0 ? 0 : index] || {}).label || 'ml' } }
+function unitView(unit) { const index = RECIPE_UNITS.findIndex((item) => item.value === unit); const legacy = UNITS.find((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (index < 0 ? legacy : RECIPE_UNITS[index] || {}).label || 'ml' } }
 function displayIngredient(row) {
   if (row && row.kind === 'prepared-output') return { ...row, nameLabel: row.name || '预调成品', isPrepared: true, ...unitView(row.unit) }
   const categoryIndex = NEW_CATEGORIES.findIndex((item) => item.key === row.category); const category = NEW_CATEGORIES[categoryIndex < 0 ? 0 : categoryIndex]; const isExisting = Boolean(row.materialId && !row.orphanedMaterialId); const needsExistingAbvInput = isExisting && row.alcoholic === true && row.abvNeedsPersist === true; const missingExistingAbv = needsExistingAbvInput && row.abvMissing === true
@@ -34,12 +35,13 @@ function displayIngredient(row) {
 function displayPrep(row) {
   const units = [{ value: 'hour', label: '小时' }, { value: 'day', label: '天' }]
   const duration = getPreparationDurationParts(row)
-  const unitIndex = Math.max(0, units.findIndex(({ value }) => value === duration.unit))
+  const durationUnit = units.some(({ value }) => value === row.durationUnit) ? row.durationUnit : duration.unit
+  const unitIndex = Math.max(0, units.findIndex(({ value }) => value === durationUnit))
   return { ...row, needsDuration: row.type !== '即调', durationValue: duration.value, durationUnit: units[unitIndex].value, durationUnitLabel: units[unitIndex].label, units, unitIndex }
 }
 function prepTypeOptions(preparations) {
   const selected = new Set((Array.isArray(preparations) ? preparations : []).map((item) => item.type))
-  return PREP_TYPES.map((type) => ({ type, selected: selected.has(type) }))
+  return PREP_ENTRY_TYPES.map((type) => ({ type, selected: selected.has(type) }))
 }
 function emptyData(form, glassware, tools) {
   const preview = getFormPreview(form)
@@ -49,7 +51,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { units: UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', aiNamingOpen: false, aiColor: '', aiPreference: '', aiThinking: false, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [], ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { units: RECIPE_UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', aiNamingOpen: false, aiColor: '', aiPreference: '', aiThinking: false, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [], ...emptyData(createEmptyRecipeForm(), [], []) },
   async onLoad(query) {
     await waitForCloudReady()
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
@@ -73,7 +75,11 @@ Page({
     this.setData({ materials: this.materials, ...emptyData(this.data.form, this.glassware, this.tools), errors: this.data.errors || {}, formError: this.data.formError || '' })
   },
   sync(form, errors) { const nextErrors = errors || {}; this.setData({ ...emptyData(form, this.glassware, this.tools), errors: nextErrors, formError: nextErrors.form || '' }) },
-  onBasicInput(event) { const field = event.currentTarget.dataset.field; this.sync({ ...this.data.form, [field]: event.detail.value }) },
+  onBasicInput(event) {
+    const field = event.currentTarget.dataset.field
+    const value = event.detail.value
+    this.sync({ ...this.data.form, [field]: value })
+  },
   onOpenAiNaming() { this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiThinkingText: 'AI 思考中…' }) },
   onCloseAiNaming() { if (!this.data.aiThinking) this.setData({ aiNamingOpen: false }) },
   onAiFieldInput(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },
@@ -107,9 +113,21 @@ Page({
     }
   },
   onUseAiName(event) {
-    const name = String(event.currentTarget.dataset.name || '').trim()
-    if (!name) return
-    this.sync({ ...this.data.form, name }, this.data.errors)
+    const songId = String(event.currentTarget.dataset.songId || '')
+    const recommendation = (this.data.aiRecommendations || []).find((item) => String(item.song_id || '') === songId)
+    const songTitle = String(recommendation && recommendation.recommended_name || '').trim()
+    const reason = String(recommendation && recommendation.reason || '').trim()
+    if (!songTitle || !reason) return
+    this.sync({
+      ...this.data.form,
+      name: songTitle,
+      musicNaming: {
+        songId,
+        songTitle,
+        artist: String(recommendation.artist || '').trim(),
+        reason
+      }
+    }, this.data.errors)
     this.setData({ aiNamingOpen: false })
   },
   onTriedTap(event) { this.sync(updateTriedState(this.data.form, event.currentTarget.dataset.tried === 'true')) },
@@ -140,7 +158,18 @@ Page({
   onIngredientChange(event) { const { index, field, value } = event.detail; const next = updateIngredientField(this.data.form, index, field, value); this.sync(next) },
   onRemoveIngredient(event) {
     const index = event.detail.index; const row = this.data.form.ingredients[index]
-    if (row && row.kind === 'prepared-output') return this.sync(removeAdvancePreparation(this.data.form, row.preparationId), this.data.errors)
+    if (row && row.kind === 'prepared-output') {
+      if (typeof wx === 'undefined' || typeof wx.showModal !== 'function') return
+      return wx.showModal({
+        title: '删除提前准备？',
+        content: '删除这个材料后，对应的提前准备内容也会一起删除。',
+        confirmText: '删除',
+        confirmColor: '#985a54',
+        success: ({ confirm }) => {
+          if (confirm) this.sync(removeAdvancePreparation(this.data.form, row.preparationId), this.data.errors)
+        }
+      })
+    }
     const ingredients = this.data.form.ingredients.filter((_, itemIndex) => itemIndex !== index); this.sync({ ...this.data.form, ingredients })
   },
   onIngredientDragStart(event) {
@@ -245,7 +274,7 @@ Page({
   onTogglePrep(event) {
     const type = event.detail.type; const existing = this.data.form.preparations || []; let preparations
     if (type === '即调') preparations = [{ type, note: '' }]
-    else { preparations = existing.filter((item) => item.type !== '即调'); preparations = preparations.some((item) => item.type === type) ? preparations.filter((item) => item.type !== type) : [...preparations, { type, durationText: '', note: '' }] }
+    else { preparations = existing.filter((item) => item.type !== '即调'); preparations = preparations.some((item) => item.type === type) ? preparations.filter((item) => item.type !== type) : [...preparations, { type, durationText: '', durationUnit: 'hour', note: '' }] }
     this.sync({ ...this.data.form, preparations })
   },
   onPrepChange(event) {
@@ -254,7 +283,7 @@ Page({
     const durationValue = field === 'durationValue' ? value : displayed.durationValue
     const durationUnit = field === 'durationUnit' ? value : displayed.durationUnit
     const durationText = formatPreparationDurationText(durationValue, durationUnit)
-    const preparations = this.data.form.preparations.map((item, itemIndex) => itemIndex === index ? { ...item, durationText } : item)
+    const preparations = this.data.form.preparations.map((item, itemIndex) => itemIndex === index ? { ...item, durationText, durationUnit } : item)
     this.sync({ ...this.data.form, preparations })
   },
   onOpenGlasswareSelect() {

@@ -11,14 +11,14 @@ function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
   return app && app.globalData && app.globalData.repository
 }
-function toast(title) { if (typeof wx !== 'undefined' && wx.showToast) wx.showToast({ title, icon: 'none' }) }
+function toast(title, icon = 'none') { if (typeof wx !== 'undefined' && wx.showToast) wx.showToast({ title, icon }) }
 function indexFor(options, value) { const index = options.findIndex((item) => item.value === value); return index < 0 ? 0 : index }
 function categoryIndexFor(category) { return indexFor(CATEGORY_OPTIONS, getMaterialCategoryGroup(category).key) }
 function decodeQueryValue(value) { try { return decodeURIComponent(String(value || '')) } catch (_) { return '' } }
 
 Page({
   data: {
-    mode: 'create', missing: false, form: createFormDefaults(), errors: {},
+    mode: 'create', missing: false, savingMaterial: false, form: createFormDefaults(), errors: {},
     categoryOptions: CATEGORY_OPTIONS, categoryLabels: CATEGORY_OPTIONS.map(({ label }) => label), categoryIndex: categoryIndexFor(createFormDefaults().category),
     acquisitionOptions: ACQUISITION_OPTIONS, acquisitionLabels: ACQUISITION_OPTIONS.map(({ label }) => label), acquisitionIndex: 1,
     units: UNITS, unitLabels: UNITS.map(({ label }) => label), unitIndex: 0, remainingUnitIndex: 0
@@ -101,17 +101,29 @@ Page({
   onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   onExpiryChange(event) { this.setData({ 'form.expiresAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   async onSave() {
-    const result = await orchestrateMaterialSave({
-      repository: repository(), form: this.data.form, materialId: this.materialId, notify: toast,
-      navigate: (saved) => {
-        const target = materialSaveNavigation(this.data.mode, saved.id)
-        if (target.action === 'back') wx.navigateBack()
-        else wx.redirectTo({ url: target.url })
-      }
-    })
-    if (!result.saved) this.setData({ errors: result.errors })
+    if (this._savingMaterial) return
+    this._savingMaterial = true
+    this.setData({ savingMaterial: true, 'errors.form': '' })
+    let result
+    try {
+      result = await orchestrateMaterialSave({
+        repository: repository(), form: this.data.form, materialId: this.materialId,
+        notify: (message) => { if (message !== '材料已保存') toast(message) },
+        navigate: () => {}
+      })
+      if (!result.saved) this.setData({ errors: result.errors })
+    } finally {
+      this._savingMaterial = false
+      this.setData({ savingMaterial: false })
+    }
+    if (!result || !result.saved) return
+    toast('保存成功', 'success')
+    const target = materialSaveNavigation(this.data.mode, result.item.id)
+    if (target.action === 'back') wx.navigateBack()
+    else wx.redirectTo({ url: target.url })
   },
   onDelete() {
+    if (this._savingMaterial) return
     const repo = repository()
     const usageCount = repo ? repo.getMaterialUsageCount(this.materialId) : 0
     if (usageCount) return wx.showModal({ title: '暂时不能删除', content: `有 ${usageCount} 款酒正在使用这个材料。可以先标记为“我没有”，或从配方中移除。`, showCancel: false, confirmText: '知道了' })

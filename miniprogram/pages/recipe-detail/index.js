@@ -19,6 +19,7 @@ function toast(title) {
 Page({
   data: {
     detail: { status: 'loading' },
+    showMusicReason: false,
     showManualAbvEditor: false,
     manualAbvDraft: '',
     manualAbvError: '',
@@ -75,6 +76,10 @@ Page({
       }
     })
   },
+  onOpenMusicReason() {
+    if (this.data.detail && this.data.detail.musicNaming) this.setData({ showMusicReason: true })
+  },
+  onCloseMusicReason() { this.setData({ showMusicReason: false }) },
   onOpenManualAbv() {
     const value = this.data.detail.status === 'ok' ? this.data.detail.manualAbv : null
     this.setData({ showManualAbvEditor: true, manualAbvDraft: value === null ? '' : String(value), manualAbvError: '' })

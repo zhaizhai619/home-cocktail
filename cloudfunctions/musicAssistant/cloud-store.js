@@ -75,13 +75,48 @@ function createMusicStore(db) {
       const data = await setJobDocument(db, owner, job, true)
       return clone(data)
     },
+    async saveJobState(owner, job) {
+      await ensureCollections()
+      return db.runTransaction(async (transaction) => {
+        await setJobAndCurrentLatest(transaction, owner, job)
+        return clone(jobData(owner, job))
+      })
+    },
     getJob(owner, id) { return getDocument(JOBS, documentId(owner, id)) },
     getLatestJob(owner) { return getDocument(JOBS, documentId(owner, 'latest')) },
+    async listRunnableJobs(limit = 10) {
+      await ensureCollections()
+      const max = Math.max(1, Math.min(50, Number(limit) || 10))
+      const [queued, running] = await Promise.all([
+        db.collection(JOBS).where({ status: 'queued' }).limit(max * 2).get(),
+        db.collection(JOBS).where({ status: 'running' }).limit(max * 2).get()
+      ])
+      const unique = new Map()
+      for (const job of [...queued.data || [], ...running.data || []]) {
+        const key = `${job.ownerOpenId || ''}:${job.id || ''}`
+        if (job.ownerOpenId && job.id && !unique.has(key)) unique.set(key, clone(job))
+      }
+      return [...unique.values()].sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || ''))).slice(0, max)
+    },
     findProfile(owner, cacheKey) { return getDocument(PROFILE_CACHE, documentId(owner, cacheKey)) },
     async saveProfile(owner, profile) {
       await ensureCollections()
-      const data = clone({ ...profile, ownerOpenId: owner })
-      delete data._id
+      const source = clone(profile) || {}
+      delete source._id
+      delete source.ownerOpenId
+      delete source.preferredTitle
+      delete source.preferred_title
+      const data = clone({
+        title: source.title,
+        artist: source.artist,
+        album: source.album,
+        emotion_keywords: source.emotion_keywords,
+        scene_sensory_keywords: source.scene_sensory_keywords,
+        summary: source.summary,
+        fitScore: source.fitScore,
+        ...source,
+        ownerOpenId: owner
+      })
       await db.collection(PROFILE_CACHE).doc(documentId(owner, profile.cacheKey)).set({ data })
       await db.collection(PROFILES).doc(documentId(owner, profile.songId)).set({ data })
       return clone(data)

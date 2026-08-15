@@ -123,6 +123,12 @@ test('preparation duration keeps one value field and a separate hour or day unit
   assert.equal(formatPreparationDurationText('', 'day'), '')
 })
 
+test('non-instant preparation keeps an optional blank duration', () => {
+  const preparation = { type: '冷冻', durationText: '' }
+  assert.deepEqual(normalizePrepSelections([preparation]), [preparation])
+  assert.equal(getPrimaryPreparation([preparation]).leadHours, Number.POSITIVE_INFINITY)
+})
+
 test('preparation sorting puts unparseable free-text durations after calculable durations', () => {
   const recipes = [
     recipe({ id: 'unknown', preparations: [{ type: '奶洗', durationText: '隔夜' }] }),

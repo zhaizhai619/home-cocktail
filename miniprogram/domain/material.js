@@ -119,7 +119,7 @@ const CATEGORY_DEFAULTS = {
     freshOnHand: false
   },
   'other-solid': {
-    acquisition: 'on-demand',
+    acquisition: 'long-term',
     form: 'solid',
     alcoholic: false,
     abv: null,

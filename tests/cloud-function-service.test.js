@@ -1,8 +1,18 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 
 const { createInitialState } = require('../miniprogram/services/schema')
 const { createUserDataService } = require('../cloudfunctions/userData/service')
+
+test('cloud deployment keeps userData timeout above the default three seconds', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'cloudbaserc.json'), 'utf8'))
+  const userData = config.functions.find((item) => item.name === 'userData')
+
+  assert.equal(config.envId, 'cloud1-d3gbs4a2yb36e552b')
+  assert.equal(userData.timeout, 10)
+})
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))

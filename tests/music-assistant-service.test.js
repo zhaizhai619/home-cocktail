@@ -46,10 +46,78 @@ function memoryStore() {
     },
     async listProfiles(owner) { return [...currentProfiles.entries()].filter(([key]) => key.startsWith(`${owner}:`)).map(([, value]) => value) },
     async countProfiles(owner) { return (await this.listProfiles(owner)).length },
+    async listRunnableJobs() {
+      return [...jobs.values()].filter((job) => ['queued', 'running'].includes(job.status))
+    },
     async claimNcmOwner() { return true },
     inspect() { return { jobs: [...jobs.values()], profiles: [...currentProfiles.values()], cache: [...profileCache.values()] } }
   }
 }
+
+function memoryCredentials() {
+  const values = new Map()
+  let sequence = 0
+  return {
+    seal(value, context) {
+      const token = `sealed-${++sequence}`
+      values.set(`${token}:${context}`, value)
+      return { token }
+    },
+    open(payload, context) { return values.get(`${payload.token}:${context}`) || '' }
+  }
+}
+
+test('background worker resumes after the page exits and removes its temporary credential on completion', async () => {
+  const store = memoryStore()
+  const ncm = {
+    async listLikedSongs() { return [{ id: '1', title: '夜航' }, { id: '2', title: '晴天' }] },
+    async getSongSource(id, song) { return { ...song, id, lyrics: `歌词${id}` } }
+  }
+  const ai = { async completeJson() { return { summary: '画像', naming: { fit_score: 8 } } } }
+  const service = createMusicAssistantService({
+    store,
+    ncm,
+    ai,
+    credentials: memoryCredentials(),
+    id: () => 'background-job',
+    now: () => '2026-08-15T12:00:00.000Z'
+  })
+
+  const started = await service.startJob('openid-a', { limit: 2, model: 'deepseek-v4-flash', apiKey: 'temporary-secret' })
+  const queued = await store.getJob('openid-a', started.id)
+  assert.equal(JSON.stringify(queued).includes('temporary-secret'), false)
+  assert.ok(queued.apiCredential)
+
+  const result = await service.runBackground({ maxSongs: 10 })
+  assert.equal(result.completed, 2)
+  const finished = await store.getJob('openid-a', started.id)
+  assert.equal(finished.status, 'completed')
+  assert.equal(Object.hasOwn(finished, 'apiCredential'), false)
+  assert.equal(Object.hasOwn(finished, 'credentialExpiresAt'), false)
+  assert.equal((await store.listProfiles('openid-a')).length, 2)
+})
+
+test('a background model failure pauses safely, deletes the credential and can resume with a new one', async () => {
+  const store = memoryStore()
+  const ncm = {
+    async listLikedSongs() { return [{ id: '1', title: '夜航' }] },
+    async getSongSource(id, song) { return { ...song, id, lyrics: '凌晨' } }
+  }
+  let fail = true
+  const ai = { async completeJson() { if (fail) throw new Error('DeepSeek 暂时不可用'); return { summary: '画像', naming: { fit_score: 8 } } } }
+  const service = createMusicAssistantService({ store, ncm, ai, credentials: memoryCredentials(), id: () => 'paused-background-job' })
+  const started = await service.startJob('openid-a', { limit: 1, model: 'deepseek-v4-flash', apiKey: 'first-secret' })
+
+  await service.runBackground({ maxSongs: 1 })
+  const paused = await store.getJob('openid-a', started.id)
+  assert.equal(paused.status, 'paused')
+  assert.equal(Object.hasOwn(paused, 'apiCredential'), false)
+
+  fail = false
+  await service.resumeJob('openid-a', { jobId: started.id, apiKey: 'second-secret' })
+  await service.runBackground({ maxSongs: 1 })
+  assert.equal((await store.getJob('openid-a', started.id)).status, 'completed')
+})
 
 test('job processes one song per call, resumes, caches output and never stores the API key', async () => {
   const store = memoryStore()
@@ -68,6 +136,8 @@ test('job processes one song per call, resumes, caches output and never stores t
   const first = await service.processNext('openid-a', { jobId: started.id, model: 'deepseek-v4-flash', apiKey: 'secret' })
   assert.equal(first.progress.completed, 1)
   assert.equal(first.status, 'running')
+  assert.equal(store.inspect().profiles[0].fitScore, 10)
+  assert.equal(Object.hasOwn(store.inspect().profiles[0], 'analysisConfidence'), false)
   const second = await service.processNext('openid-a', { jobId: started.id, model: 'deepseek-v4-flash', apiKey: 'secret' })
   assert.equal(second.status, 'completed')
   assert.equal(calls, 2)
@@ -92,7 +162,7 @@ test('starting an import reports an empty liked-song result instead of completin
 
 test('naming analyzes the cocktail, ranks stored profiles, then returns safe recommendations', async () => {
   const store = memoryStore()
-  await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '夜航', preferredTitle: '夜航', summary: '夜路', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], fitScore: 90 })
+  await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '夜航', artist: '甲', preferredTitle: '夜航', summary: '夜路', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], fitScore: 90 })
   let call = 0
   const ai = {
     async completeJson() {
@@ -106,6 +176,7 @@ test('naming analyzes the cocktail, ranks stored profiles, then returns safe rec
     apiKey: 'secret', model: 'deepseek-v4-flash', color: '绿色', ingredients: [{ name: '金酒', amount: 45, unit: 'ml' }]
   })
   assert.equal(result.recommendations[0].recommended_name, '夜航')
+  assert.equal(result.recommendations[0].artist, '甲')
   assert.equal(JSON.stringify(result).includes('secret'), false)
 })
 

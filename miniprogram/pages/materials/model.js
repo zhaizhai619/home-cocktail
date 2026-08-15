@@ -118,6 +118,7 @@ function formatRecipePreparation(recipe) {
   if (!primary) return ''
   if (primary.type === '即调') return '即调'
   const duration = getPreparationDurationText(primary)
+  if (!duration) return primary.type
   return `${primary.type} · ${duration.startsWith('提前') ? duration : `提前${duration}`}`
 }
 

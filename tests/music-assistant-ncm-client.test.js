@@ -10,12 +10,13 @@ test('NCM proxy client uses the private service token only in its header', async
     token: 'private-service-token',
     fetchImpl: async (url, options) => {
       requests.push({ url, options })
-      return { ok: true, json: async () => ({ ok: true, data: { songs: [{ id: 1, encryptedId: 'encrypted-song-id', name: '夜航' }] } }) }
+      return { ok: true, json: async () => ({ ok: true, data: { songs: [{ id: 1, encryptedId: 'encrypted-song-id', name: '夜航', artist: '甲', album: '城市', releaseDate: '2024-07-13' }] } }) }
     }
   })
   const songs = await client.listLikedSongs(18)
   assert.equal(songs[0].title, '夜航')
   assert.equal(songs[0].encryptedId, 'encrypted-song-id')
+  assert.equal(songs[0].releaseDate, '2024-07-13')
   assert.equal(requests[0].url, 'https://music.example.test/library/liked?limit=18')
   assert.equal(requests[0].options.headers.Authorization, 'Bearer private-service-token')
   assert.doesNotMatch(requests[0].url, /private-service-token/)
