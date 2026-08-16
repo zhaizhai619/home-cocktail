@@ -91,7 +91,6 @@ function compactCandidate(candidate = {}) {
     song_id: text(candidate.songId || candidate.song_id, 80),
     title: text(candidate.title, 120),
     artist: text(candidate.artist, 160),
-    album: text(candidate.album, 160),
     release_date: text(candidate.releaseDate || candidate.release_date, 10),
     summary: text(candidate.summary, 240),
     emotion_keywords: keywords(candidate.emotion_keywords),
@@ -102,7 +101,16 @@ function compactCandidate(candidate = {}) {
 
 function buildNamingMessages({ cocktail, candidates } = {}) {
   return jsonMessages(
-    `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。推荐理由应先简要说明歌曲表达的主题，再分析它与鸡尾酒气质、材料、颜色或用户偏好的契合点。若候选数据中的歌手、专辑或发行日期具有介绍价值，可自然补充一句歌曲背景；不是每条理由都必须写背景。只能使用输入中明确提供的事实，不得编造发行时间、专辑归属、热度、播放量或歌曲经历。理由保持为一段简洁自然的中文。返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"一段简洁自然的中文理由"}]}。${NAMING_PROMPT_VERSION}`,
+    `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。
+
+每条 reason 都必须同时做到：
+1. 自然写出候选的 artist（歌手），并准确吸收 summary 中至少一个核心意思，让熟悉说唱的读者能确认具体是哪首歌；不要只是复述歌名。
+2. 完整保留并充分展开歌曲与鸡尾酒的匹配分析，结合鸡尾酒气质、材料及用量、颜色或用户偏好，不能因为增加歌曲介绍而缩短或弱化原有分析。
+3. 不写专辑名。发行日期仅在确实属于近期发布且有介绍价值时才可自然提及。
+
+表达必须自然且多样：可以从歌手的表达、歌曲主题、歌词态度或酒的感官特点切入，灵活调整先后顺序；多条推荐不要使用相同开头，避免固定使用“这是某某的《某歌》”之类的模板句式。只能使用输入中明确提供的事实，不得编造发行时间、热度、播放量或歌曲经历。每条理由写成一段连贯自然的中文。
+
+返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"包含歌手、歌曲表达和完整酒品匹配分析的自然理由"}]}。${NAMING_PROMPT_VERSION}`,
     { cocktail: normalizeCocktailProfile(cocktail), candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate) }
   )
 }

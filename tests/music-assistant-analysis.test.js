@@ -52,14 +52,19 @@ test('cocktail and naming prompts use ingredients but send only compact song pro
   })
   const namingMessages = buildNamingMessages({ cocktail: profile, candidates: [{
     songId: '1', title: '夜航', artist: '甲', album: '城市', releaseDate: '2024-07-13', fitScore: 88,
+    summary: '在夜路中保持清醒和克制',
     lyrics: '不应发送的完整歌词'
   }] })
   const namingBody = JSON.stringify(namingMessages)
   assert.doesNotMatch(namingBody, /不应发送的完整歌词/)
   assert.match(namingBody, /甲/)
-  assert.match(namingBody, /城市/)
+  assert.doesNotMatch(namingBody, /城市/)
   assert.match(namingBody, /2024-07-13/)
-  assert.match(namingBody, /不是每条理由都必须写|不必每条都写/)
+  assert.match(namingBody, /每条[\s\S]*歌手/)
+  assert.match(namingBody, /每条[\s\S]*summary/)
+  assert.match(namingBody, /保留|完整/)
+  assert.match(namingBody, /多样|避免固定|不要使用固定/)
+  assert.doesNotMatch(namingBody, /不是每条理由都必须写|不必每条都写/)
   assert.match(namingBody, /不得编造/)
   assert.equal(JSON.parse(namingMessages[1].content).candidates[0].fit_score, 10)
 

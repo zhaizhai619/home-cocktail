@@ -160,15 +160,15 @@ test('starting an import reports an empty liked-song result instead of completin
   assert.equal(store.inspect().jobs.length, 0)
 })
 
-test('naming analyzes the cocktail, ranks stored profiles, then returns safe recommendations', async () => {
+test('naming returns the model reason without adding a fixed programmatic introduction', async () => {
   const store = memoryStore()
-  await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '夜航', artist: '甲', preferredTitle: '夜航', summary: '夜路', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], fitScore: 90 })
+  await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '夜航', artist: '甲', preferredTitle: '夜航', summary: '在夜路中保持清醒和克制', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], fitScore: 90 })
   let call = 0
   const ai = {
     async completeJson() {
       call += 1
       if (call === 1) return { summary: '清爽', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'], naming_direction: { desired: ['短'], avoid: [] } }
-      return { recommendations: [{ song_id: '1', recommended_name: '模型杜撰的新名字', reason: '清冷的金酒像夏夜里的一段夜航。' }] }
+      return { recommendations: [{ song_id: '1', recommended_name: '模型杜撰的新名字', reason: '甲借《夜航》表达了在夜路中保持清醒和克制的态度，清冷的金酒也像夏夜里的一段夜航。' }] }
     }
   }
   const service = createMusicAssistantService({ store, ncm: {}, ai })
@@ -177,6 +177,7 @@ test('naming analyzes the cocktail, ranks stored profiles, then returns safe rec
   })
   assert.equal(result.recommendations[0].recommended_name, '夜航')
   assert.equal(result.recommendations[0].artist, '甲')
+  assert.equal(result.recommendations[0].reason, '甲借《夜航》表达了在夜路中保持清醒和克制的态度，清冷的金酒也像夏夜里的一段夜航。')
   assert.equal(JSON.stringify(result).includes('secret'), false)
 })
 
