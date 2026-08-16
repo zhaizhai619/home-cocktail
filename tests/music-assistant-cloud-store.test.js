@@ -112,3 +112,16 @@ test('background updates to an older job do not replace the latest user task', a
   await store.saveJobState('owner-a', { id: 'job-2', status: 'completed' })
   assert.equal((await store.getLatestJob('owner-a')).status, 'completed')
 })
+
+test('cloud store keeps naming feedback private to its WeChat owner', async () => {
+  const store = createMusicStore(memoryDatabase())
+  await store.saveNamingFeedback('owner-a', { id: 'feedback-1', songId: 'song-1', action: 'rejected', tags: ['vibe_mismatch'] })
+  await store.saveNamingFeedback('owner-b', { id: 'feedback-2', songId: 'song-2', action: 'used', tags: [] })
+
+  assert.deepEqual(await store.listNamingFeedback('owner-a', 20), [{
+    id: 'feedback-1', songId: 'song-1', action: 'rejected', tags: ['vibe_mismatch'], ownerOpenId: 'owner-a'
+  }])
+  assert.deepEqual(await store.listNamingFeedback('owner-b', 20), [{
+    id: 'feedback-2', songId: 'song-2', action: 'used', tags: [], ownerOpenId: 'owner-b'
+  }])
+})

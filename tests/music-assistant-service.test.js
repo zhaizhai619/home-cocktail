@@ -7,6 +7,7 @@ function memoryStore() {
   const jobs = new Map()
   const profileCache = new Map()
   const currentProfiles = new Map()
+  const namingFeedback = new Map()
   return {
     async saveJob(owner, job) { jobs.set(`${owner}:${job.id}`, JSON.parse(JSON.stringify(job))); return job },
     async getJob(owner, id) { return jobs.get(`${owner}:${id}`) || null },
@@ -46,11 +47,18 @@ function memoryStore() {
     },
     async listProfiles(owner) { return [...currentProfiles.entries()].filter(([key]) => key.startsWith(`${owner}:`)).map(([, value]) => value) },
     async countProfiles(owner) { return (await this.listProfiles(owner)).length },
+    async saveNamingFeedback(owner, feedback) {
+      namingFeedback.set(`${owner}:${feedback.id}`, JSON.parse(JSON.stringify({ ...feedback, ownerOpenId: owner })))
+      return feedback
+    },
+    async listNamingFeedback(owner) {
+      return [...namingFeedback.entries()].filter(([key]) => key.startsWith(`${owner}:`)).map(([, value]) => JSON.parse(JSON.stringify(value)))
+    },
     async listRunnableJobs() {
       return [...jobs.values()].filter((job) => ['queued', 'running'].includes(job.status))
     },
     async claimNcmOwner() { return true },
-    inspect() { return { jobs: [...jobs.values()], profiles: [...currentProfiles.values()], cache: [...profileCache.values()] } }
+    inspect() { return { jobs: [...jobs.values()], profiles: [...currentProfiles.values()], cache: [...profileCache.values()], feedback: [...namingFeedback.values()] } }
   }
 }
 
@@ -179,6 +187,59 @@ test('naming returns the model reason without adding a fixed programmatic introd
   assert.equal(result.recommendations[0].artist, '甲')
   assert.equal(result.recommendations[0].reason, '甲借《夜航》表达了在夜路中保持清醒和克制的态度，清冷的金酒也像夏夜里的一段夜航。')
   assert.equal(JSON.stringify(result).includes('secret'), false)
+})
+
+test('regeneration excludes rejected songs and sends only relevant feedback to final naming', async () => {
+  const store = memoryStore()
+  await store.saveProfile('openid-a', { cacheKey: 'one', songId: '1', title: '筋斗云', artist: '甲', summary: '向上突破', emotion_keywords: ['亢奋'], scene_sensory_keywords: ['云'], fitScore: 9 })
+  await store.saveProfile('openid-a', { cacheKey: 'two', songId: '2', title: '草莓红', artist: '乙', summary: '轻松享受当下', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'], fitScore: 8 })
+  await store.saveProfile('openid-a', { cacheKey: 'three', songId: '3', title: '晴日', artist: '丙', summary: '明亮松弛', emotion_keywords: ['轻松'], scene_sensory_keywords: ['夏日'], fitScore: 7 })
+  await store.saveNamingFeedback('openid-a', {
+    id: 'feedback-old', songId: '1', title: '筋斗云', artist: '甲', action: 'rejected', tags: ['vibe_mismatch', 'weak_reason'],
+    cocktailProfile: { summary: '清透草莓气泡酒', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] },
+    createdAt: '2026-08-16T19:00:00.000Z'
+  })
+  await store.saveNamingFeedback('openid-a', {
+    id: 'feedback-unrelated', songId: '9', title: '烟', action: 'rejected', tags: ['vibe_mismatch'],
+    cocktailProfile: { emotion_keywords: ['沉稳'], scene_sensory_keywords: ['烟熏', '木质'] },
+    createdAt: '2026-08-16T19:30:00.000Z'
+  })
+  let call = 0
+  let namingPayload
+  const ai = {
+    async completeJson({ messages }) {
+      call += 1
+      if (call === 1) return { summary: '清透草莓气泡酒', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] }
+      namingPayload = JSON.parse(messages[1].content)
+      return { recommendations: [{ song_id: '2', recommended_name: '草莓红', reason: '乙的轻松表达与草莓气泡感相合。' }] }
+    }
+  }
+  const service = createMusicAssistantService({ store, ncm: {}, ai })
+  const result = await service.recommendNames('openid-a', {
+    apiKey: 'secret', model: 'deepseek-v4-flash', excludeSongIds: ['1'], ingredients: [{ name: '草莓', amount: 20, unit: 'ml' }]
+  })
+
+  assert.deepEqual(namingPayload.candidates.map((item) => item.song_id), ['2', '3'])
+  assert.deepEqual(namingPayload.user_feedback_examples.map((item) => item.title), ['筋斗云'])
+  assert.equal(result.recommendations[0].song_id, '2')
+})
+
+test('naming feedback stores a compact user-specific match judgment without secrets', async () => {
+  const store = memoryStore()
+  const service = createMusicAssistantService({ store, ncm: {}, ai: {}, id: () => 'feedback-1', now: () => '2026-08-16T20:00:00.000Z' })
+  const saved = await service.submitNamingFeedback('openid-a', {
+    songId: 'song-1', title: '筋斗云', artist: '功夫胖', feedbackAction: 'rejected',
+    tags: ['vibe_mismatch', 'weak_reason', 'unknown-tag'], note: '和清透草莓酒不搭', reason: '把云和气泡硬联系在了一起', apiKey: 'must-not-persist',
+    cocktailProfile: { summary: '清透草莓气泡酒', emotion_keywords: ['轻快'], scene_sensory_keywords: ['草莓红'] }
+  })
+
+  assert.deepEqual(saved, {
+    id: 'feedback-1', songId: 'song-1', action: 'rejected', tags: ['vibe_mismatch', 'weak_reason'], createdAt: '2026-08-16T20:00:00.000Z'
+  })
+  assert.equal(store.inspect().feedback.length, 1)
+  assert.equal(JSON.stringify(store.inspect().feedback).includes('must-not-persist'), false)
+  assert.equal(store.inspect().feedback[0].reason, '把云和气泡硬联系在了一起')
+  assert.deepEqual(store.inspect().feedback[0].cocktailProfile.emotion_keywords, ['轻快'])
 })
 
 test('a DeepSeek outage pauses the job instead of marking every remaining song failed', async () => {

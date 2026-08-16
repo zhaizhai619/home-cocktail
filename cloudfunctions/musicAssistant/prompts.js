@@ -1,6 +1,6 @@
 const SONG_PROFILE_PROMPT_VERSION = 'song-profile-v2'
 const COCKTAIL_PROFILE_PROMPT_VERSION = 'cocktail-profile-v2'
-const NAMING_PROMPT_VERSION = 'cocktail-naming-v5'
+const NAMING_PROMPT_VERSION = 'cocktail-naming-v6'
 
 const COCKTAIL_MATERIAL_GUIDE = `材料和用量只是联想参考，请综合整杯酒判断：
 - 用量较大的材料通常更影响主体；少量辣椒、苦精、烟熏等高强度材料也可能很突出。

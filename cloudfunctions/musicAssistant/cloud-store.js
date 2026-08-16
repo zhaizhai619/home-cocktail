@@ -4,7 +4,8 @@ const JOBS = 'music_analysis_jobs'
 const PROFILES = 'music_song_profiles'
 const PROFILE_CACHE = 'music_song_profile_cache'
 const SERVICE_CONFIG = 'music_service_config'
-const COLLECTIONS = [JOBS, PROFILES, PROFILE_CACHE, SERVICE_CONFIG]
+const NAMING_FEEDBACK = 'music_naming_feedback'
+const COLLECTIONS = [JOBS, PROFILES, PROFILE_CACHE, SERVICE_CONFIG, NAMING_FEEDBACK]
 
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -131,6 +132,19 @@ function createMusicStore(db) {
       const result = await db.collection(PROFILES).where({ ownerOpenId: owner }).count()
       return Number(result && result.total) || 0
     },
+    async saveNamingFeedback(owner, feedback) {
+      await ensureCollections()
+      const data = clone({ ...feedback, ownerOpenId: owner })
+      delete data._id
+      await db.collection(NAMING_FEEDBACK).doc(documentId(owner, feedback.id)).set({ data })
+      return clone(data)
+    },
+    async listNamingFeedback(owner, limit = 50) {
+      await ensureCollections()
+      const max = Math.max(1, Math.min(100, Number(limit) || 50))
+      const result = await db.collection(NAMING_FEEDBACK).where({ ownerOpenId: owner }).limit(max).get()
+      return clone(result && result.data || [])
+    },
     async claimNcmOwner(owner) {
       await ensureCollections()
       return db.runTransaction(async (transaction) => {
@@ -197,4 +211,4 @@ function createMusicStore(db) {
   }
 }
 
-module.exports = { JOBS, PROFILES, PROFILE_CACHE, SERVICE_CONFIG, createMusicStore }
+module.exports = { JOBS, PROFILES, PROFILE_CACHE, SERVICE_CONFIG, NAMING_FEEDBACK, createMusicStore }

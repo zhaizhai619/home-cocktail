@@ -21,6 +21,7 @@ function createMusicAssistantClient(cloud) {
     resumeJob: (payload) => call('resumeJob', payload),
     processNext: (payload) => call('processNext', payload),
     recommendNames: (payload) => call('recommendNames', payload),
+    submitNamingFeedback: (payload) => call('submitNamingFeedback', payload),
     startNcmLogin: () => call('startNcmLogin'),
     checkNcmLogin: () => call('checkNcmLogin')
   }

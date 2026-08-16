@@ -11,8 +11,8 @@ const {
   normalizeCocktailProfile,
   normalizeRecommendations
 } = require('./analysis')
-const { SONG_PROFILE_PROMPT_VERSION } = require('./prompts')
-const { selectSongCandidates } = require('./matching')
+const { SONG_PROFILE_PROMPT_VERSION, NAMING_PROMPT_VERSION } = require('./prompts')
+const { selectSongCandidates, selectRelevantNamingFeedback } = require('./matching')
 
 const DEFAULT_MODEL_PARAMS = { temperature: 0.2, maxTokens: 1600, thinking: 'disabled', responseFormat: 'json_object' }
 const DEFAULT_CREDENTIAL_TTL_MS = 6 * 60 * 60 * 1000
@@ -39,6 +39,13 @@ function requireModel(value) {
   const model = String(value || '').trim()
   if (!model || model.length > 80) throw serviceError('INVALID_MODEL', '请填写正确的大模型名称')
   return model
+}
+
+const FEEDBACK_ACTIONS = new Set(['rejected', 'used'])
+const FEEDBACK_TAGS = new Set(['vibe_mismatch', 'weak_reason', 'bad_name'])
+
+function feedbackTags(value) {
+  return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter((item) => FEEDBACK_TAGS.has(item)))].slice(0, 3)
 }
 
 function publicJob(job) {
@@ -319,7 +326,10 @@ function createMusicAssistantService({
     const owner = ownerId(openId)
     const apiKey = requiredKey(input.apiKey)
     const model = requireModel(input.model)
-    const profiles = await store.listProfiles(owner)
+    const [profiles, feedback] = await Promise.all([
+      store.listProfiles(owner),
+      typeof store.listNamingFeedback === 'function' ? store.listNamingFeedback(owner, 50) : []
+    ])
     if (!profiles.length) throw serviceError('NO_SONG_PROFILES', '请先导入并解析喜欢的歌曲')
     const rawCocktail = await ai.completeJson({
       apiKey,
@@ -329,11 +339,13 @@ function createMusicAssistantService({
       maxTokens: 900
     })
     const cocktailProfile = normalizeCocktailProfile(rawCocktail)
-    const candidates = selectSongCandidates(cocktailProfile, profiles, 12)
+    const excludeSongIds = [...new Set((Array.isArray(input.excludeSongIds) ? input.excludeSongIds : []).map((item) => String(item || '').trim()).filter(Boolean))].slice(0, 100)
+    const candidates = selectSongCandidates(cocktailProfile, profiles, 12, { excludeSongIds, feedback })
+    const feedbackExamples = selectRelevantNamingFeedback(cocktailProfile, feedback, 6)
     const rawNaming = await ai.completeJson({
       apiKey,
       model,
-      messages: buildNamingMessages({ cocktail: cocktailProfile, sourceCocktail: input, candidates }),
+      messages: buildNamingMessages({ cocktail: cocktailProfile, sourceCocktail: input, candidates, feedbackExamples }),
       temperature: 0.45,
       maxTokens: 1000
     })
@@ -345,6 +357,32 @@ function createMusicAssistantService({
     }))
     if (!recommendations.length) throw serviceError('NO_RECOMMENDATIONS', '暂时没有找到合适的歌曲名，请换一种偏好再试')
     return { cocktailProfile, recommendations }
+  }
+
+  async function submitNamingFeedback(openId, input = {}) {
+    const owner = ownerId(openId)
+    const songId = String(input.songId || '').trim()
+    const action = String(input.feedbackAction || '').trim()
+    if (!songId) throw serviceError('INVALID_FEEDBACK', '缺少需要反馈的歌曲')
+    if (!FEEDBACK_ACTIONS.has(action)) throw serviceError('INVALID_FEEDBACK', '请选择正确的反馈类型')
+    if (!store.saveNamingFeedback) throw serviceError('FEEDBACK_UNAVAILABLE', '反馈服务暂不可用')
+    const tags = action === 'rejected' ? feedbackTags(input.tags) : []
+    const feedback = {
+      id: id(),
+      songId,
+      title: String(input.title || '').trim().slice(0, 120),
+      artist: String(input.artist || '').trim().slice(0, 160),
+      action,
+      tags,
+      note: String(input.note || '').trim().slice(0, 240),
+      reason: String(input.reason || '').trim().slice(0, 360),
+      cocktailProfile: normalizeCocktailProfile(input.cocktailProfile),
+      model: String(input.model || '').trim().slice(0, 80),
+      promptVersion: NAMING_PROMPT_VERSION,
+      createdAt: now()
+    }
+    await store.saveNamingFeedback(owner, feedback)
+    return { id: feedback.id, songId, action, tags, createdAt: feedback.createdAt }
   }
 
   async function startNcmLogin(openId) {
@@ -361,7 +399,7 @@ function createMusicAssistantService({
     return ncm.loginStatus()
   }
 
-  return { getStatus, startJob, resumeJob, processNext, runBackground, recommendNames, startNcmLogin, checkNcmLogin }
+  return { getStatus, startJob, resumeJob, processNext, runBackground, recommendNames, submitNamingFeedback, startNcmLogin, checkNcmLogin }
 }
 
 module.exports = { DEFAULT_MODEL_PARAMS, DEFAULT_CREDENTIAL_TTL_MS, createMusicAssistantService, serviceError }

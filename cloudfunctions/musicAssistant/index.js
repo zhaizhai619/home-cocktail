@@ -44,6 +44,7 @@ exports.main = async (event = {}) => {
     if (event.action === 'resumeJob') return success(await service.resumeJob(OPENID, event))
     if (event.action === 'processNext') return success(await service.processNext(OPENID, event))
     if (event.action === 'recommendNames') return success(await service.recommendNames(OPENID, event))
+    if (event.action === 'submitNamingFeedback') return success(await service.submitNamingFeedback(OPENID, event))
     if (event.action === 'startNcmLogin') return success(await service.startNcmLogin(OPENID))
     if (event.action === 'checkNcmLogin') return success(await service.checkNcmLogin(OPENID))
     throw Object.assign(new Error('不支持的智能起名操作'), { code: 'UNKNOWN_ACTION' })

@@ -20,6 +20,12 @@ const MATERIAL_SHORTCUTS = [
   { key: 'all', label: '材料库' }
 ]
 
+const AI_FEEDBACK_OPTIONS = [
+  { key: 'vibe_mismatch', label: '氛围不匹配' },
+  { key: 'weak_reason', label: '理由太牵强' },
+  { key: 'bad_name', label: '歌名不像酒名' }
+]
+
 function categoryFilterForIngredient(row) {
   return row && row.category ? getMaterialCategoryGroup(row.category).key : 'all'
 }
@@ -51,7 +57,7 @@ function emptyData(form, glassware, tools) {
 }
 
 Page({
-  data: { units: RECIPE_UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', aiNamingOpen: false, aiColor: '', aiPreference: '', aiThinking: false, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [], ...emptyData(createEmptyRecipeForm(), [], []) },
+  data: { units: RECIPE_UNITS, ratings: RATINGS, categories: NEW_CATEGORIES, addCategories: MATERIAL_SHORTCUTS, materials: [], glasswareOptions: [], tools: [], materialStage: 'serving', draggingIngredientIndex: -1, draggingAdvanceIndex: -1, draggingAdvancePreparationId: '', savingRecipe: false, formError: '', aiNamingOpen: false, aiColor: '', aiPreference: '', aiThinking: false, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiCocktailProfile: null, aiExcludedSongIds: [], aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackSubmitting: false, aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })), ...emptyData(createEmptyRecipeForm(), [], []) },
   async onLoad(query) {
     await waitForCloudReady()
     const repo = repository(); const id = query && query.id; const recipe = id && repo && repo.getRecipe(id)
@@ -80,7 +86,7 @@ Page({
     const value = event.detail.value
     this.sync({ ...this.data.form, [field]: value })
   },
-  onOpenAiNaming() { this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiThinkingText: 'AI 思考中…' }) },
+  onOpenAiNaming() { this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiCocktailProfile: null, aiExcludedSongIds: [], aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })), aiThinkingText: 'AI 思考中…' }) },
   onCloseAiNaming() { if (!this.data.aiThinking) this.setData({ aiNamingOpen: false }) },
   onAiFieldInput(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },
   onOpenMusicSettings() { wx.navigateTo({ url: '/pages/music-naming/index' }) },
@@ -100,14 +106,64 @@ Page({
         model: settings.model,
         color: this.data.aiColor,
         preference: this.data.aiPreference,
+        excludeSongIds: this.data.aiExcludedSongIds || [],
         ...cocktailInput
       })
-      this.setData({ aiRecommendations: result.recommendations || [] })
+      this.setData({ aiRecommendations: result.recommendations || [], aiCocktailProfile: result.cocktailProfile || null, aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })) })
     } catch (error) {
       this.setData({ aiError: error.message || '暂时没有生成合适的名字' })
     } finally {
       clearTimeout(thinkingTimer)
       this.setData({ aiThinking: false })
+    }
+  },
+  onOpenAiFeedback(event) {
+    const songId = String(event.currentTarget.dataset.songId || '')
+    this.setData({ aiFeedbackSongId: songId, aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })) })
+  },
+  onToggleAiFeedbackTag(event) {
+    const tag = String(event.currentTarget.dataset.tag || '')
+    if (!AI_FEEDBACK_OPTIONS.some((item) => item.key === tag)) return
+    const current = new Set(this.data.aiFeedbackTags || [])
+    if (current.has(tag)) current.delete(tag)
+    else current.add(tag)
+    const tags = [...current]
+    this.setData({ aiFeedbackTags: tags, aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: current.has(item.key) })) })
+  },
+  onAiFeedbackNoteInput(event) { this.setData({ aiFeedbackNote: event.detail.value }) },
+  async onSubmitAiFeedback() {
+    if (this.data.aiFeedbackSubmitting) return
+    const songId = String(this.data.aiFeedbackSongId || '')
+    const tags = this.data.aiFeedbackTags || []
+    if (!tags.length) return this.setData({ aiFeedbackError: '请至少选择一个原因' })
+    const recommendation = (this.data.aiRecommendations || []).find((item) => String(item.song_id || '') === songId)
+    const { musicAssistant, musicAssistantSettings } = appServices()
+    if (!recommendation || !musicAssistant || typeof musicAssistant.submitNamingFeedback !== 'function') return this.setData({ aiFeedbackError: '反馈服务暂不可用' })
+    const settings = musicAssistantSettings && musicAssistantSettings.load ? musicAssistantSettings.load() : {}
+    this.setData({ aiFeedbackSubmitting: true, aiFeedbackError: '' })
+    try {
+      await musicAssistant.submitNamingFeedback({
+        songId,
+        title: recommendation.recommended_name,
+        artist: recommendation.artist,
+        feedbackAction: 'rejected',
+        tags,
+        note: this.data.aiFeedbackNote,
+        reason: recommendation.reason,
+        cocktailProfile: this.data.aiCocktailProfile,
+        model: settings.model
+      })
+      const excluded = [...new Set([...(this.data.aiExcludedSongIds || []).map(String), songId])]
+      this.setData({
+        aiExcludedSongIds: excluded,
+        aiRecommendations: (this.data.aiRecommendations || []).filter((item) => String(item.song_id || '') !== songId),
+        aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '',
+        aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false }))
+      })
+    } catch (error) {
+      this.setData({ aiFeedbackError: error.message || '反馈失败，请重试' })
+    } finally {
+      this.setData({ aiFeedbackSubmitting: false })
     }
   },
   onUseAiName(event) {
@@ -116,6 +172,14 @@ Page({
     const songTitle = String(recommendation && recommendation.recommended_name || '').trim()
     const reason = String(recommendation && recommendation.reason || '').trim()
     if (!songTitle || !reason) return
+    const { musicAssistant, musicAssistantSettings } = appServices()
+    const settings = musicAssistantSettings && musicAssistantSettings.load ? musicAssistantSettings.load() : {}
+    if (musicAssistant && typeof musicAssistant.submitNamingFeedback === 'function') {
+      Promise.resolve(musicAssistant.submitNamingFeedback({
+        songId, title: songTitle, artist: String(recommendation.artist || '').trim(), feedbackAction: 'used',
+        reason, cocktailProfile: this.data.aiCocktailProfile, model: settings.model
+      })).catch(() => {})
+    }
     this.sync({
       ...this.data.form,
       name: songTitle,

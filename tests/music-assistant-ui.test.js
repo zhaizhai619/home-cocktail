@@ -61,6 +61,7 @@ test('music analysis has a cloud timer fallback and page exit only stops local w
 test('recipe editor offers AI naming beside the name and renders recommendation reasons', () => {
   const wxml = read('miniprogram/pages/recipe-edit/index.wxml')
   const wxss = read('miniprogram/pages/recipe-edit/index.wxss')
+  const js = read('miniprogram/pages/recipe-edit/index.js')
   assert.match(wxml, /class="name-row"[\s\S]*bindtap="onOpenAiNaming"/)
   assert.match(wxml, /酒的颜色/)
   assert.match(wxml, /起名偏好/)
@@ -70,11 +71,16 @@ test('recipe editor offers AI naming beside the name and renders recommendation 
   assert.match(wxss, /\.ai-close\s*\{[^}]*width:\s*64rpx[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx/s)
   assert.match(wxss, /\.ai-generate\s*\{[^}]*width:\s*240rpx[^}]*height:\s*64rpx[^}]*min-height:\s*64rpx/s)
   assert.match(wxss, /\.ai-results\s*\{[^}]*width:\s*100%/s)
-  assert.match(wxml, /<view wx:for="\{\{aiRecommendations\}\}"[^>]*class="ai-result"[^>]*aria-role="button"/)
+  assert.match(wxml, /<view wx:for="\{\{aiRecommendations\}\}"[^>]*class="ai-result"/)
   assert.doesNotMatch(wxml, /<button wx:for="\{\{aiRecommendations\}\}"[^>]*class="ai-result"/)
   assert.match(wxml, /\{\{item\.recommended_name\}\}[\s\S]*\{\{item\.artist\}\}/)
   assert.match(wxml, /data-song-id="\{\{item\.song_id\}\}"/)
   assert.match(wxml, /\{\{item\.reason\}\}/)
+  assert.match(wxml, /不合适/)
+  assert.match(wxml, /使用这个名字/)
+  for (const label of ['氛围不匹配', '理由太牵强', '歌名不像酒名']) assert.match(js, new RegExp(label))
+  assert.match(wxml, /bindtap="onOpenAiFeedback"/)
+  assert.match(wxml, /bindtap="onSubmitAiFeedback"/)
 })
 
 test('recipe detail opens a compact explanation window from the music naming mark', () => {

@@ -118,10 +118,22 @@
 
     <view wx:if="{{aiRecommendations.length}}" class="ai-results">
       <text class="ai-results-title">推荐酒名</text>
-      <view wx:for="{{aiRecommendations}}" wx:key="song_id" class="ai-result" data-song-id="{{item.song_id}}" bindtap="onUseAiName" aria-role="button" aria-label="使用歌曲 {{item.recommended_name}} 作为酒名">
+      <view wx:for="{{aiRecommendations}}" wx:key="song_id" class="ai-result">
         <view class="ai-result-heading"><text class="ai-result-name">{{item.recommended_name}}</text><text wx:if="{{item.artist}}" class="ai-result-artist">· {{item.artist}}</text></view>
         <text class="ai-result-reason">{{item.reason}}</text>
-        <text class="ai-result-use">使用这个名字</text>
+        <view class="ai-result-actions">
+          <button class="ai-result-reject" data-song-id="{{item.song_id}}" bindtap="onOpenAiFeedback">不合适</button>
+          <button class="ai-result-use" data-song-id="{{item.song_id}}" bindtap="onUseAiName">使用这个名字</button>
+        </view>
+        <view wx:if="{{aiFeedbackSongId === item.song_id}}" class="ai-feedback">
+          <text class="ai-feedback-title">哪里不太合适？</text>
+          <view class="ai-feedback-tags">
+            <button wx:for="{{aiFeedbackOptions}}" wx:key="key" class="ai-feedback-tag {{item.selected ? 'selected' : ''}}" data-tag="{{item.key}}" bindtap="onToggleAiFeedbackTag">{{item.label}}</button>
+          </view>
+          <textarea class="ai-feedback-note" maxlength="120" value="{{aiFeedbackNote}}" bindinput="onAiFeedbackNoteInput" placeholder="还可以补充一句（选填）" />
+          <text wx:if="{{aiFeedbackError}}" class="ai-feedback-error">{{aiFeedbackError}}</text>
+          <button class="ai-feedback-submit" disabled="{{aiFeedbackSubmitting}}" loading="{{aiFeedbackSubmitting}}" bindtap="onSubmitAiFeedback">提交反馈</button>
+        </view>
       </view>
     </view>
     <button class="ai-generate" disabled="{{aiThinking}}" loading="{{aiThinking}}" bindtap="onGenerateAiNames">{{aiRecommendations.length ? '重新生成' : '开始匹配'}}</button>

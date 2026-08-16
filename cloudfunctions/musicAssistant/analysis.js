@@ -137,7 +137,19 @@ function compactCandidate(candidate = {}) {
   }
 }
 
-function buildNamingMessages({ cocktail, sourceCocktail, candidates } = {}) {
+function compactFeedbackExample(item = {}) {
+  return {
+    action: item.action === 'used' ? 'used' : 'rejected',
+    tags: keywords(item.tags, 3),
+    note: text(item.note, 120),
+    reason: text(item.reason, 360),
+    title: text(item.title, 120),
+    artist: text(item.artist, 160),
+    cocktail: normalizeCocktailProfile(item.cocktailProfile)
+  }
+}
+
+function buildNamingMessages({ cocktail, sourceCocktail, candidates, feedbackExamples } = {}) {
   return jsonMessages(
     `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。
 
@@ -150,8 +162,15 @@ function buildNamingMessages({ cocktail, sourceCocktail, candidates } = {}) {
 
 表达必须自然且多样：可以从歌手的表达、歌曲主题、歌词态度或酒的感官特点切入，灵活调整先后顺序；多条推荐不要使用相同开头，避免固定使用“这是某某的《某歌》”之类的模板句式。只能使用输入中明确提供的事实，不得编造发行时间、热度、播放量或歌曲经历。每条理由写成一段连贯自然的中文。
 
+user_feedback_examples 是这位用户过去对相似鸡尾酒的少量反馈。rejected 是负面示例，标签含义为：vibe_mismatch=歌曲与酒的氛围不匹配，weak_reason=匹配理由牵强，bad_name=歌名本身不像酒名；used 是用户实际采用的正面示例。请吸收其审美倾向来比较当前候选，但反馈只对相似鸡尾酒有参考意义，不能把某首歌全局或永久排除。整体氛围匹配优先于单个材料、字词或意象的表面相似；不得把“云和气泡”“颜色和情绪”等弱关联硬凑成理由。宁缺毋滥，没有足够自然的候选时可以少于 3 项，不强行推荐。不要在输出中提及“反馈”“标签”“历史选择”或评价用户。
+
 返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"包含歌手、歌曲表达和完整酒品匹配分析的自然理由"}]}。${NAMING_PROMPT_VERSION}`,
-    { cocktail: normalizeCocktailProfile(cocktail), cocktail_details: compactCocktailDetails(sourceCocktail), candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate) }
+    {
+      cocktail: normalizeCocktailProfile(cocktail),
+      cocktail_details: compactCocktailDetails(sourceCocktail),
+      candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate),
+      user_feedback_examples: (Array.isArray(feedbackExamples) ? feedbackExamples : []).slice(0, 6).map(compactFeedbackExample)
+    }
   )
 }
 

@@ -98,3 +98,29 @@ test('cocktail and naming prompts use ingredients but send only compact song pro
     { song_id: '1', recommended_name: '夜航', reason: '很适合' }
   ])
 })
+
+test('naming prompt uses compact contextual feedback without exposing it in the answer', () => {
+  const messages = buildNamingMessages({
+    cocktail: { emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] },
+    sourceCocktail: { ingredients: [{ name: '草莓', amount: 20, unit: 'ml' }] },
+    candidates: [{ songId: '2', title: '新答案', artist: '歌手乙', summary: '轻松地面对生活' }],
+    feedbackExamples: [{
+      action: 'rejected', tags: ['vibe_mismatch', 'weak_reason'], note: '太硬了',
+      reason: '把歌名里的云和酒里的气泡强行联系',
+      title: '旧答案', artist: '歌手甲',
+      cocktailProfile: { summary: '草莓气泡感', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] }
+    }]
+  })
+  const body = JSON.stringify(messages)
+  const payload = JSON.parse(messages[1].content)
+  assert.equal(payload.user_feedback_examples.length, 1)
+  assert.equal(payload.user_feedback_examples[0].title, '旧答案')
+  assert.deepEqual(payload.user_feedback_examples[0].tags, ['vibe_mismatch', 'weak_reason'])
+  assert.equal(payload.user_feedback_examples[0].reason, '把歌名里的云和酒里的气泡强行联系')
+  assert.match(body, /反馈|负面示例/)
+  assert.match(body, /不要.*提及.*反馈|不得.*提及.*反馈/)
+  assert.match(body, /不能.*一概排除|不要.*永久排除|不得.*全局排除/)
+  assert.match(body, /宁缺毋滥|不强行推荐/)
+  assert.match(body, /氛围[^。]*优先|优先[^。]*氛围/)
+  assert.match(body, /牵强|硬凑|强行联想/)
+})

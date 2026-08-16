@@ -17,7 +17,7 @@ function walk(directory, extension) {
   })
 }
 
-function registeredDefinition(jsFile, wxOverrides = {}) {
+function registeredDefinition(jsFile, wxOverrides = {}, appOverride = null) {
   let definition = null
   const source = fs.readFileSync(jsFile, 'utf8')
   const sandbox = {
@@ -25,7 +25,7 @@ function registeredDefinition(jsFile, wxOverrides = {}) {
     Page(value) { definition = value },
     Component(value) { definition = value },
     App(value) { definition = value },
-    getApp() { return null },
+    getApp() { return appOverride },
     wx: wxOverrides,
     console,
     setTimeout,
@@ -34,6 +34,41 @@ function registeredDefinition(jsFile, wxOverrides = {}) {
   vm.runInNewContext(source, sandbox, { filename: jsFile })
   return definition
 }
+
+test('AI naming feedback excludes a rejected song and re-generation sends the exclusion list', async () => {
+  const calls = []
+  const musicAssistant = {
+    async submitNamingFeedback(payload) { calls.push({ type: 'feedback', payload }); return { action: 'rejected' } },
+    async recommendNames(payload) {
+      calls.push({ type: 'recommend', payload })
+      return { cocktailProfile: { summary: '清透草莓气泡酒', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] }, recommendations: [] }
+    }
+  }
+  const app = { globalData: { musicAssistant, musicAssistantSettings: { load: () => ({ apiKey: 'secret', model: 'deepseek-v4-flash' }) } } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), {}, app)
+  const context = {
+    data: {
+      ...page.data,
+      form: { ...page.data.form, ingredients: [{ name: '草莓', amount: 20, unit: 'ml' }], advancePreparations: [] },
+      aiRecommendations: [{ song_id: '1', recommended_name: '筋斗云', artist: '甲', reason: '旧理由' }],
+      aiCocktailProfile: { summary: '清透草莓气泡酒', emotion_keywords: ['轻松'], scene_sensory_keywords: ['草莓', '气泡'] },
+      aiFeedbackSongId: '1',
+      aiFeedbackTags: ['vibe_mismatch', 'weak_reason'],
+      aiFeedbackNote: '不适合这杯酒',
+      aiExcludedSongIds: []
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onSubmitAiFeedback.call(context)
+  assert.deepEqual(Array.from(context.data.aiExcludedSongIds), ['1'])
+  assert.equal(context.data.aiRecommendations.length, 0)
+  assert.deepEqual(calls[0].payload.tags, ['vibe_mismatch', 'weak_reason'])
+  assert.equal(calls[0].payload.reason, '旧理由')
+
+  await page.onGenerateAiNames.call(context)
+  assert.deepEqual(Array.from(calls[1].payload.excludeSongIds), ['1'])
+})
 
 function eventHandlers(wxml) {
   return [...wxml.matchAll(/\b(?:bind|catch)(?:[a-z][\w-]*|:[a-z][\w-]*)="([A-Za-z_$][\w$]*)"/g)].map((match) => match[1])
@@ -1170,10 +1205,10 @@ test('recipe preparation, equipment and notes show only the requested compact fi
   assert.doesNotMatch(editor, /class="basic-summary-cell glassware-summary"[^>]*>[\s\S]*?›[\s\S]*?<\/view>/)
   assert.match(editor, /class="basic-summary-cell abv-summary"/)
   assert.match(editor, /wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint basic-abv-hint"/)
-  assert.equal((editor.match(/<textarea\b/g) || []).length, 2)
+  assert.equal((editor.match(/<textarea\b/g) || []).length, 3)
   assert.match(editor, /<textarea[^>]*data-field="steps"[^>]*>/)
   assert.match(editor, /<textarea[^>]*class="advance-steps"[^>]*data-field="steps"/)
-  assert.doesNotMatch(editor, /<textarea[^>]*placeholder=/)
+  assert.match(editor, /<textarea[^>]*class="ai-feedback-note"[^>]*placeholder=/)
   assert.doesNotMatch(editor, /data-field="tastingNote"/)
   assert.match(fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8'), /\.note-input\s*{[^}]*height:\s*96rpx[^}]*min-height:\s*96rpx/)
 })
