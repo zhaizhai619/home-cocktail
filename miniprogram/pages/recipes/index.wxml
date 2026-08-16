@@ -13,13 +13,14 @@
   <text wx:if="{{seasonalFruitMessage}}" class="seasonal-fruit-tip">{{seasonalFruitMessage}}</text>
 
   <view class="filter-bar">
-    <view class="filter-trigger" bindtap="toggleFilterPanel" aria-role="button" aria-expanded="{{filterPanelOpen}}" aria-label="全部筛选，当前{{filterPanelOpen ? '已展开' : '已收起'}}">
+    <view class="filter-trigger" bindtap="toggleFilterPanel" aria-role="button" aria-expanded="{{filterPanelOpen}}" aria-label="全部筛选，{{loadingRecipes ? '酒单加载中' : '当前显示'}}{{loadingRecipes ? '' : recipes.length}}{{loadingRecipes ? '' : '款酒'}}，{{filterPanelOpen ? '已展开' : '已收起'}}">
       <text class="filter-trigger-label">全部</text>
-      <view class="filter-symbol {{prepType !== 'all' || materialCondition !== 'all' || rating !== 'all' || untriedOnly || sortKey !== 'prep-time' ? 'active' : ''}}" aria-hidden="true">
+      <view class="filter-symbol {{prepType !== 'all' || materialCondition !== 'all' || rating !== 'all' || triedStatus !== 'all' || sortKey !== 'recent' ? 'active' : ''}}" aria-hidden="true">
         <view class="filter-symbol-line line-long"></view>
         <view class="filter-symbol-line line-medium"></view>
         <view class="filter-symbol-line line-short"></view>
       </view>
+      <text class="recipe-count">{{loadingRecipes ? '…' : recipes.length}}</text>
     </view>
     <button size="mini" class="add-hit" bindtap="onAddRecipe" aria-label="添加一款酒">＋ 新增</button>
   </view>
@@ -53,7 +54,7 @@
     <view class="filter-group">
       <text class="filter-group-title">调酒状态</text>
       <view class="filter-option-grid">
-        <view wx:for="{{statusOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{(!untriedOnly && option.key === 'all') || (untriedOnly && option.key === 'untried') ? 'selected' : ''}}" data-kind="status" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
+        <view wx:for="{{statusOptions}}" wx:for-item="option" wx:key="key" class="filter-option {{triedStatus === option.key ? 'selected' : ''}}" data-kind="status" data-key="{{option.key}}" bindtap="onSelectFilterOption" aria-role="button" aria-label="{{option.label}}{{triedStatus === option.key ? '，已选择' : ''}}"><text class="filter-option-label">{{option.shortLabel || option.label}}</text></view>
       </view>
     </view>
     <view class="filter-actions">
@@ -62,7 +63,11 @@
     </view>
   </view>
 
-  <view wx:if="{{recipes.length}}" class="card-list">
+  <view wx:if="{{loadingRecipes}}" class="loading-state" aria-label="酒单加载中">
+    <view class="loading-spinner" aria-hidden="true"></view>
+    <text>酒单加载中…</text>
+  </view>
+  <view wx:elif="{{recipes.length}}" class="card-list">
     <recipe-card wx:for="{{recipes}}" wx:key="id" recipe="{{item}}" bind:select="onSelectRecipe" />
   </view>
   <view wx:elif="{{hasRecipes}}" class="empty no-results">

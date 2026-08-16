@@ -122,8 +122,11 @@ function filterAndSortRecipeCards(recipes, materialsById = {}, options = {}) {
   const safeRecipes = Array.isArray(recipes) ? recipes : []
   const searched = safeRecipes.filter((recipe) => matchesSearch(recipe, materialsById, options.search))
   const filtered = filterRecipes(searched, options, materialsById)
-  const sorted = sortRecipes(filtered, options.sortKey || 'prep-time')
-  const grouped = options.untriedOnly === true
+  const sorted = sortRecipes(filtered, options.sortKey || 'recent')
+  const triedStatus = ['tried', 'untried'].includes(options.triedStatus)
+    ? options.triedStatus
+    : (options.untriedOnly === true ? 'untried' : 'all')
+  const grouped = triedStatus !== 'all'
     ? sorted
     : [...sorted.filter((recipe) => recipe && recipe.tried === true), ...sorted.filter((recipe) => !recipe || recipe.tried !== true)]
   return grouped.map((recipe) => buildRecipeCard(recipe, materialsById))

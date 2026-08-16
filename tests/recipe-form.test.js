@@ -90,7 +90,20 @@ test('new base spirits and liqueurs stay ahead of other ingredients in their sel
   form = applyMaterialSelection(form, -1, { id: 'rum', name: '深色朗姆', category: 'other-base-spirit', defaultUnit: 'ml', alcoholic: true, abv: 40 })
   form = applyMaterialSelection(form, -1, { id: 'pineapple', name: '菠萝汁', category: 'dairy/juice', defaultUnit: 'ml', alcoholic: false })
 
-  assert.deepEqual(form.ingredients.map(({ name }) => name), ['金酒', '椰子利口酒', '深色朗姆', '柠檬汁', '糖浆', '菠萝汁'])
+  assert.deepEqual(form.ingredients.map(({ name }) => name), ['金酒', '椰子利口酒', '深色朗姆', '菠萝汁', '柠檬汁', '糖浆'])
+})
+
+test('default ingredient order keeps ordinary materials before staples and puts soda tonic and spices last', () => {
+  let form = createEmptyRecipeForm()
+  form = applyMaterialSelection(form, -1, { id: 'soda', name: '气泡水', category: 'soda/tonic', defaultUnit: 'top-up', alcoholic: false })
+  form = applyMaterialSelection(form, -1, { id: 'pineapple', name: '菠萝汁', category: 'dairy/juice', defaultUnit: 'ml', alcoholic: false })
+  form = applyMaterialSelection(form, -1, { id: 'gin', name: '金酒', category: 'base-spirit', defaultUnit: 'ml', alcoholic: true, abv: 40 })
+  form = applyMaterialSelection(form, -1, { id: 'tonic', name: '汤力水', category: 'soda/tonic', defaultUnit: 'top-up', alcoholic: false })
+  form = applyMaterialSelection(form, -1, { id: 'cinnamon', name: '肉桂', category: 'other-solid', defaultUnit: 'g', alcoholic: false })
+
+  assert.deepEqual(form.ingredients.map(({ name }) => name), [
+    '金酒', '菠萝汁', '柠檬汁', '糖浆', '气泡水', '汤力水', '肉桂'
+  ])
 })
 
 test('default ingredient order keeps prepared outputs before spirits and other materials', () => {
@@ -101,7 +114,7 @@ test('default ingredient order keeps prepared outputs before spirits and other m
   form = applyMaterialSelection(form, -1, { id: 'coconut', name: '椰子利口酒', category: 'liqueur', defaultUnit: 'ml', alcoholic: true, abv: 20 })
   form = applyMaterialSelection(form, -1, { id: 'pineapple', name: '菠萝汁', category: 'dairy/juice', defaultUnit: 'ml', alcoholic: false })
 
-  assert.deepEqual(form.ingredients.map(({ name }) => name), ['混合果汁', '金酒', '椰子利口酒', '柠檬汁', '糖浆', '菠萝汁'])
+  assert.deepEqual(form.ingredients.map(({ name }) => name), ['混合果汁', '金酒', '椰子利口酒', '菠萝汁', '柠檬汁', '糖浆'])
   assert.equal(form.ingredientOrderCustomized, false)
 })
 

@@ -1,11 +1,10 @@
-const { UNITS } = require('../../domain/constants')
+const { RECIPE_UNITS } = require('../../domain/constants')
 const { MATERIAL_CATEGORY_GROUPS, getMaterialCategoryGroup, selectMaterialCategory } = require('../../domain/material')
 const { CATEGORIES, createFormDefaults, materialSaveNavigation, orchestrateMaterialSave } = require('./model')
 const { decodeMaterialId } = require('../material-detail/model')
 const { waitForCloudReady } = require('../../services/page-ready')
 
 const CATEGORY_OPTIONS = MATERIAL_CATEGORY_GROUPS.map(({ key, label }) => ({ value: key, label }))
-const ACQUISITION_OPTIONS = [{ value: 'long-term', label: '长期材料' }, { value: 'on-demand', label: '随买随用' }]
 
 function repository() {
   const app = typeof getApp === 'function' ? getApp() : null
@@ -15,13 +14,13 @@ function toast(title, icon = 'none') { if (typeof wx !== 'undefined' && wx.showT
 function indexFor(options, value) { const index = options.findIndex((item) => item.value === value); return index < 0 ? 0 : index }
 function categoryIndexFor(category) { return indexFor(CATEGORY_OPTIONS, getMaterialCategoryGroup(category).key) }
 function decodeQueryValue(value) { try { return decodeURIComponent(String(value || '')) } catch (_) { return '' } }
+function normalizeEditableUnit(value) { return RECIPE_UNITS.some((item) => item.value === value) ? value : (value === 'slice' ? 'piece' : 'ml') }
 
 Page({
   data: {
     mode: 'create', missing: false, savingMaterial: false, form: createFormDefaults(), errors: {},
     categoryOptions: CATEGORY_OPTIONS, categoryLabels: CATEGORY_OPTIONS.map(({ label }) => label), categoryIndex: categoryIndexFor(createFormDefaults().category),
-    acquisitionOptions: ACQUISITION_OPTIONS, acquisitionLabels: ACQUISITION_OPTIONS.map(({ label }) => label), acquisitionIndex: 1,
-    units: UNITS, unitLabels: UNITS.map(({ label }) => label), unitIndex: 0, remainingUnitIndex: 0
+    units: RECIPE_UNITS, unitIndex: 0
   },
   async onLoad(query) {
     await waitForCloudReady()
@@ -33,12 +32,11 @@ Page({
       if (!name && !requestedCategory) return
       const category = CATEGORIES.includes(requestedCategory) ? requestedCategory : 'other-liquid'
       const form = createFormDefaults(category, name)
+      form.defaultUnit = normalizeEditableUnit(form.defaultUnit)
       this.setData({
         mode: 'create', form,
         categoryIndex: categoryIndexFor(form.category),
-        acquisitionIndex: indexFor(ACQUISITION_OPTIONS, form.acquisition),
-        unitIndex: indexFor(UNITS, form.defaultUnit),
-        remainingUnitIndex: indexFor(UNITS, form.remainingUnit)
+        unitIndex: indexFor(RECIPE_UNITS, form.defaultUnit)
       })
       if (wx.setNavigationBarTitle && name) wx.setNavigationBarTitle({ title: `新增 · ${name}` })
       return
@@ -52,12 +50,11 @@ Page({
       purchasedAt: material.purchasedAt ? String(material.purchasedAt).slice(0, 10) : '',
       expiresAt: material.expiresAt ? String(material.expiresAt).slice(0, 10) : ''
     }
+    form.defaultUnit = normalizeEditableUnit(form.defaultUnit)
     this.setData({
       mode: 'edit', form,
       categoryIndex: categoryIndexFor(form.category),
-      acquisitionIndex: indexFor(ACQUISITION_OPTIONS, form.acquisition),
-      unitIndex: indexFor(UNITS, form.defaultUnit),
-      remainingUnitIndex: indexFor(UNITS, form.remainingUnit)
+      unitIndex: indexFor(RECIPE_UNITS, form.defaultUnit)
     })
     if (wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: `编辑 · ${form.name}` })
   },
@@ -69,25 +66,26 @@ Page({
     const category = selectMaterialCategory(this.data.form.category, option.value)
     const defaults = createFormDefaults(category, this.data.form.name)
     const next = { ...this.data.form, ...defaults, id: this.data.form.id, name: this.data.form.name }
+    next.defaultUnit = normalizeEditableUnit(next.defaultUnit)
     this.setData({
       form: next, categoryIndex: categoryIndexFor(next.category),
-      acquisitionIndex: indexFor(ACQUISITION_OPTIONS, next.acquisition),
-      unitIndex: indexFor(UNITS, next.defaultUnit), remainingUnitIndex: indexFor(UNITS, next.remainingUnit), errors: {}
+      unitIndex: indexFor(RECIPE_UNITS, next.defaultUnit), errors: {}
     })
   },
-  onAcquisitionChange(event) {
+  onQuickBuyChange(event) {
     this.clearFormError()
-    const index = Number(event.detail.value); const option = ACQUISITION_OPTIONS[index] || ACQUISITION_OPTIONS[0]
     const wasAvailable = this.data.form.acquisition === 'on-demand' ? this.data.form.freshOnHand === true : this.data.form.owned === true
+    const quickBuy = event.detail.value === true
+    const acquisition = quickBuy ? 'on-demand' : 'long-term'
     const updates = {
-      acquisitionIndex: indexFor(ACQUISITION_OPTIONS, option.value),
-      'form.acquisition': option.value,
-      'form.owned': option.value === 'long-term' && wasAvailable,
-      'form.freshOnHand': option.value === 'on-demand' && wasAvailable
+      'form.acquisition': acquisition,
+      'form.owned': !quickBuy && wasAvailable,
+      'form.freshOnHand': quickBuy && wasAvailable,
+      'form.assumedAvailable': quickBuy ? false : this.data.form.assumedAvailable === true
     }
     this.setData(updates)
   },
-  onUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ unitIndex: indexFor(UNITS, option.value), 'form.defaultUnit': option.value }) },
+  onUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = RECIPE_UNITS[index] || RECIPE_UNITS[0]; this.setData({ unitIndex: indexFor(RECIPE_UNITS, option.value), 'form.defaultUnit': option.value }) },
   onAlcoholicChange(event) { this.clearFormError(); this.setData({ 'form.alcoholic': event.detail.value === true, 'form.abv': event.detail.value ? this.data.form.abv : '' }) },
   onAbvInput(event) { this.setData({ 'form.abv': event.detail.value, 'errors.abv': '', 'errors.form': '' }) },
   onTrackChange(event) {
@@ -97,7 +95,6 @@ Page({
   },
   onAssumedChange(event) { this.clearFormError(); this.setData({ 'form.assumedAvailable': event.detail.value === true }) },
   onAmountInput(event) { this.setData({ 'form.remainingAmount': event.detail.value, 'errors.remainingAmount': '', 'errors.form': '' }) },
-  onRemainingUnitChange(event) { this.clearFormError(); const index = Number(event.detail.value); const option = UNITS[index] || UNITS[0]; this.setData({ remainingUnitIndex: indexFor(UNITS, option.value), 'form.remainingUnit': option.value }) },
   onPurchasedChange(event) { this.setData({ 'form.purchasedAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   onExpiryChange(event) { this.setData({ 'form.expiresAt': event.detail.value || '', 'errors.date': '', 'errors.form': '' }) },
   async onSave() {

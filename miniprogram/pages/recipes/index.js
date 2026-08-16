@@ -18,13 +18,14 @@ const MATERIAL_OPTIONS = [
 ]
 const RATING_OPTIONS = [{ key: 'all', label: '全部' }, ...RATINGS.map((rating) => ({ key: rating, label: rating }))]
 const SORT_OPTIONS = [
-  { key: 'prep-time', label: '准备时间最短', shortLabel: '准备最短' },
   { key: 'recent', label: '最近添加', shortLabel: '最近' },
+  { key: 'prep-time', label: '准备时间最短', shortLabel: '准备最短' },
   { key: 'rating', label: '评价档位', shortLabel: '评价' },
   { key: 'name', label: '名称排序', shortLabel: '名称' }
 ]
 const STATUS_OPTIONS = [
   { key: 'all', label: '全部' },
+  { key: 'tried', label: '仅看调过', shortLabel: '调过' },
   { key: 'untried', label: '仅看未调过', shortLabel: '未调过' }
 ]
 const FILTERS = {
@@ -40,9 +41,9 @@ const DEFAULT_FILTERS = {
   materialConditionLabel: '全部',
   rating: 'all',
   ratingLabel: '全部',
-  untriedOnly: false,
-  sortKey: 'prep-time',
-  sortLabel: '准备时间最短'
+  triedStatus: 'all',
+  sortKey: 'recent',
+  sortLabel: '最近添加'
 }
 
 function repositoryData() {
@@ -70,9 +71,10 @@ Page({
     materialConditionLabel: '全部',
     rating: 'all',
     ratingLabel: '全部',
-    untriedOnly: false,
-    sortKey: 'prep-time',
-    sortLabel: '准备时间最短',
+    triedStatus: 'all',
+    sortKey: 'recent',
+    sortLabel: '最近添加',
+    loadingRecipes: true,
     hasRecipes: false,
     filterPanelOpen: false,
     prepOptions: PREP_OPTIONS,
@@ -91,6 +93,7 @@ Page({
       seasonalFruitMessage: buildSeasonalFruitMessage(new Date().getMonth() + 1)
     })
     this.refreshCards()
+    this.setData({ loadingRecipes: false })
   },
   refreshCards() {
     this.setData({ recipes: filterAndSortRecipeCards(this.recipesSource, this.materialsById, this.data) })
@@ -109,7 +112,7 @@ Page({
     const { kind, key } = event.currentTarget.dataset
     if (kind === 'status') {
       if (!STATUS_OPTIONS.some((option) => option.key === key)) return
-      this.setData({ untriedOnly: key === 'untried' })
+      this.setData({ triedStatus: key })
       this.refreshCards()
       return
     }

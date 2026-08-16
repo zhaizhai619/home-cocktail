@@ -403,6 +403,18 @@ test('filters only untried recipes and treats missing legacy tried state as untr
   )
 })
 
+test('filters recipes by an explicit tried status', () => {
+  const recipes = [
+    recipe({ id: 'tried', tried: true }),
+    recipe({ id: 'untried', tried: false }),
+    recipe({ id: 'legacy-untried' })
+  ]
+
+  assert.deepEqual(filterRecipes(recipes, { triedStatus: 'all' }, {}), recipes)
+  assert.deepEqual(filterRecipes(recipes, { triedStatus: 'tried' }, {}), [recipes[0]])
+  assert.deepEqual(filterRecipes(recipes, { triedStatus: 'untried' }, {}), [recipes[1], recipes[2]])
+})
+
 test('untried recipes never match a residual rating filter', () => {
   const recipes = [
     recipe({ id: 'tried', tried: true, rating: '顶尖' }),

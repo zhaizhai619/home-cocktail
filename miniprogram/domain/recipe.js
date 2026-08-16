@@ -10,6 +10,9 @@ const PREPARATION_UNITS = new Set([
   ...DAY_UNITS
 ])
 const LEADING_ALCOHOL_CATEGORIES = new Set(['base-spirit', 'other-base-spirit', 'liqueur'])
+const STAPLE_INGREDIENT_NAMES = new Set(['柠檬汁', '糖浆', '普通糖浆', '单糖浆'])
+const TRAILING_MIXER_NAMES = new Set(['气泡水', '汤力水'])
+const TRAILING_SPICE_CATEGORIES = new Set(['bitters', 'other-solid'])
 
 function normalizeMusicNaming(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -27,7 +30,11 @@ function normalizeMusicNaming(value) {
 function getIngredientOrderPriority(ingredient, material) {
   if (ingredient && ingredient.kind === 'prepared-output') return 0
   const category = ingredient && ingredient.category || material && material.category
-  return LEADING_ALCOHOL_CATEGORIES.has(category) ? 1 : 2
+  const name = String(ingredient && ingredient.name || material && material.name || '').trim()
+  if (TRAILING_SPICE_CATEGORIES.has(category) || TRAILING_MIXER_NAMES.has(name)) return 4
+  if (LEADING_ALCOHOL_CATEGORIES.has(category)) return 1
+  if (STAPLE_INGREDIENT_NAMES.has(name)) return 3
+  return 2
 }
 
 function sortIngredientsByDefault(ingredients, materialsById = {}) {
@@ -203,7 +210,9 @@ function filterRecipes(recipes, options = {}, materialsById = {}) {
   const prepType = options.prepType || 'all'
   const materialCondition = options.materialCondition || 'all'
   const rating = options.rating || 'all'
-  const untriedOnly = options.untriedOnly === true
+  const triedStatus = ['all', 'tried', 'untried'].includes(options.triedStatus)
+    ? options.triedStatus
+    : (options.untriedOnly === true ? 'untried' : 'all')
 
   return (Array.isArray(recipes) ? recipes : []).filter((recipe) => {
     const preparations = normalizePrepSelections(recipe.preparations)
@@ -215,7 +224,8 @@ function filterRecipes(recipes, options = {}, materialsById = {}) {
     const matchesRating = rating === 'all' || (
       recipe.tried === true && recipe.rating === rating
     )
-    const matchesTriedState = !untriedOnly || recipe.tried !== true
+    const matchesTriedState = triedStatus === 'all' ||
+      (triedStatus === 'tried' ? recipe.tried === true : recipe.tried !== true)
 
     return matchesPreparation && matchesMaterials && matchesRating && matchesTriedState
   })

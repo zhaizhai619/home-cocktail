@@ -309,18 +309,50 @@ test('catalog template cards resolve a material id and open the same detail page
   assert.doesNotMatch(materialsPage, /pages\/material-edit\/index\?name=/)
 })
 
-test('material editor pairs acquisition with default unit and hides material form selection', () => {
+test('material editor pairs a quick-buy switch with the recipe unit picker and hides material form selection', () => {
   const editor = fs.readFileSync(path.join(MINI, 'pages/material-edit/index.wxml'), 'utf8')
+  const editorScript = fs.readFileSync(path.join(MINI, 'pages/material-edit/index.js'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/material-edit/index.wxss'), 'utf8')
   const page = registeredDefinition(path.join(MINI, 'pages/material-edit/index.js'))
-  const pairedFields = editor.match(/<view class="two-columns">[\s\S]*?<\/view>\s*<\/view>/)[0]
+  const pairedStart = editor.indexOf('<view class="two-columns material-meta-row">')
+  const pairedFields = editor.slice(pairedStart, editor.indexOf('<view class="form-card">', pairedStart))
   assert.deepEqual(Array.from(page.data.categoryLabels), ['基酒', '利口酒', '糖浆', '果汁/果蔬', '混合饮品', '香料', '其他'])
+  assert.deepEqual(Array.from(page.data.units, ({ label }) => label), ['ml', 'g', '个', '补满', '适量', '块', '滴'])
   assert.doesNotMatch(editor, />系统分类</)
   assert.match(editor, />分类</)
-  assert.match(pairedFields, />获取方式</)
+  assert.match(pairedFields, />是否随买随用</)
+  assert.match(pairedFields, /<switch[^>]*checked="{{form\.acquisition === 'on-demand'}}"[^>]*bindchange="onQuickBuyChange"[^>]*color="#627969"/)
   assert.match(pairedFields, />默认用量单位</)
+  assert.match(pairedFields, /<picker class="default-unit-picker"[^>]*range="{{units}}"[^>]*range-key="label"[^>]*bindchange="onUnitChange"/)
+  assert.doesNotMatch(editor, />获取方式|>长期材料</)
+  assert.doesNotMatch(editorScript, /ACQUISITION_OPTIONS|acquisitionLabels|acquisitionIndex|onAcquisitionChange/)
+  assert.match(editorScript, /const \{ RECIPE_UNITS \} = require\('\.\.\/\.\.\/domain\/constants'\)/)
+  assert.match(css, /\.default-unit-value\s*\{[^}]*height:\s*60rpx[^}]*background:\s*#f1f0ec[^}]*font-size:\s*22rpx/)
   assert.doesNotMatch(editor, />[^<]*\*/)
   assert.doesNotMatch(editor, />材料形态 \*</)
   assert.doesNotMatch(editor, /bindchange="onFormChange"/)
+})
+
+test('material editor quick-buy switch preserves availability while guaranteeing quick-buy semantics', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/material-edit/index.js'))
+  const context = {
+    data: {
+      form: { acquisition: 'long-term', owned: true, freshOnHand: false, assumedAvailable: true },
+      errors: {}
+    },
+    clearFormError() {},
+    setData(updates) {
+      for (const [key, value] of Object.entries(updates)) {
+        if (key.startsWith('form.')) this.data.form[key.slice(5)] = value
+        else this.data[key] = value
+      }
+    }
+  }
+
+  page.onQuickBuyChange.call(context, { detail: { value: true } })
+  assert.deepEqual(context.data.form, { acquisition: 'on-demand', owned: false, freshOnHand: true, assumedAvailable: false })
+  page.onQuickBuyChange.call(context, { detail: { value: false } })
+  assert.deepEqual(context.data.form, { acquisition: 'long-term', owned: true, freshOnHand: false, assumedAvailable: false })
 })
 
 test('material editor shows cloud save progress and prevents duplicate submissions', () => {
@@ -759,7 +791,9 @@ test('home collapses every filter group behind one all trigger', () => {
   assert.equal(page.data.filterPanelOpen, false)
   assert.match(recipes, /<view class="filter-trigger"[^>]*bindtap="toggleFilterPanel"[^>]*aria-role="button"[^>]*aria-expanded="{{filterPanelOpen}}"/)
   assert.match(recipes, /class="filter-trigger-label">全部</)
-  assert.match(recipes, /class="filter-symbol \{\{prepType !== 'all' \|\| materialCondition !== 'all' \|\| rating !== 'all' \|\| untriedOnly \|\| sortKey !== 'prep-time' \? 'active' : ''\}\}"[\s\S]*class="filter-symbol-line/)
+  assert.match(recipes, /class="recipe-count">\{\{loadingRecipes \? '…' : recipes\.length\}\}<\/text>/)
+  assert.match(recipes, /class="filter-symbol \{\{prepType !== 'all' \|\| materialCondition !== 'all' \|\| rating !== 'all' \|\| triedStatus !== 'all' \|\| sortKey !== 'recent' \? 'active' : ''\}\}"[\s\S]*class="filter-symbol-line/)
+  assert.ok(recipes.indexOf('class="filter-symbol ') < recipes.indexOf('class="recipe-count"'))
   assert.match(recipes, /class="filter-panel \{\{filterPanelOpen \? 'open' : ''\}\}"[^>]*aria-hidden="{{!filterPanelOpen}}"/)
   for (const title of ['排序依据', '制作方式', '材料条件', '评价', '调酒状态']) {
     assert.match(recipes, new RegExp(`class="filter-group-title">${title}<`))
@@ -770,13 +804,16 @@ test('home collapses every filter group behind one all trigger', () => {
   assert.match(recipes, /class="filter-reset"[^>]*bindtap="resetFilterPanel"[^>]*>重置</)
   assert.match(recipes, /class="filter-collapse"[^>]*bindtap="collapseFilterPanel"[^>]*>收起</)
   assert.doesNotMatch(recipes, /filter-grid|untried-filter-row|sheet-mask|openSortSheet|openFilter|onSelectSheet/)
-  assert.equal(page.data.sortOptions[0].shortLabel, '准备最短')
+  assert.equal(page.data.sortOptions[0].shortLabel, '最近')
   assert.equal(page.data.sortOptions.find((option) => option.key === 'recent').shortLabel, '最近')
   assert.equal(page.data.sortOptions.find((option) => option.key === 'rating').shortLabel, '评价')
   assert.equal(page.data.sortOptions.find((option) => option.key === 'name').shortLabel, '名称')
   assert.equal(page.data.prepOptions.find((option) => option.key === '低温慢煮').shortLabel, '低温')
   assert.equal(page.data.prepOptions.find((option) => option.key === '其他预调'), undefined)
   assert.equal(page.data.statusOptions.find((option) => option.key === 'untried').shortLabel, '未调过')
+  assert.equal(page.data.statusOptions.find((option) => option.key === 'tried').shortLabel, '调过')
+  assert.equal(page.data.sortKey, 'recent')
+  assert.equal(page.data.triedStatus, 'all')
   assert.match(recipes, /wx:for="{{sortOptions}}"[\s\S]*class="filter-option-label">\{\{option\.shortLabel \|\| option\.label\}\}<\/text><\/view>/)
   assert.match(css, /\.recipes-page\s*{[^}]*position:\s*relative/)
   assert.match(recipes, /class="filter-bar"[\s\S]*class="filter-trigger"[\s\S]*class="add-hit"/)
@@ -784,6 +821,7 @@ test('home collapses every filter group behind one all trigger', () => {
   assert.match(css, /\.filter-bar\s*{[^}]*display:\s*flex[^}]*align-items:\s*center[^}]*width:\s*100%/)
   assert.match(css, /\.filter-trigger\s*{[^}]*justify-content:\s*flex-start[^}]*flex:\s*1[^}]*width:\s*auto[^}]*margin-left:\s*0[^}]*text-align:\s*left/)
   assert.match(css, /\.filter-symbol\.active \.filter-symbol-line\s*{[^}]*background:\s*#957052/)
+  assert.match(css, /\.recipe-count\s*{[^}]*min-width:\s*48rpx[^}]*background:\s*#f4eee8[^}]*border-radius:\s*999rpx/)
   assert.match(css, /\.filter-panel\s*{[^}]*position:\s*absolute[^}]*z-index:\s*10[^}]*right:\s*32rpx[^}]*left:\s*32rpx[^}]*max-width:\s*calc\(100vw - 64rpx\)[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*hidden[^}]*background:/)
   assert.match(css, /\.filter-option-grid\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)[^}]*gap:\s*8rpx/)
   assert.match(css, /\.filter-option\s*{[^}]*min-width:\s*0[^}]*overflow:\s*hidden/)
@@ -823,13 +861,16 @@ test('home filter panel applies grouped options immediately and stays open', () 
   assert.equal(context.data.prepType, '冷冻')
   assert.equal(context.data.filterPanelOpen, true)
   page.onSelectFilterOption.call(context, { currentTarget: { dataset: { kind: 'status', key: 'untried' } } })
-  assert.equal(context.data.untriedOnly, true)
-  assert.equal(context.refreshCount, 2)
+  assert.equal(context.data.triedStatus, 'untried')
+  page.onSelectFilterOption.call(context, { currentTarget: { dataset: { kind: 'status', key: 'tried' } } })
+  assert.equal(context.data.triedStatus, 'tried')
+  assert.equal(context.refreshCount, 3)
   page.resetFilterPanel.call(context)
   assert.equal(context.data.prepType, 'all')
-  assert.equal(context.data.untriedOnly, false)
+  assert.equal(context.data.triedStatus, 'all')
+  assert.equal(context.data.sortKey, 'recent')
   assert.equal(context.data.filterPanelOpen, true)
-  assert.equal(context.refreshCount, 3)
+  assert.equal(context.refreshCount, 4)
   page.collapseFilterPanel.call(context)
   assert.equal(context.data.filterPanelOpen, false)
 })
@@ -842,7 +883,7 @@ test('expanded home filter overlays the visible recipe list while locking page s
   assert.match(template, /wx:if="{{filterPanelOpen}}"[^>]*class="filter-scroll-lock"[^>]*catchtap="collapseFilterPanel"[^>]*catchtouchmove="noop"[^>]*aria-label="点击空白处收起筛选"/)
   assert.match(template, /class="filter-panel \{\{filterPanelOpen \? 'open' : ''\}\}"[^>]*catchtouchmove="noop"[^>]*aria-hidden="{{!filterPanelOpen}}"/)
   assert.doesNotMatch(template, /wx:if="{{filterPanelOpen}}"[^>]*class="filter-panel"/)
-  assert.match(template, /wx:if="{{recipes\.length}}"[^>]*class="card-list"/)
+  assert.match(template, /wx:elif="{{recipes\.length}}"[^>]*class="card-list"/)
   assert.match(template, /wx:elif="{{hasRecipes}}"[^>]*class="empty no-results"/)
   assert.match(template, /wx:else[^>]*class="empty"/)
   assert.doesNotMatch(template, /!filterPanelOpen && (?:recipes\.length|hasRecipes)/)
@@ -942,6 +983,26 @@ test('home distinguishes a genuinely empty collection from filtered no-results a
   assert.match(recipes, /wx:else class="empty"/)
   assert.match(recipes, /bindtap="clearFilters"/)
   assert.match(recipes, /没有符合条件的酒/)
+})
+
+test('home shows an explicit loading state before deciding that the recipe collection is empty', async () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipes/index.js'))
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
+
+  assert.equal(page.data.loadingRecipes, true)
+  assert.match(template, /wx:if="{{loadingRecipes}}" class="loading-state"[\s\S]*酒单加载中…/)
+  assert.match(template, /class="recipe-count">{{loadingRecipes \? '…' : recipes\.length}}<\/text>/)
+  assert.match(template, /wx:elif="{{recipes\.length}}"[^>]*class="card-list"/)
+  assert.match(css, /\.loading-spinner\s*{[^}]*animation:\s*recipe-loading-spin/)
+
+  const context = {
+    data: { ...page.data },
+    setData(value) { Object.assign(this.data, value) },
+    refreshCards() {}
+  }
+  await page.onShow.call(context)
+  assert.equal(context.data.loadingRecipes, false)
 })
 
 test('recipe entry uses library-backed material shortcuts and no manual alcoholic switch', () => {

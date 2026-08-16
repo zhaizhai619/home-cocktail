@@ -6,16 +6,22 @@
     <view class="form-card">
       <text class="label">材料名称</text><input class="input {{errors.name ? 'error' : ''}}" value="{{form.name}}" bindinput="onNameInput" placeholder="例如：西瓜"/><text wx:if="{{errors.name}}" class="error-text">{{errors.name}}</text>
       <text class="label">分类</text><picker range="{{categoryLabels}}" value="{{categoryIndex}}" bindchange="onCategoryChange"><view class="picker">{{categoryLabels[categoryIndex]}}</view></picker><text wx:if="{{errors.category}}" class="error-text">{{errors.category}}</text>
-      <view class="two-columns">
-        <view><text class="label">获取方式</text><picker range="{{acquisitionLabels}}" value="{{acquisitionIndex}}" bindchange="onAcquisitionChange"><view class="picker">{{acquisitionLabels[acquisitionIndex]}}</view></picker></view>
-        <view><text class="label">默认用量单位</text><picker range="{{unitLabels}}" value="{{unitIndex}}" bindchange="onUnitChange"><view class="picker">{{unitLabels[unitIndex]}}</view></picker></view>
+      <view class="two-columns material-meta-row">
+        <view>
+          <text class="label">是否随买随用</text>
+          <view class="quick-buy-value"><text>{{form.acquisition === 'on-demand' ? '是' : '否'}}</text><switch checked="{{form.acquisition === 'on-demand'}}" bindchange="onQuickBuyChange" color="#627969"/></view>
+        </view>
+        <view>
+          <text class="label">默认用量单位</text>
+          <picker class="default-unit-picker" range="{{units}}" range-key="label" value="{{unitIndex}}" bindchange="onUnitChange"><view class="default-unit-value">{{units[unitIndex].label}}</view></picker>
+        </view>
       </view>
     </view>
 
     <view class="form-card">
       <view class="switch-row"><view><text class="switch-title">含酒精</text><text class="switch-note">用于预估酒精度</text></view><switch checked="{{form.alcoholic}}" bindchange="onAlcoholicChange" color="#627969"/></view>
       <block wx:if="{{form.alcoholic}}"><text class="label">酒精度</text><view class="suffix-input"><input type="digit" value="{{form.abv}}" bindinput="onAbvInput"/><text>%</text></view><text wx:if="{{errors.abv}}" class="error-text">{{errors.abv}}</text></block>
-      <view class="switch-row"><view><text class="switch-title">常备材料</text></view><switch checked="{{form.assumedAvailable}}" bindchange="onAssumedChange" color="#627969"/></view>
+      <view wx:if="{{form.acquisition !== 'on-demand'}}" class="switch-row"><view><text class="switch-title">常备材料</text></view><switch checked="{{form.assumedAvailable}}" bindchange="onAssumedChange" color="#627969"/></view>
     </view>
 
     <text wx:if="{{errors.form}}" class="error-text form-error" aria-live="assertive">{{errors.form}}</text>

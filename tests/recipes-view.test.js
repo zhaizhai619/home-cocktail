@@ -248,6 +248,32 @@ test('filterAndSortRecipeCards shows only untried recipes when the compact switc
   )
 })
 
+test('filterAndSortRecipeCards supports tried and untried status options', () => {
+  const recipes = [
+    { id: 'tried-new', name: '调过新酒', tried: true, createdAt: '2026-08-02', ingredients: [] },
+    { id: 'tried-old', name: '调过旧酒', tried: true, createdAt: '2026-08-01', ingredients: [] },
+    { id: 'untried', name: '未调过', tried: false, createdAt: '2026-08-03', ingredients: [] }
+  ]
+
+  assert.deepEqual(
+    filterAndSortRecipeCards(recipes, {}, { sortKey: 'recent', triedStatus: 'tried' }).map(({ id }) => id),
+    ['tried-new', 'tried-old']
+  )
+  assert.deepEqual(
+    filterAndSortRecipeCards(recipes, {}, { sortKey: 'recent', triedStatus: 'untried' }).map(({ id }) => id),
+    ['untried']
+  )
+})
+
+test('filterAndSortRecipeCards defaults to recently added ordering', () => {
+  const recipes = [
+    { id: 'older-fast', name: '旧快酒', tried: true, createdAt: '2026-08-01', preparations: [{ type: '即调' }], ingredients: [] },
+    { id: 'newer-slow', name: '新慢酒', tried: true, createdAt: '2026-08-02', preparations: [{ type: '冷泡', durationText: '2天' }], ingredients: [] }
+  ]
+
+  assert.deepEqual(filterAndSortRecipeCards(recipes).map(({ id }) => id), ['newer-slow', 'older-fast'])
+})
+
 test('untried-only combines search, preparation and material filters but rejects stale ratings', () => {
   const recipes = [
     { id: 'target', name: '目标酒', rating: '顶尖', preparations: [{ type: '即调' }], ingredients: [{ materialId: 'mint' }] },

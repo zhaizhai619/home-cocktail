@@ -185,6 +185,31 @@ test('recipe detail applies the default prepared, spirit, then other ingredient 
   assert.deepEqual(buildRecipeDetail(recipe, materials).ingredients.map(({ name }) => name), ['混合果汁', '君度', '金酒', '柠檬汁'])
 })
 
+test('recipe detail resolves material-backed default groups around lemon syrup and trailing mixers', () => {
+  const recipe = {
+    id: 'grouped-order',
+    name: '分组顺序',
+    ingredients: [
+      { materialId: 'lemon', amount: 15, unit: 'ml' },
+      { materialId: 'soda', amount: null, unit: 'top-up' },
+      { materialId: 'pineapple', amount: 30, unit: 'ml' },
+      { materialId: 'gin', amount: 45, unit: 'ml' },
+      { materialId: 'cinnamon', amount: 1, unit: 'g' }
+    ]
+  }
+  const materials = [
+    { id: 'lemon', name: '柠檬汁', category: 'citrus', acquisition: 'long-term', owned: true },
+    { id: 'soda', name: '气泡水', category: 'soda/tonic', acquisition: 'on-demand', freshOnHand: true },
+    { id: 'pineapple', name: '菠萝汁', category: 'dairy/juice', acquisition: 'on-demand', freshOnHand: true },
+    { id: 'gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
+    { id: 'cinnamon', name: '肉桂', category: 'other-solid', acquisition: 'long-term', owned: true }
+  ]
+
+  assert.deepEqual(buildRecipeDetail(recipe, materials).ingredients.map(({ name }) => name), [
+    '金酒', '菠萝汁', '柠檬汁', '气泡水', '肉桂'
+  ])
+})
+
 test('recipe detail preserves an explicitly customized ingredient order', () => {
   const recipe = {
     id: 'custom-order',
