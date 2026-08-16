@@ -285,6 +285,42 @@ function ingredientAmount(row) {
   const numeric = Number(amount)
   return Number.isFinite(numeric) ? numeric : amount
 }
+
+function aiIngredient(row) {
+  return {
+    name: String(row && row.name || '').trim(),
+    amount: ingredientAmount(row || {}),
+    unit: String(row && row.unit || '').trim()
+  }
+}
+
+function buildAiNamingInput(input) {
+  const form = input && typeof input === 'object' ? input : {}
+  const servingIngredients = Array.isArray(form.ingredients) ? form.ingredients : []
+  const preparations = Array.isArray(form.advancePreparations) ? form.advancePreparations : []
+  const preparationsById = new Map(preparations.map((item) => [item && item.id, item]))
+  const ingredients = servingIngredients
+    .filter((row) => row && !isPreparedOutput(row) && hasName(row))
+    .map(aiIngredient)
+  const advancePreparations = servingIngredients
+    .filter((row) => isPreparedOutput(row) && preparationsById.has(row.preparationId))
+    .map((servingRow) => {
+      const preparation = preparationsById.get(servingRow.preparationId) || {}
+      const steps = Array.isArray(preparation.steps)
+        ? preparation.steps
+        : String(preparation.steps || '').split('\n')
+      return {
+        name: String(preparation.outputName || servingRow.name || '预调成品').trim(),
+        amount: ingredientAmount(servingRow),
+        unit: String(servingRow.unit || '').trim(),
+        ingredients: (Array.isArray(preparation.ingredients) ? preparation.ingredients : [])
+          .filter(hasName)
+          .map(aiIngredient),
+        steps: steps.map((step) => String(step || '').trim()).filter(Boolean)
+      }
+    })
+  return { ingredients, advancePreparations }
+}
 function createMaterialDraftKey(category, name) { return getMaterialIdentityKey(category, name) }
 function materialDraft(row) {
   const defaults = { ...createIngredientDraft(row.category, row.name) }
@@ -401,4 +437,4 @@ function orchestrateRecipeSave({ repository, form, notify = () => {}, navigateBa
   })
 }
 
-module.exports = { createEmptyRecipeForm, applyQuickBase, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave }
+module.exports = { createEmptyRecipeForm, applyQuickBase, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, replaceIngredientName, createIngredientDraft, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, selectExistingIngredient, normalizeAndValidateForm, buildRecipePayload, buildAiNamingInput, resolveRecipeMaterialIds, getGlasswareSelection, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave }

@@ -8,6 +8,7 @@ const {
   createIngredientDraft,
   normalizeAndValidateForm,
   buildRecipePayload,
+  buildAiNamingInput,
   resolveRecipeMaterialIds,
   getGlasswareSelection,
   updateIngredientField,
@@ -49,6 +50,39 @@ test('AI song selection saves only the song title as the recipe name and keeps i
   const recipe = buildRecipePayload(form).recipe
   assert.equal(recipe.name, 'No No No')
   assert.deepEqual(recipe.musicNaming, form.musicNaming)
+})
+
+test('AI naming input includes direct ingredients and full advance preparation context', () => {
+  const form = createEmptyRecipeForm()
+  form.ingredients = [
+    { kind: 'prepared-output', preparationId: 'prep-1', name: '青瓜澄清液', amount: 40, unit: 'ml' },
+    { ...createIngredientDraft('citrus', '柠檬汁'), amount: 15, unit: 'ml' },
+    { ...createIngredientDraft('citrus', '青柠汁'), amount: 15, unit: 'ml' }
+  ]
+  form.advancePreparations = [{
+    id: 'prep-1',
+    outputName: '青瓜澄清液',
+    ingredients: [
+      { ...createIngredientDraft('fruit', '黄瓜'), amount: 200, unit: 'g' },
+      { ...createIngredientDraft('base-spirit', '金酒'), amount: 500, unit: 'ml' }
+    ],
+    steps: '黄瓜切片\n与金酒低温浸泡 8 小时'
+  }]
+
+  assert.deepEqual(buildAiNamingInput(form), {
+    ingredients: [
+      { name: '柠檬汁', amount: 15, unit: 'ml' },
+      { name: '青柠汁', amount: 15, unit: 'ml' }
+    ],
+    advancePreparations: [{
+      name: '青瓜澄清液', amount: 40, unit: 'ml',
+      ingredients: [
+        { name: '黄瓜', amount: 200, unit: 'g' },
+        { name: '金酒', amount: 500, unit: 'ml' }
+      ],
+      steps: ['黄瓜切片', '与金酒低温浸泡 8 小时']
+    }]
+  })
 })
 
 test('ingredient render keys are unique and survive row replacements', () => {

@@ -1,7 +1,7 @@
 const { PREP_ENTRY_TYPES, RATINGS, UNITS, RECIPE_UNITS } = require('../../domain/constants')
 const { formatPreparationDurationText, getPreparationDurationParts } = require('../../domain/recipe')
 const { getMaterialCategoryGroup, getMaterialDisplayName, getMaterialIdentityKey, materialNameMatchesQuery } = require('../../domain/material')
-const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
+const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, buildAiNamingInput, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
 const { waitForCloudReady } = require('../../services/page-ready')
 
 const NEW_CATEGORIES = [
@@ -90,10 +90,8 @@ Page({
     if (!musicAssistant || !musicAssistantSettings) return this.setData({ aiError: '智能起名服务不可用' })
     const settings = musicAssistantSettings.load()
     if (!settings.apiKey) return this.setData({ aiError: '请先在体验版页面填写 DeepSeek API Key', aiNeedsSetup: true })
-    const ingredients = (this.data.form.ingredients || []).map((item) => ({
-      name: item.name || item.nameLabel || '', amount: Number(item.amount) || 0, unit: item.unit || ''
-    })).filter((item) => item.name)
-    if (!ingredients.length) return this.setData({ aiError: '请先添加至少一种材料，AI 才能理解这杯酒' })
+    const cocktailInput = buildAiNamingInput(this.data.form)
+    if (!cocktailInput.ingredients.length && !cocktailInput.advancePreparations.length) return this.setData({ aiError: '请先添加至少一种材料，AI 才能理解这杯酒' })
     this.setData({ aiThinking: true, aiThinkingText: 'AI 思考中…', aiError: '', aiNeedsSetup: false, aiRecommendations: [] })
     const thinkingTimer = setTimeout(() => this.setData({ aiThinkingText: '深度思考中…' }), 900)
     try {
@@ -102,7 +100,7 @@ Page({
         model: settings.model,
         color: this.data.aiColor,
         preference: this.data.aiPreference,
-        ingredients
+        ...cocktailInput
       })
       this.setData({ aiRecommendations: result.recommendations || [] })
     } catch (error) {

@@ -41,16 +41,31 @@ test('profile normalization bounds naming scores to ten and drops analysis confi
 })
 
 test('cocktail and naming prompts use ingredients but send only compact song profiles', () => {
-  const cocktailMessages = buildCocktailProfileMessages({
-    color: '青绿色', preference: '想要中文名', ingredients: [{ name: '金酒', amount: 45, unit: 'ml' }]
-  })
-  assert.match(JSON.stringify(cocktailMessages), /金酒/)
+  const cocktailSource = {
+    color: '青绿色', preference: '想要中文名',
+    ingredients: [
+      { name: '柠檬汁', amount: 15, unit: 'ml' },
+      { name: '青柠汁', amount: 15, unit: 'ml' }
+    ],
+    advancePreparations: [{
+      name: '青瓜澄清液', amount: 40, unit: 'ml',
+      ingredients: [{ name: '黄瓜', amount: 200, unit: 'g' }, { name: '金酒', amount: 500, unit: 'ml' }],
+      steps: ['黄瓜切片', '与金酒低温浸泡 8 小时']
+    }]
+  }
+  const cocktailMessages = buildCocktailProfileMessages(cocktailSource)
+  const cocktailBody = JSON.stringify(cocktailMessages)
+  assert.match(cocktailBody, /柠檬汁/)
+  assert.match(cocktailBody, /青柠汁/)
+  assert.match(cocktailBody, /青瓜澄清液/)
+  assert.match(cocktailBody, /低温浸泡 8 小时/)
+  assert.match(cocktailBody, /不能[^。]*柑橘|禁止[^。]*柑橘/)
 
   const profile = normalizeCocktailProfile({
     summary: '清爽草本', emotion_keywords: ['清冷'], scene_sensory_keywords: ['夏夜'],
     naming_direction: { desired: ['简短'], avoid: ['俗气'] }
   })
-  const namingMessages = buildNamingMessages({ cocktail: profile, candidates: [{
+  const namingMessages = buildNamingMessages({ cocktail: profile, sourceCocktail: cocktailSource, candidates: [{
     songId: '1', title: '夜航', artist: '甲', album: '城市', releaseDate: '2024-07-13', fitScore: 88,
     summary: '在夜路中保持清醒和克制',
     lyrics: '不应发送的完整歌词'
@@ -66,7 +81,18 @@ test('cocktail and naming prompts use ingredients but send only compact song pro
   assert.match(namingBody, /多样|避免固定|不要使用固定/)
   assert.doesNotMatch(namingBody, /不是每条理由都必须写|不必每条都写/)
   assert.match(namingBody, /不得编造/)
-  assert.equal(JSON.parse(namingMessages[1].content).candidates[0].fit_score, 10)
+  assert.match(namingBody, /柠檬汁/)
+  assert.match(namingBody, /青柠汁/)
+  assert.match(namingBody, /青瓜澄清液/)
+  assert.match(namingBody, /低温浸泡 8 小时/)
+  assert.match(namingBody, /不能[^。]*柑橘|禁止[^。]*柑橘/)
+  const namingPayload = JSON.parse(namingMessages[1].content)
+  assert.deepEqual(namingPayload.cocktail_details.advance_preparations[0], {
+    name: '青瓜澄清液', amount: 40, unit: 'ml',
+    ingredients: [{ name: '黄瓜', amount: 200, unit: 'g' }, { name: '金酒', amount: 500, unit: 'ml' }],
+    steps: ['黄瓜切片', '与金酒低温浸泡 8 小时']
+  })
+  assert.equal(namingPayload.candidates[0].fit_score, 10)
 
   assert.deepEqual(normalizeRecommendations({ recommendations: [{ song_id: '1', recommended_name: ' 夜航 ', reason: ' 很适合 ' }] }), [
     { song_id: '1', recommended_name: '夜航', reason: '很适合' }

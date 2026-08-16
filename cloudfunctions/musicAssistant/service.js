@@ -333,7 +333,7 @@ function createMusicAssistantService({
     const rawNaming = await ai.completeJson({
       apiKey,
       model,
-      messages: buildNamingMessages({ cocktail: cocktailProfile, candidates }),
+      messages: buildNamingMessages({ cocktail: cocktailProfile, sourceCocktail: input, candidates }),
       temperature: 0.45,
       maxTokens: 1000
     })

@@ -2,7 +2,8 @@ const {
   SONG_PROFILE_PROMPT_VERSION,
   COCKTAIL_PROFILE_PROMPT_VERSION,
   NAMING_PROMPT_VERSION,
-  COCKTAIL_MATERIAL_GUIDE
+  COCKTAIL_MATERIAL_GUIDE,
+  EXACT_MATERIAL_NAME_RULE
 } = require('./prompts')
 
 function text(value, maxLength = 1200) {
@@ -23,6 +24,47 @@ function jsonMessages(system, payload) {
     { role: 'system', content: system },
     { role: 'user', content: JSON.stringify(payload) }
   ]
+}
+
+function compactAmount(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : text(value, 24)
+}
+
+function compactIngredient(item = {}) {
+  return {
+    name: text(item.name || item.materialName, 80),
+    amount: compactAmount(item.amount),
+    unit: text(item.unit, 20)
+  }
+}
+
+function compactCocktailDetails(cocktail = {}) {
+  return {
+    ingredients: (Array.isArray(cocktail.ingredients) ? cocktail.ingredients : [])
+      .slice(0, 30)
+      .map(compactIngredient)
+      .filter((item) => item.name),
+    advance_preparations: (Array.isArray(cocktail.advancePreparations) ? cocktail.advancePreparations : [])
+      .slice(0, 10)
+      .map((preparation) => ({
+        name: text(preparation && (preparation.name || preparation.outputName), 80),
+        amount: compactAmount(preparation && preparation.amount),
+        unit: text(preparation && preparation.unit, 20),
+        ingredients: (Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : [])
+          .slice(0, 30)
+          .map(compactIngredient)
+          .filter((item) => item.name),
+        steps: (Array.isArray(preparation && preparation.steps)
+          ? preparation.steps
+          : String(preparation && preparation.steps || '').split('\n'))
+          .map((step) => text(step, 160))
+          .filter(Boolean)
+          .slice(0, 12)
+      }))
+      .filter((item) => item.name)
+  }
 }
 
 function buildSongProfileMessages(song = {}) {
@@ -63,15 +105,11 @@ function normalizeSongProfile(value = {}) {
 
 function buildCocktailProfileMessages(cocktail = {}) {
   return jsonMessages(
-    `你是鸡尾酒命名编辑。材料和用量用于判断主次，用户填写的颜色和偏好优先。${COCKTAIL_MATERIAL_GUIDE}\n输出纯 JSON：{"summary":"一句话气质","emotion_keywords":["2至4个"],"scene_sensory_keywords":["2至4个"],"naming_direction":{"desired":["希望的命名方向"],"avoid":["应避免的方向"]}}。${COCKTAIL_PROFILE_PROMPT_VERSION}`,
+    `你是鸡尾酒命名编辑。材料和用量用于判断主次，用户填写的颜色和偏好优先。提前准备成品的本杯用量用于判断它在整杯酒里的比重，内部材料、批次用量和步骤用于理解它的组成与处理方式。${COCKTAIL_MATERIAL_GUIDE}\n${EXACT_MATERIAL_NAME_RULE}\n输出纯 JSON：{"summary":"一句话气质","emotion_keywords":["2至4个"],"scene_sensory_keywords":["2至4个"],"naming_direction":{"desired":["希望的命名方向"],"avoid":["应避免的方向"]}}。${COCKTAIL_PROFILE_PROMPT_VERSION}`,
     {
       color: text(cocktail.color, 80),
       preference: text(cocktail.preference, 240),
-      ingredients: (Array.isArray(cocktail.ingredients) ? cocktail.ingredients : []).slice(0, 30).map((item) => ({
-        name: text(item && (item.name || item.materialName), 80),
-        amount: Number(item && item.amount) || 0,
-        unit: text(item && item.unit, 20)
-      }))
+      ...compactCocktailDetails(cocktail)
     }
   )
 }
@@ -99,9 +137,11 @@ function compactCandidate(candidate = {}) {
   }
 }
 
-function buildNamingMessages({ cocktail, candidates } = {}) {
+function buildNamingMessages({ cocktail, sourceCocktail, candidates } = {}) {
   return jsonMessages(
     `你是鸡尾酒命名编辑。只能从候选歌曲的 title 中选择名称，不得杜撰歌曲。
+
+鸡尾酒具体材料、提前准备配方及步骤位于 cocktail_details。${EXACT_MATERIAL_NAME_RULE}
 
 每条 reason 都必须同时做到：
 1. 自然写出候选的 artist（歌手），并准确吸收 summary 中至少一个核心意思，让熟悉说唱的读者能确认具体是哪首歌；不要只是复述歌名。
@@ -111,7 +151,7 @@ function buildNamingMessages({ cocktail, candidates } = {}) {
 表达必须自然且多样：可以从歌手的表达、歌曲主题、歌词态度或酒的感官特点切入，灵活调整先后顺序；多条推荐不要使用相同开头，避免固定使用“这是某某的《某歌》”之类的模板句式。只能使用输入中明确提供的事实，不得编造发行时间、热度、播放量或歌曲经历。每条理由写成一段连贯自然的中文。
 
 返回最多3项纯 JSON：{"recommendations":[{"song_id":"候选ID","recommended_name":"最终酒名","reason":"包含歌手、歌曲表达和完整酒品匹配分析的自然理由"}]}。${NAMING_PROMPT_VERSION}`,
-    { cocktail: normalizeCocktailProfile(cocktail), candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate) }
+    { cocktail: normalizeCocktailProfile(cocktail), cocktail_details: compactCocktailDetails(sourceCocktail), candidates: (Array.isArray(candidates) ? candidates : []).slice(0, 12).map(compactCandidate) }
   )
 }
 
