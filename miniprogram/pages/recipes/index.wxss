@@ -1,4 +1,25 @@
 .recipes-page { position: relative; box-sizing: border-box; min-height: 100vh; padding: 48rpx 32rpx 72rpx; background: #f8f5ee; }
+.menu-source-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); box-sizing: border-box; height: 76rpx; margin-bottom: 22rpx; padding: 6rpx; background: #ebe7df; border-radius: 18rpx; }
+.menu-source-tab { display: flex; align-items: center; justify-content: center; color: #77736c; border-radius: 14rpx; font-size: 26rpx; font-weight: 600; transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+.menu-source-tab.selected { color: #242321; background: #fffefc; box-shadow: 0 4rpx 14rpx rgba(55, 50, 43, .1); }
+.friend-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; margin: 8rpx 4rpx 26rpx; }
+.friend-section-title { display: block; color: #242321; font-size: 36rpx; font-weight: 700; }
+.friend-section-copy { display: block; margin-top: 8rpx; color: #77736c; font-size: 22rpx; }
+.preview-badge { flex: none; padding: 8rpx 14rpx; color: #7c6049; background: #f4eee8; border-radius: 999rpx; font-size: 19rpx; }
+.friend-menu-list { display: grid; gap: 18rpx; }
+.friend-menu-card { display: flex; align-items: center; box-sizing: border-box; min-height: 184rpx; padding: 26rpx 22rpx; background: #fffefc; border: 1rpx solid #e5dfd5; border-radius: 24rpx; box-shadow: 0 10rpx 28rpx rgba(55, 50, 43, .07); }
+.friend-avatar { display: flex; width: 82rpx; height: 82rpx; flex: none; align-items: center; justify-content: center; color: #ffffff; background: #5f5146; border-radius: 50%; font-size: 30rpx; font-weight: 650; }
+.friend-menu-main { min-width: 0; margin-left: 20rpx; flex: 1; }
+.friend-menu-title-row { display: flex; min-width: 0; align-items: center; gap: 12rpx; }
+.friend-menu-name { min-width: 0; overflow: hidden; color: #242321; font-size: 30rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.readonly-badge { flex: none; padding: 5rpx 10rpx; color: #6f6c66; background: #f1f0ec; border-radius: 999rpx; font-size: 18rpx; }
+.friend-menu-meta { display: block; margin-top: 10rpx; color: #6f6c66; font-size: 23rpx; }
+.friend-sync-row { display: flex; min-width: 0; align-items: center; gap: 8rpx; margin-top: 12rpx; color: #4d7d67; font-size: 20rpx; }
+.sync-dot { width: 12rpx; height: 12rpx; flex: none; background: #58a278; border-radius: 50%; box-shadow: 0 0 0 5rpx rgba(88, 162, 120, .12); }
+.friend-updated { min-width: 0; margin-left: auto; overflow: hidden; color: #9d9991; text-overflow: ellipsis; white-space: nowrap; }
+.friend-menu-arrow { flex: none; margin-left: 10rpx; color: #9d9991; font-size: 44rpx; font-weight: 300; }
+.friend-loading { padding-top: 130rpx; }
+.friend-empty { padding-top: 160rpx; }
 .recipes-page.filter-open { height: 100vh; overflow: hidden; }
 .ai-naming-banner { display: flex; align-items: center; box-sizing: border-box; min-height: 132rpx; margin-bottom: 18rpx; padding: 22rpx 24rpx; color: #ffffff; background: #3b3936; border-radius: 22rpx; box-shadow: 0 12rpx 30rpx rgba(55, 50, 43, .16); }
 .ai-banner-copy { flex: 1; min-width: 0; }

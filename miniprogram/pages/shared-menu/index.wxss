@@ -1,0 +1,19 @@
+.shared-menu-page { box-sizing: border-box; min-height: 100vh; padding: 48rpx 32rpx; background: #f8f5ee; }
+.shared-menu-hero { position: relative; display: grid; grid-template-columns: 92rpx minmax(0, 1fr) auto; box-sizing: border-box; min-height: 222rpx; padding: 28rpx; align-items: center; gap: 20rpx; color: #ffffff; background: #34312e; border-radius: 26rpx; box-shadow: 0 14rpx 34rpx rgba(55, 50, 43, .18); }
+.shared-owner-avatar { display: flex; width: 86rpx; height: 86rpx; align-items: center; justify-content: center; color: #3d2f25; background: #ead8c7; border-radius: 50%; font-size: 31rpx; font-weight: 700; }
+.shared-menu-copy { min-width: 0; }
+.shared-menu-name { display: block; overflow: hidden; font-size: 34rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.shared-owner-name { display: block; margin-top: 10rpx; color: rgba(255,255,255,.68); font-size: 22rpx; }
+.shared-readonly-badge { padding: 7rpx 12rpx; color: rgba(255,255,255,.82); border: 1rpx solid rgba(255,255,255,.32); border-radius: 999rpx; font-size: 19rpx; }
+.shared-sync-row { grid-column: 1 / -1; display: flex; min-width: 0; align-items: center; gap: 9rpx; color: #9ed0ae; font-size: 21rpx; }
+.shared-sync-dot { width: 12rpx; height: 12rpx; background: #70bd8c; border-radius: 50%; }
+.shared-updated { margin-left: auto; color: rgba(255,255,255,.52); }
+.shared-context-note { margin: 18rpx 6rpx 24rpx; color: #77736c; font-size: 21rpx; line-height: 1.55; }
+.shared-recipe-list { display: grid; gap: 18rpx; }
+.shared-state { display: flex; min-height: 68vh; padding: 0 30rpx; align-items: center; justify-content: center; flex-direction: column; color: #6f6c66; text-align: center; }
+.shared-state.compact { min-height: 46vh; }
+.shared-state-title { color: #242321; font-size: 34rpx; font-weight: 650; }
+.shared-state-copy { margin-top: 16rpx; font-size: 25rpx; line-height: 1.65; }
+.shared-state-button { min-width: 360rpx; margin-top: 34rpx; color: #ffffff; background: #242321; border-radius: 999rpx; font-size: 26rpx; line-height: 84rpx; }
+.shared-spinner { box-sizing: border-box; width: 34rpx; height: 34rpx; margin-bottom: 18rpx; border: 3rpx solid #dedbd4; border-top-color: #6f6c66; border-radius: 50%; animation: shared-spin .8s linear infinite; }
+@keyframes shared-spin { to { transform: rotate(360deg); } }

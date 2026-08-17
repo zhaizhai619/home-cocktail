@@ -17,16 +17,22 @@ function walk(directory, extension) {
   })
 }
 
-function registeredDefinition(jsFile, wxOverrides = {}, appOverride = null) {
+function registeredDefinition(jsFile, wxOverrides = {}, appOverride = null, moduleOverrides = {}) {
   let definition = null
   const source = fs.readFileSync(jsFile, 'utf8')
+  const localRequire = createRequire(jsFile)
+  const wxApi = { ...wxOverrides }
+  delete wxApi.getCurrentPages
   const sandbox = {
-    require: createRequire(jsFile),
+    require(request) {
+      return Object.prototype.hasOwnProperty.call(moduleOverrides, request) ? moduleOverrides[request] : localRequire(request)
+    },
     Page(value) { definition = value },
     Component(value) { definition = value },
     App(value) { definition = value },
     getApp() { return appOverride },
-    wx: wxOverrides,
+    getCurrentPages: typeof wxOverrides.getCurrentPages === 'function' ? wxOverrides.getCurrentPages : () => [],
+    wx: wxApi,
     console,
     setTimeout,
     clearTimeout
@@ -34,6 +40,318 @@ function registeredDefinition(jsFile, wxOverrides = {}, appOverride = null) {
   vm.runInNewContext(source, sandbox, { filename: jsFile })
   return definition
 }
+
+test('friend menu source bypasses cloud readiness and the personal repository', async () => {
+  let readyWaits = 0
+  const app = { globalData: {
+    sharedMenuReturnIntent: true,
+    ready: { then() { throw new Error('cloud readiness awaited') } },
+    repository: {
+      listRecipes() { throw new Error('personal recipes accessed') },
+      listMaterials() { throw new Error('personal materials accessed') }
+    }
+  } }
+  const page = registeredDefinition(
+    path.join(MINI, 'pages/recipes/index.js'),
+    {},
+    app,
+    { '../../services/page-ready': { async waitForCloudReady() { readyWaits += 1; throw new Error('cloud readiness awaited') } } }
+  )
+  const context = {
+    ...page,
+    data: { ...page.data },
+    friendMenuService: { listMenus: () => [{ id: 'preview-mengqi', name: '孟琪的私人酒单' }] },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onShow.call(context)
+
+  assert.equal(readyWaits, 0)
+  assert.equal(app.globalData.sharedMenuReturnIntent, false)
+  assert.equal(context.data.activeSource, 'shared')
+  assert.equal(context.data.friendMenusState, 'ok')
+})
+
+test('friend menu source supports failure retry and opens a selected menu', async () => {
+  const navigations = []
+  const page = registeredDefinition(path.join(MINI, 'pages/recipes/index.js'), {
+    navigateTo({ url }) { navigations.push(url) }
+  })
+  let attempts = 0
+  const context = {
+    ...page,
+    data: { ...page.data },
+    friendMenuService: {
+      listMenus() {
+        attempts += 1
+        if (attempts === 1) throw new Error('preview unavailable')
+        return [{ id: 'preview-mengqi', name: '孟琪的私人酒单' }]
+      }
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onSelectSource.call(context, { currentTarget: { dataset: { source: 'shared' } } })
+  assert.equal(context.data.friendMenusState, 'error')
+  await page.onRetryFriendMenus.call(context)
+  assert.equal(context.data.friendMenusState, 'ok')
+
+  page.onSelectFriendMenu.call(context, { currentTarget: { dataset: { id: 'preview-mengqi' } } })
+  assert.deepEqual(navigations, ['/pages/shared-menu/index?menuId=preview-mengqi'])
+})
+
+test('switching to friend menus cancels an in-flight personal cloud continuation', async () => {
+  let releaseReady
+  const ready = new Promise((resolve) => { releaseReady = resolve })
+  let personalReads = 0
+  const app = { globalData: { repository: {
+    listRecipes() { personalReads += 1; return [] },
+    listMaterials() { personalReads += 1; return [] }
+  } } }
+  const page = registeredDefinition(
+    path.join(MINI, 'pages/recipes/index.js'),
+    {},
+    app,
+    { '../../services/page-ready': { waitForCloudReady: () => ready } }
+  )
+  const context = {
+    ...page,
+    data: { ...page.data },
+    friendMenuService: { listMenus: () => [{ id: 'preview-mengqi' }] },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  const personalLoad = page.onShow.call(context)
+  await page.onSelectSource.call(context, { currentTarget: { dataset: { source: 'shared' } } })
+  releaseReady()
+  await personalLoad
+
+  assert.equal(personalReads, 0)
+  assert.equal(context.data.activeSource, 'shared')
+  assert.equal(context.data.friendMenusState, 'ok')
+})
+
+test('returning to a loaded personal menu refreshes without replacing cards with a spinner', async () => {
+  let releaseReady
+  const ready = new Promise((resolve) => { releaseReady = resolve })
+  const page = registeredDefinition(
+    path.join(MINI, 'pages/recipes/index.js'),
+    {},
+    { globalData: { repository: { listRecipes: () => [], listMaterials: () => [] } } },
+    { '../../services/page-ready': { waitForCloudReady: () => ready } }
+  )
+  const context = {
+    ...page,
+    personalRecipesLoaded: true,
+    data: { ...page.data, loadingRecipes: false, activeSource: 'mine' },
+    setData(value) { Object.assign(this.data, value) },
+    refreshCards() {}
+  }
+
+  const refresh = page.onShow.call(context)
+  assert.equal(context.data.loadingRecipes, false)
+  releaseReady()
+  await refresh
+})
+
+test('recipes home visibly separates personal and friend menus', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipes/index.wxss'), 'utf8')
+
+  assert.match(template, />我的酒单</)
+  assert.match(template, />好友分享</)
+  assert.match(template, /实时同步 · 效果预览/)
+  assert.match(template, /friendMenusState === 'error'[^]*onRetryFriendMenus/)
+  assert.match(css, /\.menu-source-tabs/)
+  assert.match(css, /\.friend-menu-card/)
+})
+
+test('shared menu page loads preview recipes and opens explicit friend detail route', () => {
+  const navigations = []
+  const page = registeredDefinition(path.join(MINI, 'pages/shared-menu/index.js'), {
+    navigateTo({ url }) { navigations.push(url) },
+    setNavigationBarTitle() {}
+  })
+  const context = {
+    ...page,
+    data: { ...page.data },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  page.onLoad.call(context, { menuId: 'preview-mengqi' })
+  assert.equal(context.data.state, 'ok')
+  assert.equal(context.data.menu.ownerName, '孟琪')
+  assert.equal(context.data.recipes.length, 3)
+
+  page.onSelectRecipe.call(context, { detail: { id: 'preview-negroni' } })
+  assert.deepEqual(navigations, [
+    '/pages/recipe-detail/index?mode=friend-preview&menuId=preview-mengqi&id=preview-negroni'
+  ])
+})
+
+test('shared menu page retries service errors and deep-link failures return to friends', () => {
+  const switches = []
+  const app = { globalData: {} }
+  const page = registeredDefinition(path.join(MINI, 'pages/shared-menu/index.js'), {
+    getCurrentPages() { return [{}] },
+    navigateBack() { throw new Error('deep link should not navigate back') },
+    switchTab({ url }) { switches.push(url) }
+  }, app)
+  let attempts = 0
+  const context = {
+    ...page,
+    data: { ...page.data },
+    friendMenuService: {
+      getMenu() {
+        attempts += 1
+        if (attempts === 1) throw new Error('preview unavailable')
+        return { status: 'missing-menu' }
+      }
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  page.onLoad.call(context, { menuId: 'preview-missing' })
+  assert.equal(context.data.state, 'error')
+  page.onRetry.call(context)
+  assert.equal(context.data.state, 'missing')
+  page.onBackToFriends.call(context)
+  assert.equal(app.globalData.sharedMenuReturnIntent, true)
+  assert.deepEqual(switches, ['/pages/recipes/index'])
+})
+
+test('shared menu page uses the global page stack when returning normally', () => {
+  let backCalls = 0
+  const page = registeredDefinition(path.join(MINI, 'pages/shared-menu/index.js'), {
+    getCurrentPages() { return [{ route: 'pages/recipes/index' }, { route: 'pages/shared-menu/index' }] },
+    navigateBack() { backCalls += 1 },
+    switchTab() { throw new Error('normal return switched tabs') }
+  })
+  const context = { ...page, data: { ...page.data, menu: { id: 'preview-mengqi' } } }
+
+  page.onBackToFriends.call(context)
+
+  assert.equal(backCalls, 1)
+})
+
+test('shared menu page renders author ownership and preview-qualified sync status', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/shared-menu/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/shared-menu/index.wxss'), 'utf8')
+
+  assert.match(template, /\{\{menu\.ownerName\}\}/)
+  assert.match(template, /只读/)
+  assert.match(template, /实时同步 · 效果预览/)
+  assert.match(template, /bind:select="onSelectRecipe"/)
+  assert.match(template, /state === 'error'[^]*bindtap="onRetry"/)
+  assert.match(css, /\.shared-menu-hero/)
+  assert.match(css, /\.shared-owner-avatar/)
+})
+
+test('friend preview detail bypasses cloud and personal repository data', async () => {
+  let readyWaits = 0
+  const app = { globalData: { repository: {
+    getRecipe() { throw new Error('personal recipe accessed') },
+    listMaterials() { throw new Error('personal materials accessed') },
+    listGlassware() { throw new Error('personal glassware accessed') },
+    listTools() { throw new Error('personal tools accessed') }
+  } } }
+  const page = registeredDefinition(
+    path.join(MINI, 'pages/recipe-detail/index.js'),
+    { setNavigationBarTitle() {} },
+    app,
+    { '../../services/page-ready': { async waitForCloudReady() { readyWaits += 1; throw new Error('cloud readiness awaited') } } }
+  )
+  const context = { ...page, data: { ...page.data }, setData(value) { Object.assign(this.data, value) } }
+
+  await page.onLoad.call(context, { mode: 'friend-preview', menuId: 'preview-mengqi', id: 'preview-negroni' })
+
+  assert.equal(readyWaits, 0)
+  assert.equal(context.viewerMode, true)
+  assert.equal(context.data.viewerMode, true)
+  assert.equal(context.data.detail.name, '尼格罗尼')
+  assert.equal(context.data.friendMenu.ownerName, '孟琪')
+})
+
+test('friend preview detail turns preview service failures into a safe missing state', async () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'))
+  const context = {
+    ...page,
+    data: { ...page.data },
+    friendMenuService: {
+      getRecipe() { throw new Error('preview unavailable') },
+      getMenu() { throw new Error('preview unavailable') }
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onLoad.call(context, { mode: 'friend-preview', menuId: 'preview-mengqi', id: 'preview-negroni' })
+
+  assert.equal(context.data.detail.status, 'missing')
+  assert.equal(context.data.detail.message, '好友酒单暂时加载失败，请稍后重试')
+})
+
+test('friend preview detail hard-guards every personal mutation and navigation handler', async () => {
+  const calls = []
+  const repository = new Proxy({}, { get(_target, key) { return () => { calls.push(`repository:${String(key)}`); throw new Error('personal repository used') } } })
+  const app = { globalData: { repository } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'), {
+    navigateTo() { calls.push('navigateTo') },
+    redirectTo() { calls.push('redirectTo') },
+    showModal() { calls.push('showModal') },
+    switchTab() { calls.push('switchTab') }
+  }, app)
+  const context = {
+    ...page,
+    viewerMode: true,
+    recipeId: 'preview-negroni',
+    recipe: { id: 'preview-negroni' },
+    data: { ...page.data, viewerMode: true, manualAbvDraft: '12', detail: { status: 'ok', manualAbv: 10 } },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onToggleRating.call(context, { currentTarget: { dataset: { rating: '顶尖' } } })
+  page.onOpenManualAbv.call(context)
+  await page.saveManualAbv.call(context, '12')
+  await page.onSaveManualAbv.call(context)
+  await page.onClearManualAbv.call(context)
+  page.onEdit.call(context)
+  await page.onCopy.call(context)
+  page.onDelete.call(context)
+  page.onOpenMaterial.call(context, { currentTarget: { dataset: { id: 'preview-gin' } } })
+
+  assert.deepEqual(calls, [])
+  assert.equal(context.data.showManualAbvEditor, false)
+})
+
+test('friend preview detail CTAs only explain the preview boundary', () => {
+  const toasts = []
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'), {
+    showToast(options) { toasts.push(options) },
+    navigateTo() { throw new Error('preview CTA navigated') },
+    redirectTo() { throw new Error('preview CTA redirected') }
+  })
+  const context = { ...page, viewerMode: true, data: { ...page.data, viewerMode: true } }
+
+  page.onPreviewAction.call(context)
+  page.onPreviewAction.call(context)
+
+  assert.deepEqual(toasts.map(({ title }) => title), ['真实好友分享接入后开放', '真实好友分享接入后开放'])
+})
+
+test('friend preview detail renders ownership and non-interactive author evaluation', () => {
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
+
+  assert.match(template, /friend-attribution/)
+  assert.match(template, /实时同步 · 效果预览/)
+  assert.match(template, />好友评价</)
+  assert.match(template, /wx:if="\{\{viewerMode\}\}" class="abv-badge readonly"/)
+  assert.match(template, />收藏酒单</)
+  assert.match(template, />复制到我的酒单</)
+  assert.match(template, /<block wx:else>\s*<view class="action-bar"[^]*>编辑<[^]*>删除</)
+  assert.match(css, /\.friend-attribution/)
+  assert.match(css, /\.viewer-action-bar/)
+})
 
 test('AI naming feedback excludes a rejected song and re-generation sends the exclusion list', async () => {
   const calls = []

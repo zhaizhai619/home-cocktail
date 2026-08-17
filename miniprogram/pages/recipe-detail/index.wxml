@@ -2,10 +2,15 @@
   <view wx:if="{{detail.status === 'missing'}}" class="empty-state">
     <text class="empty-title">这款酒找不到了</text>
     <text class="empty-copy">{{detail.message}}</text>
-    <button class="primary-button" bindtap="onBackToList">返回我的酒单</button>
+    <button class="primary-button" bindtap="onBackToList">{{viewerMode ? '返回好友酒单' : '返回我的酒单'}}</button>
   </view>
 
   <block wx:elif="{{detail.status === 'ok'}}">
+    <view wx:if="{{viewerMode}}" class="friend-attribution">
+      <view class="friend-attribution-avatar">{{friendMenu.ownerInitial}}</view>
+      <view class="friend-attribution-main"><text class="friend-attribution-title">来自好友{{friendMenu.ownerName}}</text><text class="friend-attribution-sync">实时同步 · 效果预览</text></view>
+      <text class="friend-attribution-readonly">只读</text>
+    </view>
     <image wx:if="{{detail.imagePath}}" class="hero-image" src="{{detail.imagePath}}" mode="aspectFill" />
     <view class="hero-card">
       <view class="hero-heading">
@@ -24,7 +29,8 @@
           <text class="prep-badge">{{item.label}}</text>
           <text wx:if="{{item.note}}" class="prep-note">{{item.note}}</text>
         </view>
-        <text class="abv-badge" bindtap="onOpenManualAbv" aria-role="button" aria-label="酒精度 {{detail.abvBadgeLabel}}，点按编辑">{{detail.abvBadgeLabel}}</text>
+        <text wx:if="{{viewerMode}}" class="abv-badge readonly">{{detail.abvBadgeLabel}}</text>
+        <text class="abv-badge" wx:else bindtap="onOpenManualAbv" aria-role="button" aria-label="酒精度 {{detail.abvBadgeLabel}}，点按编辑">{{detail.abvBadgeLabel}}</text>
       </view>
     </view>
 
@@ -79,13 +85,18 @@
       <text wx:else class="muted">暂无</text>
     </view>
 
-    <view class="section">
+    <view wx:if="{{viewerMode}}" class="section friend-rating-section">
+      <text class="section-title">好友评价</text>
+      <view class="friend-rating-readonly"><text class="rating-option selected">{{detail.rating || '暂未评价'}}</text><text class="friend-rating-hint">这是{{friendMenu.ownerName}}的评价，只读展示</text></view>
+    </view>
+    <view wx:else class="section">
       <text class="section-title">我的评价</text>
       <view class="ratings"><text wx:for="{{detail.ratings}}" wx:key="label" data-rating="{{item.label}}" bindtap="onToggleRating" class="rating-option {{item.selected ? 'selected' : ''}}" aria-role="button" aria-label="{{item.label}}{{item.selected ? '，已选择，再点取消' : '，点按评价'}}">{{item.label}}</text></view>
     </view>
 
     <view class="bottom-space"></view>
-    <view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view>
+    <view wx:if="{{viewerMode}}" class="viewer-action-bar"><button class="viewer-action secondary" bindtap="onPreviewAction">收藏酒单</button><button class="viewer-action primary" bindtap="onPreviewAction">复制到我的酒单</button></view>
+    <block wx:else><view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view></block>
   </block>
   <view wx:if="{{showMusicReason && detail.hasMusicNaming}}" class="music-reason-mask" bindtap="onCloseMusicReason">
     <view class="music-reason-window" catchtap="noop">
@@ -95,7 +106,7 @@
       <text class="music-reason-copy">{{detail.musicNaming.reason}}</text>
     </view>
   </view>
-  <view wx:if="{{showManualAbvEditor}}" class="abv-sheet-mask" bindtap="onCloseManualAbv"><view class="abv-sheet" catchtap="noop">
+  <view wx:if="{{!viewerMode && showManualAbvEditor}}" class="abv-sheet-mask" bindtap="onCloseManualAbv"><view class="abv-sheet" catchtap="noop">
     <text class="abv-sheet-title">整杯酒精度</text>
     <view class="abv-input"><input type="digit" value="{{manualAbvDraft}}" bindinput="onManualAbvInput" placeholder="例如 12.5"/><text>%</text></view>
     <text wx:if="{{manualAbvError}}" class="form-error">{{manualAbvError}}</text>

@@ -38,6 +38,16 @@ test('declared pages and recipe card component have complete mini-program files'
   assert.match(recipePage, /"recipe-card"\s*:\s*"\/components\/recipe-card\/index"/)
 })
 
+test('shared menu preview route is declared with a complete page set', () => {
+  const root = path.join(__dirname, '..', 'miniprogram')
+  const appConfig = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'))
+
+  assert.ok(appConfig.pages.includes('pages/shared-menu/index'))
+  for (const extension of ['js', 'json', 'wxml', 'wxss']) {
+    assert.ok(fs.existsSync(path.join(root, 'pages', 'shared-menu', `index.${extension}`)))
+  }
+})
+
 test('fast recipe editor route and focused form components are registered', () => {
   const root = path.join(__dirname, '..', 'miniprogram')
   const config = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8'))

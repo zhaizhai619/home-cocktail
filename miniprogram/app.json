@@ -5,6 +5,7 @@
     "pages/recipe-edit/index",
     "pages/material-select/index",
     "pages/glass-select/index",
+    "pages/shared-menu/index",
     "pages/recipe-detail/index",
     "pages/materials/index",
     "pages/material-detail/index",

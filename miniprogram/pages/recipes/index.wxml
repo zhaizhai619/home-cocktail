@@ -1,4 +1,10 @@
 <view class="page recipes-page {{filterPanelOpen ? 'filter-open' : ''}}">
+  <view class="menu-source-tabs" aria-label="酒单来源">
+    <view class="menu-source-tab {{activeSource === 'mine' ? 'selected' : ''}}" data-source="mine" bindtap="onSelectSource" aria-role="button" aria-label="我的酒单{{activeSource === 'mine' ? '，已选择' : ''}}">我的酒单</view>
+    <view class="menu-source-tab {{activeSource === 'shared' ? 'selected' : ''}}" data-source="shared" bindtap="onSelectSource" aria-role="button" aria-label="好友分享{{activeSource === 'shared' ? '，已选择' : ''}}">好友分享</view>
+  </view>
+
+  <block wx:if="{{activeSource === 'mine'}}">
   <view class="ai-naming-banner" bindtap="onOpenMusicNaming" aria-role="button" aria-label="体验智能酒名功能">
     <view class="ai-banner-copy">
       <view class="ai-banner-title-row"><text class="ai-badge">体验版</text><text class="ai-banner-title">用喜欢的歌，为鸡尾酒起名</text></view>
@@ -80,4 +86,35 @@
     <text class="empty-copy">从第一款常喝的酒开始，慢慢搭建自己的酒单。</text>
     <button class="empty-button" bindtap="onAddRecipe">录入我的第一款酒</button>
   </view>
+  </block>
+
+  <block wx:else>
+    <view class="friend-section-heading">
+      <view><text class="friend-section-title">收到的酒单</text><text class="friend-section-copy">好友更新后，这里会展示最新内容</text></view>
+      <text class="preview-badge">界面预览</text>
+    </view>
+    <view wx:if="{{friendMenusState === 'loading'}}" class="loading-state friend-loading" aria-label="好友酒单加载中">
+      <view class="loading-spinner" aria-hidden="true"></view><text>好友酒单加载中…</text>
+    </view>
+    <view wx:elif="{{friendMenusState === 'error'}}" class="empty friend-empty">
+      <text class="empty-title">暂时没能读取好友酒单</text>
+      <text class="empty-copy">{{friendMenusError}}</text>
+      <button class="empty-button secondary" bindtap="onRetryFriendMenus">重新加载</button>
+    </view>
+    <view wx:elif="{{friendMenusState === 'empty'}}" class="empty friend-empty">
+      <text class="empty-title">还没有收到好友酒单</text>
+      <text class="empty-copy">好友通过微信分享的实时酒单会保存在这里。</text>
+    </view>
+    <view wx:else class="friend-menu-list">
+      <view wx:for="{{friendMenus}}" wx:key="id" class="friend-menu-card" data-id="{{item.id}}" bindtap="onSelectFriendMenu" aria-role="button" aria-label="打开{{item.ownerName}}分享的{{item.name}}">
+        <view class="friend-avatar">{{item.ownerInitial}}</view>
+        <view class="friend-menu-main">
+          <view class="friend-menu-title-row"><text class="friend-menu-name">{{item.name}}</text><text class="readonly-badge">只读</text></view>
+          <text class="friend-menu-meta">来自{{item.ownerName}} · {{item.recipeCount}}款酒</text>
+          <view class="friend-sync-row"><view class="sync-dot"></view><text>实时同步 · 效果预览</text><text class="friend-updated">更新于{{item.updatedLabel}}</text></view>
+        </view>
+        <text class="friend-menu-arrow">›</text>
+      </view>
+    </view>
+  </block>
 </view>

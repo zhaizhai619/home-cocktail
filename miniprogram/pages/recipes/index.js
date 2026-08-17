@@ -2,6 +2,7 @@ const { RATINGS } = require('../../domain/constants')
 const { buildSeasonalFruitMessage } = require('../../domain/seasonal-fruits')
 const { filterAndSortRecipeCards } = require('./model')
 const { waitForCloudReady } = require('../../services/page-ready')
+const friendMenuPreview = require('../../services/friend-menu-preview')
 
 const PREP_OPTIONS = [
   { key: 'all', label: '全部' },
@@ -60,8 +61,30 @@ function repositoryData() {
   }
 }
 
+async function loadPersonalRecipes(page) {
+  const loadId = (page.personalLoadId || 0) + 1
+  page.personalLoadId = loadId
+  if (page.personalRecipesLoaded !== true) page.setData({ loadingRecipes: true })
+  await waitForCloudReady()
+  if (page.personalLoadId !== loadId || page.data.activeSource !== 'mine') return
+  const source = repositoryData()
+  page.recipesSource = source.recipes
+  page.materialsById = source.materialsById
+  page.setData({
+    hasRecipes: source.recipes.length > 0,
+    seasonalFruitMessage: buildSeasonalFruitMessage(new Date().getMonth() + 1)
+  })
+  page.refreshCards()
+  page.personalRecipesLoaded = true
+  page.setData({ loadingRecipes: false })
+}
+
 Page({
   data: {
+    activeSource: 'mine',
+    friendMenus: [],
+    friendMenusState: 'idle',
+    friendMenusError: '',
     recipes: [],
     search: '',
     seasonalFruitMessage: '',
@@ -84,16 +107,44 @@ Page({
     statusOptions: STATUS_OPTIONS
   },
   async onShow() {
-    await waitForCloudReady()
-    const source = repositoryData()
-    this.recipesSource = source.recipes
-    this.materialsById = source.materialsById
-    this.setData({
-      hasRecipes: source.recipes.length > 0,
-      seasonalFruitMessage: buildSeasonalFruitMessage(new Date().getMonth() + 1)
-    })
-    this.refreshCards()
-    this.setData({ loadingRecipes: false })
+    const app = typeof getApp === 'function' ? getApp() : null
+    const globalData = app && app.globalData
+    if (globalData && globalData.sharedMenuReturnIntent === true) {
+      globalData.sharedMenuReturnIntent = false
+      this.setData({ activeSource: 'shared', filterPanelOpen: false })
+    }
+    if (this.data.activeSource === 'shared') return this.loadFriendMenus()
+    return loadPersonalRecipes(this)
+  },
+  async loadPersonalRecipes() {
+    return loadPersonalRecipes(this)
+  },
+  loadFriendMenus() {
+    this.personalLoadId = (this.personalLoadId || 0) + 1
+    const service = this.friendMenuService || friendMenuPreview
+    this.setData({ friendMenusState: 'loading', friendMenusError: '' })
+    try {
+      const menus = service.listMenus()
+      this.setData({
+        friendMenus: Array.isArray(menus) ? menus : [],
+        friendMenusState: Array.isArray(menus) && menus.length ? 'ok' : 'empty'
+      })
+    } catch (_) {
+      this.setData({ friendMenus: [], friendMenusState: 'error', friendMenusError: '好友酒单暂时加载失败' })
+    }
+  },
+  async onSelectSource(event) {
+    const source = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.source
+    if (!['mine', 'shared'].includes(source) || source === this.data.activeSource) return
+    this.setData({ activeSource: source, filterPanelOpen: false })
+    if (source === 'shared') return this.loadFriendMenus()
+    return loadPersonalRecipes(this)
+  },
+  onRetryFriendMenus() { this.loadFriendMenus() },
+  onSelectFriendMenu(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id
+    if (!id) return
+    wx.navigateTo({ url: `/pages/shared-menu/index?menuId=${encodeURIComponent(id)}` })
   },
   refreshCards() {
     this.setData({ recipes: filterAndSortRecipeCards(this.recipesSource, this.materialsById, this.data) })
