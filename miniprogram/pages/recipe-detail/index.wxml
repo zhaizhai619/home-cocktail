@@ -31,7 +31,13 @@
     <view class="section">
       <view class="section-heading">
         <text class="section-title">材料</text>
-        <text wx:if="{{detail.glassware}}" class="material-glassware">{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text>
+        <view class="material-heading-actions">
+          <text wx:if="{{detail.glassware}}" class="material-glassware">{{detail.glassware.name}} {{detail.glassware.capacityLabel}}</text>
+          <view wx:if="{{detail.advancePreparations.length}}" class="ratio-calculator-trigger" bindtap="onOpenRatioCalculator" aria-role="button" aria-label="打开比例计算器">
+            <image class="ratio-calculator-icon" src="/assets/icons/calculator.svg" mode="aspectFit" />
+            <text>比例计算器</text>
+          </view>
+        </view>
       </view>
       <view class="ingredient-list">
         <block wx:for="{{detail.ingredients}}" wx:key="index">
@@ -95,4 +101,26 @@
     <text wx:if="{{manualAbvError}}" class="form-error">{{manualAbvError}}</text>
     <view class="abv-sheet-actions"><button wx:if="{{detail.manualAbv !== null}}" class="clear-abv" bindtap="onClearManualAbv">恢复自动计算</button><button class="save-abv" bindtap="onSaveManualAbv">保存</button></view>
   </view></view>
+  <view wx:if="{{showRatioCalculator}}" class="ratio-calculator-mask" bindtap="onCloseRatioCalculator">
+    <view class="ratio-calculator-dialog" catchtap="noop">
+      <view class="ratio-calculator-heading">
+        <text class="ratio-calculator-title">比例计算器</text>
+        <text class="ratio-calculator-close" bindtap="onCloseRatioCalculator" aria-role="button" aria-label="关闭比例计算器">关闭</text>
+      </view>
+      <scroll-view class="ratio-calculator-content" scroll-y>
+        <view wx:for="{{ratioCalculatorGroups}}" wx:for-item="ratioGroup" wx:key="id" class="ratio-calculator-group">
+          <view wx:for="{{ratioGroup.ingredients}}" wx:for-item="ratioIngredient" wx:for-index="ratioIngredientIndex" wx:key="ingredientIndex" class="ratio-calculator-row">
+            <text class="ratio-calculator-name">{{ratioIngredient.name}}</text>
+            <view class="ratio-calculator-amount">
+              <block wx:if="{{ratioIngredient.editable}}">
+                <input type="digit" value="{{ratioIngredient.value}}" data-preparation-id="{{ratioGroup.id}}" data-ingredient-index="{{ratioIngredientIndex}}" bindinput="onRatioAmountInput" aria-label="{{ratioIngredient.name}}用量" />
+                <text>{{ratioIngredient.unitLabel}}</text>
+              </block>
+              <text wx:else>{{ratioIngredient.amountLabel}}</text>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
 </view>

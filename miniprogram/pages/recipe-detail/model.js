@@ -31,6 +31,63 @@ function formatAmount(ingredient) {
   return amount ? `${amount}${UNIT_LABELS[ingredient.unit] || ingredient.unit || ''}` : (UNIT_LABELS[ingredient.unit] || '')
 }
 
+function ratioNumber(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return ''
+  return String(Math.round((numeric + Number.EPSILON) * 100) / 100)
+}
+
+function buildRatioCalculatorGroups(preparations) {
+  return (Array.isArray(preparations) ? preparations : []).map((preparation, preparationIndex) => ({
+    id: preparation && preparation.id ? preparation.id : `preparation-${preparationIndex}`,
+    outputName: String(preparation && preparation.outputName || '').trim() || `预调材料 ${preparationIndex + 1}`,
+    ingredients: (Array.isArray(preparation && preparation.ingredients) ? preparation.ingredients : []).map((ingredient, ingredientIndex) => {
+      const amount = Number(ingredient && ingredient.amount)
+      const editable = ingredient && !['top-up', 'to-taste'].includes(ingredient.unit) && Number.isFinite(amount) && amount > 0
+      return {
+        ingredientIndex,
+        name: String(ingredient && ingredient.name || '').trim() || '未命名材料',
+        unit: ingredient && ingredient.unit || '',
+        unitLabel: UNIT_LABELS[ingredient && ingredient.unit] || ingredient && ingredient.unit || '',
+        originalAmount: editable ? amount : null,
+        value: '',
+        amountLabel: ingredient && ingredient.amountLabel || formatAmount(ingredient),
+        editable
+      }
+    })
+  }))
+}
+
+function scaleRatioCalculatorGroup(groups, preparationId, ingredientIndex, nextValue) {
+  const inputValue = String(nextValue === null || nextValue === undefined ? '' : nextValue)
+  const numericValue = inputValue.trim() === '' ? NaN : Number(inputValue)
+  return (Array.isArray(groups) ? groups : []).map((group) => {
+    if (!group || group.id !== preparationId) return group
+    const source = group.ingredients && group.ingredients[ingredientIndex]
+    if (inputValue.trim() === '') {
+      return {
+        ...group,
+        ingredients: group.ingredients.map((ingredient) => ingredient.editable ? { ...ingredient, value: '' } : ingredient)
+      }
+    }
+    if (!source || !source.editable || !Number.isFinite(numericValue) || numericValue < 0 || !source.originalAmount) {
+      return {
+        ...group,
+        ingredients: group.ingredients.map((ingredient, index) => index === ingredientIndex ? { ...ingredient, value: inputValue } : ingredient)
+      }
+    }
+    const ratio = numericValue / source.originalAmount
+    return {
+      ...group,
+      ingredients: group.ingredients.map((ingredient) => {
+        if (!ingredient.editable) return ingredient
+        const value = ratioNumber(ingredient.originalAmount * ratio)
+        return { ...ingredient, value, amountLabel: `${value}${UNIT_LABELS[ingredient.unit] || ingredient.unit || ''}` }
+      })
+    }
+  })
+}
+
 function formatPreparation(preparation) {
   if (preparation.type === '即调') return '即调'
   const duration = getPreparationDurationText(preparation)
@@ -362,6 +419,8 @@ function orchestrateRecipeDelete({ repository, recipeId, notify = () => {} }) {
 
 module.exports = {
   buildRecipeDetail,
+  buildRatioCalculatorGroups,
+  scaleRatioCalculatorGroup,
   decodeRecipeId,
   formatDate,
   validateObservation,

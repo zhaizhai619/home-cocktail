@@ -390,7 +390,7 @@ function getFormPreview(form) {
 }
 
 function getMissingAlcoholAbvHint(form) {
-  if (form && Array.isArray(form.advancePreparations) && form.advancePreparations.length) return '含本配方预调成品，暂不计算酒精度'
+  if (form && Array.isArray(form.advancePreparations) && form.advancePreparations.length) return '含预调成品，暂不计算酒精度'
   const rows = Array.isArray(form && form.ingredients) ? form.ingredients : []
   const names = [...new Set(rows.filter((row) => row && row.alcoholic === true && hasName(row) && !hasValidAbv(row.abv)).map((row) => String(row.name).trim()))]
   return names.length ? `补充「${names.join('、')}」的酒精度后，即可估算整杯酒精度。` : ''

@@ -5,6 +5,8 @@ const fs = require('node:fs')
 const { RATINGS } = require('../miniprogram/domain/constants')
 const {
   buildRecipeDetail,
+  buildRatioCalculatorGroups,
+  scaleRatioCalculatorGroup,
   decodeRecipeId,
   formatDate,
   validateObservation,
@@ -41,6 +43,58 @@ function createFaultAdapter() {
     read(key) { return structuredClone(values.get(key)) }
   }
 }
+
+test('ratio calculator scales one advance preparation from any numeric ingredient', () => {
+  const groups = buildRatioCalculatorGroups([{
+    id: 'prep-coconut',
+    outputName: '斑斓椰子预调',
+    ingredients: [
+      { name: '白朗姆', amount: 300, unit: 'ml', amountLabel: '300ml' },
+      { name: '斑斓叶', amount: 30, unit: 'g', amountLabel: '30g' },
+      { name: '椰子油', amount: 75, unit: 'ml', amountLabel: '75ml' },
+      { name: '糖', amount: '', unit: 'to-taste', amountLabel: '适量' }
+    ]
+  }])
+
+  assert.deepEqual(groups[0].ingredients.slice(0, 3).map(({ value }) => value), ['', '', ''])
+  const scaled = scaleRatioCalculatorGroup(groups, 'prep-coconut', 0, '100')
+  assert.deepEqual(scaled[0].ingredients.map(({ value, amountLabel, editable }) => ({ value, amountLabel, editable })), [
+    { value: '100', amountLabel: '100ml', editable: true },
+    { value: '10', amountLabel: '10g', editable: true },
+    { value: '25', amountLabel: '25ml', editable: true },
+    { value: '', amountLabel: '适量', editable: false }
+  ])
+})
+
+test('ratio calculator keeps preparation groups independent and rounds to two decimals', () => {
+  const groups = buildRatioCalculatorGroups([
+    { id: 'prep-a', outputName: '预调 A', ingredients: [{ name: 'A1', amount: 3, unit: 'ml', amountLabel: '3ml' }, { name: 'A2', amount: 1, unit: 'ml', amountLabel: '1ml' }] },
+    { id: 'prep-b', outputName: '预调 B', ingredients: [{ name: 'B1', amount: 20, unit: 'ml', amountLabel: '20ml' }, { name: 'B2', amount: null, unit: 'top-up', amountLabel: '补满' }] }
+  ])
+
+  const scaled = scaleRatioCalculatorGroup(groups, 'prep-a', 0, '10')
+  assert.equal(scaled[0].ingredients[1].amountLabel, '3.33ml')
+  assert.equal(scaled[1].ingredients[0].amountLabel, '20ml')
+  assert.equal(scaled[1].ingredients[1].amountLabel, '补满')
+})
+
+test('ratio calculator lets the active amount be cleared before typing a replacement', () => {
+  const groups = buildRatioCalculatorGroups([{
+    id: 'prep-a', outputName: '预调 A',
+    ingredients: [{ name: 'A1', amount: 300, unit: 'ml', amountLabel: '300ml' }, { name: 'A2', amount: 30, unit: 'g', amountLabel: '30g' }]
+  }])
+
+  const cleared = scaleRatioCalculatorGroup(groups, 'prep-a', 0, '')
+  assert.equal(cleared[0].ingredients[0].value, '')
+  assert.equal(cleared[0].ingredients[1].value, '')
+})
+
+test('ratio calculator exposes localized unit labels for editable amounts', () => {
+  const groups = buildRatioCalculatorGroups([{
+    id: 'prep-a', outputName: '预调 A', ingredients: [{ name: '青柠', amount: 2, unit: 'piece', amountLabel: '2个' }]
+  }])
+  assert.equal(groups[0].ingredients[0].unitLabel, '个')
+})
 
 function createDetailFixture() {
   const recipe = {

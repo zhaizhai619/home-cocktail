@@ -604,6 +604,7 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.doesNotMatch(advanceName, /placeholder=/)
   assert.doesNotMatch(editor, /internal-output-row|（本配方预制）|不加入材料库/)
   assert.match(editor, /class="advance-card-delete"[^>]*bindtap="onRemoveAdvancePreparation"/)
+  assert.match(editor, /class="advance-card-delete"[^>]*>[\s\S]*class="advance-card-delete-icon"[^>]*src="\/assets\/icons\/trash-2\.svg"[\s\S]*>删除</)
   assert.match(editor, /class="add-advance"[^>]*bindtap="onCreateAdvancePreparation"/)
   assert.match(editor, /class="advance-name [^"]*"[\s\S]*class="shortcut advance-add-material"[\s\S]*class="ingredient-list advance-ingredients"/)
   assert.doesNotMatch(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*min-height:\s*40rpx/)
@@ -620,8 +621,10 @@ test('recipe editor renders multiple compact advance cards and prepared serving 
   assert.match(editorCss, /\.prominent-name-input\s*\{[^}]*height:\s*76rpx[^}]*padding:\s*0 14rpx/)
   assert.match(editorCss, /\.edit-page \.advance-add-material\s*\{[^}]*background:\s*#ffffff[^}]*border-color:\s*#e7e4dd/)
   assert.match(editorCss, /\.advance-card-actions\s*\{[^}]*justify-content:\s*flex-end/)
-  assert.match(editorCss, /\.edit-page \.advance-card-delete\s*\{[^}]*width:\s*104rpx[^}]*min-height:\s*48rpx/)
-  assert.match(editorCss, /\.add-advance\s*\{[^}]*display:\s*inline-flex[^}]*width:\s*auto[^}]*min-height:\s*38rpx[^}]*padding:\s*0 6rpx/)
+  assert.match(editorCss, /\.edit-page \.advance-card-delete\s*\{[^}]*width:\s*auto[^}]*min-height:\s*48rpx[^}]*background:\s*transparent[^}]*border-radius:\s*0/)
+  assert.match(editorCss, /\.advance-card-delete-icon\s*\{[^}]*width:\s*24rpx[^}]*height:\s*24rpx/)
+  assert.match(editorCss, /\.add-advance\s*\{[^}]*display:\s*inline-flex[^}]*justify-content:\s*flex-start[^}]*width:\s*auto[^}]*padding:\s*0/)
+  assert.match(editorCss, /\.add-advance\s*\{[^}]*background:\s*transparent[^}]*border:\s*0[^}]*border-radius:\s*0/)
 })
 
 test('recipe detail nests advance materials and independently toggles non-empty steps', () => {
@@ -655,6 +658,48 @@ test('recipe detail nests advance materials and independently toggles non-empty 
   assert.match(css, /\.advance-ingredient-row:not\(:last-child\)::after\s*{[^}]*left:\s*36rpx[^}]*right:\s*24rpx[^}]*height:\s*1rpx[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*\.07\)/)
   assert.match(css, /\.advance-steps-toggle\s*{[^}]*font-size:\s*23rpx/)
   assert.doesNotMatch(css, /\.advance-step-index\s*{/)
+})
+
+test('recipe detail opens a centered text-only ratio calculator for advance preparations', () => {
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-detail/index.js'))
+  const template = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
+  const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
+  const context = {
+    data: {
+      ...page.data,
+      detail: { status: 'ok', advancePreparations: [{ id: 'prep-a', outputName: '预调 A', ingredients: [{ name: '白朗姆', amount: 300, unit: 'ml', amountLabel: '300ml' }] }] }
+    },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  page.onOpenRatioCalculator.call(context)
+  assert.equal(context.data.showRatioCalculator, true)
+  assert.equal(context.data.ratioCalculatorGroups[0].ingredients[0].value, '')
+  page.onRatioAmountInput.call(context, { currentTarget: { dataset: { preparationId: 'prep-a', ingredientIndex: 0 } }, detail: { value: '100' } })
+  assert.equal(context.data.ratioCalculatorGroups[0].ingredients[0].amountLabel, '100ml')
+  page.onCloseRatioCalculator.call(context)
+  assert.equal(context.data.showRatioCalculator, false)
+  assert.deepEqual(Array.from(context.data.ratioCalculatorGroups), [])
+  page.onOpenRatioCalculator.call(context)
+  assert.equal(context.data.ratioCalculatorGroups[0].ingredients[0].value, '')
+
+  assert.match(template, /<view wx:if="{{detail\.advancePreparations\.length}}"[^>]*class="ratio-calculator-trigger"[^>]*bindtap="onOpenRatioCalculator"[^>]*aria-role="button"/)
+  assert.doesNotMatch(template, /<button[^>]*class="ratio-calculator-trigger"/)
+  assert.match(template, /src="\/assets\/icons\/calculator\.svg"/)
+  assert.match(template, />比例计算器</)
+  assert.match(template, /class="ratio-calculator-mask"[\s\S]*class="ratio-calculator-dialog"[\s\S]*>比例计算器</)
+  assert.doesNotMatch(template, /class="ratio-calculator-group-title"|{{ratioGroup\.outputName}}/)
+  assert.doesNotMatch(template, /class="ratio-calculator-columns"|>材料名<|>用量</)
+  assert.match(template, /wx:for="{{ratioCalculatorGroups}}"[\s\S]*wx:for="{{ratioGroup\.ingredients}}"[\s\S]*bindinput="onRatioAmountInput"/)
+  assert.match(css, /\.ratio-calculator-trigger\s*{[^}]*background:\s*transparent[^}]*border:\s*0[^}]*border-radius:\s*0/)
+  assert.match(css, /\.ratio-calculator-trigger::before\s*{[^}]*top:\s*-20rpx[^}]*bottom:\s*-20rpx/)
+  assert.match(css, /\.ratio-calculator-mask\s*{[^}]*align-items:\s*center[^}]*justify-content:\s*center/)
+  assert.match(css, /\.ratio-calculator-dialog\s*{[^}]*background:\s*#242321/)
+  assert.match(css, /\.ratio-calculator-dialog\s*{[^}]*width:\s*82%[^}]*max-width:\s*560rpx/)
+  assert.match(css, /\.ratio-calculator-title\s*{[^}]*color:\s*#ffffff/)
+  assert.match(css, /\.material-heading-actions\s*{[^}]*flex:\s*1[^}]*padding-right:\s*12rpx[^}]*justify-content:\s*flex-end/)
+  assert.match(css, /\.ratio-calculator-trigger\s*{[^}]*margin:\s*0 0 0 auto[^}]*justify-content:\s*flex-end[^}]*text-align:\s*right/)
+  assert.match(css, /\.ratio-calculator-close::before\s*{[^}]*top:\s*-20rpx[^}]*bottom:\s*-20rpx/)
 })
 
 test('preparation entry omits the legacy other option while old data remains supported', () => {
@@ -1200,6 +1245,31 @@ test('prepared serving output requires confirmation before removing its advance 
   assert.equal(context.savedForm.ingredients.length, 0)
 })
 
+test('advance preparation card delete requires the same confirmation before removal', () => {
+  const modals = []
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), { showModal(options) { modals.push(options) } })
+  const form = {
+    ...page.data.form,
+    ingredients: [{ renderKey: 'prepared-a', kind: 'prepared-output', preparationId: 'prep-a', name: '香料液', amount: 30, unit: 'ml' }],
+    advancePreparations: [{ id: 'prep-a', outputName: '香料液', ingredients: [], steps: '' }]
+  }
+  const context = { data: { form, errors: {} }, sync(next) { this.savedForm = next } }
+  const event = { currentTarget: { dataset: { preparationId: 'prep-a' } } }
+
+  page.onRemoveAdvancePreparation.call(context, event)
+  assert.equal(context.savedForm, undefined)
+  assert.equal(modals.length, 1)
+  assert.equal(modals[0].title, '删除提前准备？')
+  assert.match(modals[0].content, /对应的饮用时材料也会一起删除/)
+  modals[0].success({ confirm: false })
+  assert.equal(context.savedForm, undefined)
+
+  page.onRemoveAdvancePreparation.call(context, event)
+  modals[1].success({ confirm: true })
+  assert.equal(context.savedForm.advancePreparations.length, 0)
+  assert.equal(context.savedForm.ingredients.length, 0)
+})
+
 test('recipe entry emphasizes the cocktail name and hides the source field', () => {
   const editor = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8')
@@ -1222,6 +1292,13 @@ test('recipe basic information orders name, rating, then glassware and estimated
   assert.equal((editor.match(/>酒杯与酒精度</g) || []).length, 0)
   assert.equal((editor.match(/bindtap="onOpenGlasswareSelect"/g) || []).length, 1)
   assert.match(css, /\.basic-summary-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/)
+  assert.match(css, /\.basic-summary-row\s*\{[^}]*border-top:\s*1rpx solid #e7e4dd/)
+  assert.match(css, /\.basic-summary-row\s*\{[^}]*margin-top:\s*18rpx/)
+  assert.match(css, /\.basic-summary-cell\s*\{[^}]*background:\s*transparent[^}]*border:\s*0[^}]*border-radius:\s*0/)
+  assert.match(css, /\.basic-summary-cell\s*\{[^}]*padding:\s*10rpx 12rpx 10rpx 20rpx/)
+  assert.match(css, /\.abv-summary::before\s*\{[^}]*width:\s*1rpx[^}]*background:\s*#e7e4dd/)
+  assert.match(css, /\.basic-summary-value\s*\{[^}]*margin-top:\s*9rpx/)
+  assert.doesNotMatch(css, /\.glassware-summary\s*\{[^}]*background:/)
 })
 
 test('recipe basic information keeps tried state and conditional ratings on separate rows', () => {
@@ -1238,6 +1315,7 @@ test('recipe basic information keeps tried state and conditional ratings on sepa
   assert.match(basic, /wx:if="{{form\.tried}}" class="basic-rating-row"/)
   assert.doesNotMatch(basic, /<scroll-view[^>]*class="rating-scroll"/)
   assert.match(css, /\.rating-track\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/)
+  assert.match(css, /\.basic-status-row\s*\{[^}]*margin-top:\s*18rpx/)
   assert.match(css, /\.basic-status-row \.tried-toggle\s*\{[^}]*margin-left:\s*0/)
 })
 
@@ -1302,7 +1380,9 @@ test('recipe preparation, equipment and notes show only the requested compact fi
   assert.match(editor, /class="basic-summary-cell glassware-summary"/)
   assert.doesNotMatch(editor, /class="basic-summary-cell glassware-summary"[^>]*>[\s\S]*?›[\s\S]*?<\/view>/)
   assert.match(editor, /class="basic-summary-cell abv-summary"/)
-  assert.match(editor, /wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint basic-abv-hint"/)
+  assert.match(editor, /class="basic-summary-cell abv-summary"[\s\S]*class="basic-summary-value-line"[\s\S]*wx:if="{{preview\.abvHint}}"[^>]*class="abv-hint basic-abv-hint"/)
+  assert.doesNotMatch(editor, /<\/view>\s*<\/view>\s*<text wx:if="{{preview\.abvHint}}"/)
+  assert.match(fs.readFileSync(path.join(MINI, 'pages/recipe-edit/index.wxss'), 'utf8'), /\.basic-summary-value-line\s*\{[^}]*display:\s*flex[^}]*align-items:\s*baseline/)
   assert.equal((editor.match(/<textarea\b/g) || []).length, 3)
   assert.match(editor, /<textarea[^>]*data-field="steps"[^>]*>/)
   assert.match(editor, /<textarea[^>]*class="advance-steps"[^>]*data-field="steps"/)
@@ -1409,12 +1489,16 @@ test('recipe detail ingredient rows navigate to their material detail', () => {
 test('recipe detail uses compact meta tags and folds glassware into the material heading', () => {
   const wxml = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/recipe-detail/index.wxss'), 'utf8')
+  const cardCss = fs.readFileSync(path.join(MINI, 'components/recipe-card/index.wxss'), 'utf8')
   assert.match(wxml, /<text class="abv-badge"[^>]*bindtap="onOpenManualAbv"[^>]*>{{detail\.abvBadgeLabel}}<\/text>/)
   assert.match(wxml, /class="section-heading"[\s\S]*class="section-title">材料<\/text>[\s\S]*class="material-glassware"/)
   assert.match(wxml, /class="ingredient-name">{{item\.name}}<\/text><text wx:if="{{item\.state === 'quick-buy'}}" class="quick-buy-icon"[^>]*>🛍️<\/text>/)
   assert.doesNotMatch(wxml, /class="row-arrow"|>酒杯与用具</)
   assert.doesNotMatch(css, /\.ingredient-row\.quick-buy\s*{[^}]*background/)
-  assert.match(css, /\.abv-badge\s*{[^}]*min-height:\s*48rpx[^}]*padding:\s*0 18rpx[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(cardCss, /\.prep-label\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(css, /\.prep-badge\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(cardCss, /\.abv-label\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*transparent[^}]*border:\s*0/)
+  assert.match(css, /\.abv-badge\s*{[^}]*min-height:\s*48rpx[^}]*padding:\s*0 18rpx[^}]*color:\s*#6f6c66[^}]*background:\s*transparent[^}]*border:\s*0/)
   assert.match(wxml, /bindinput="onManualAbvInput"/)
   assert.match(wxml, /bindtap="onSaveManualAbv"/)
   assert.match(wxml, /bindtap="onClearManualAbv"/)

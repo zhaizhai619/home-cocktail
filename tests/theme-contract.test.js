@@ -110,7 +110,8 @@ test('recipe detail uses notes wording, plain selected ratings, and a compact ac
   assert.match(css, /\.action-button\s*{[^}]*height:\s*88rpx[^}]*padding:\s*0[^}]*font-weight:\s*400[^}]*line-height:\s*88rpx/)
   assert.match(css, /\.hero-card\s*{[^}]*padding-top:\s*40rpx/)
   assert.match(css, /\.action-button\.edit\s*{[^}]*background:\s*#3f4144/)
-  assert.match(css, /\.abv-badge\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(css, /\.prep-badge\s*{[^}]*color:\s*#536274[^}]*background:\s*#ebeff3[^}]*border:\s*1rpx solid #dbe2e9/)
+  assert.match(css, /\.abv-badge\s*{[^}]*color:\s*#6f6c66[^}]*background:\s*transparent[^}]*border:\s*0/)
 })
 
 test('material editor and detail share green switches and simplified controls', () => {

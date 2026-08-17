@@ -351,7 +351,19 @@ Page({
     }
   },
   onAdvanceDragEnd() { this._advanceDrag = null; this.setData({ draggingAdvanceIndex: -1, draggingAdvancePreparationId: '' }) },
-  onRemoveAdvancePreparation(event) { this.sync(removeAdvancePreparation(this.data.form, event.currentTarget.dataset.preparationId), this.data.errors) },
+  onRemoveAdvancePreparation(event) {
+    if (typeof wx === 'undefined' || typeof wx.showModal !== 'function') return
+    const preparationId = event.currentTarget.dataset.preparationId
+    return wx.showModal({
+      title: '删除提前准备？',
+      content: '删除这项提前准备后，对应的饮用时材料也会一起删除。',
+      confirmText: '删除',
+      confirmColor: '#985a54',
+      success: ({ confirm }) => {
+        if (confirm) this.sync(removeAdvancePreparation(this.data.form, preparationId), this.data.errors)
+      }
+    })
+  },
   suggestionsFor(index, query) {
     const ingredient = this.data.form.ingredients[index] || {}; const common = ingredient.category === 'citrus' ? ['柠檬汁', '青柠汁'] : ingredient.category === 'syrup/staple' ? ['糖浆', '蜂蜜糖浆', '肉桂糖浆'] : []
     const normalized = String(query || '').trim().toLowerCase()

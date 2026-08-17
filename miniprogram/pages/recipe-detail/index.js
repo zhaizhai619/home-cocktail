@@ -1,5 +1,7 @@
 const {
   buildRecipeDetail,
+  buildRatioCalculatorGroups,
+  scaleRatioCalculatorGroup,
   decodeRecipeId,
   orchestrateRatingToggle,
   orchestrateManualAbvSave,
@@ -23,7 +25,9 @@ Page({
     showManualAbvEditor: false,
     manualAbvDraft: '',
     manualAbvError: '',
-    expandedPreparationIds: {}
+    expandedPreparationIds: {},
+    showRatioCalculator: false,
+    ratioCalculatorGroups: []
   },
   async onLoad(query) {
     this.recipeId = decodeRecipeId(query && query.id)
@@ -74,6 +78,27 @@ Page({
         ...this.data.expandedPreparationIds,
         [preparationId]: !this.data.expandedPreparationIds[preparationId]
       }
+    })
+  },
+  onOpenRatioCalculator() {
+    const preparations = this.data.detail && this.data.detail.advancePreparations
+    this.setData({
+      showRatioCalculator: true,
+      ratioCalculatorGroups: buildRatioCalculatorGroups(preparations)
+    })
+  },
+  onCloseRatioCalculator() {
+    this.setData({ showRatioCalculator: false, ratioCalculatorGroups: [] })
+  },
+  onRatioAmountInput(event) {
+    const dataset = event.currentTarget.dataset || {}
+    this.setData({
+      ratioCalculatorGroups: scaleRatioCalculatorGroup(
+        this.data.ratioCalculatorGroups,
+        dataset.preparationId,
+        Number(dataset.ingredientIndex),
+        event.detail.value
+      )
     })
   },
   onOpenMusicReason() {

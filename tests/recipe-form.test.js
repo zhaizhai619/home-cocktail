@@ -214,6 +214,7 @@ test('multiple advance preparations create editable serving rows and never creat
   assert.deepEqual(payload.recipe.preparations, [{ type: '冷泡/浸泡', durationText: '3–7天', note: '' }])
   assert.equal(payload.materialDrafts.some(({ name }) => ['菠萝朗姆', '澄清果汁'].includes(name)), false)
   assert.deepEqual(getFormPreview(form), { status: 'prepared', abv: null, liquidVolume: 0, missing: [], ignored: [] })
+  assert.equal(getMissingAlcoholAbvHint(form), '含预调成品，暂不计算酒精度')
 })
 
 test('removing one advance preparation removes only its linked serving row', () => {
