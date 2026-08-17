@@ -2,7 +2,6 @@ const MENUS = [{
   id: 'preview-mengqi',
   name: '孟琪的私人酒单',
   ownerName: '孟琪',
-  ownerInitial: '孟',
   updatedLabel: '今天 18:32',
   recipeIds: ['preview-negroni', 'preview-whiskey-sour', 'preview-mojito']
 }]
@@ -81,7 +80,6 @@ function menuSummary(menu) {
     id: menu.id,
     name: menu.name,
     ownerName: menu.ownerName,
-    ownerInitial: menu.ownerInitial,
     recipeCount: menu.recipeIds.length,
     updatedLabel: menu.updatedLabel
   }

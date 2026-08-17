@@ -1,6 +1,5 @@
 .shared-menu-page { box-sizing: border-box; min-height: 100vh; padding: 48rpx 32rpx; background: #f8f5ee; }
-.shared-menu-hero { position: relative; display: grid; grid-template-columns: 92rpx minmax(0, 1fr) auto; box-sizing: border-box; min-height: 222rpx; padding: 28rpx; align-items: center; gap: 20rpx; color: #ffffff; background: #34312e; border-radius: 26rpx; box-shadow: 0 14rpx 34rpx rgba(55, 50, 43, .18); }
-.shared-owner-avatar { display: flex; width: 86rpx; height: 86rpx; align-items: center; justify-content: center; color: #3d2f25; background: #ead8c7; border-radius: 50%; font-size: 31rpx; font-weight: 700; }
+.shared-menu-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; box-sizing: border-box; min-height: 196rpx; padding: 28rpx; align-items: center; gap: 20rpx; color: #ffffff; background: #34312e; border-radius: 26rpx; box-shadow: 0 14rpx 34rpx rgba(55, 50, 43, .18); }
 .shared-menu-copy { min-width: 0; }
 .shared-menu-name { display: block; overflow: hidden; font-size: 34rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .shared-owner-name { display: block; margin-top: 10rpx; color: rgba(255,255,255,.68); font-size: 22rpx; }

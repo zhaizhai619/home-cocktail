@@ -8,8 +8,7 @@
 .preview-badge { flex: none; padding: 8rpx 14rpx; color: #7c6049; background: #f4eee8; border-radius: 999rpx; font-size: 19rpx; }
 .friend-menu-list { display: grid; gap: 18rpx; }
 .friend-menu-card { display: flex; align-items: center; box-sizing: border-box; min-height: 184rpx; padding: 26rpx 22rpx; background: #fffefc; border: 1rpx solid #e5dfd5; border-radius: 24rpx; box-shadow: 0 10rpx 28rpx rgba(55, 50, 43, .07); }
-.friend-avatar { display: flex; width: 82rpx; height: 82rpx; flex: none; align-items: center; justify-content: center; color: #ffffff; background: #5f5146; border-radius: 50%; font-size: 30rpx; font-weight: 650; }
-.friend-menu-main { min-width: 0; margin-left: 20rpx; flex: 1; }
+.friend-menu-main { min-width: 0; flex: 1; }
 .friend-menu-title-row { display: flex; min-width: 0; align-items: center; gap: 12rpx; }
 .friend-menu-name { min-width: 0; overflow: hidden; color: #242321; font-size: 30rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .readonly-badge { flex: none; padding: 5rpx 10rpx; color: #6f6c66; background: #f1f0ec; border-radius: 999rpx; font-size: 18rpx; }

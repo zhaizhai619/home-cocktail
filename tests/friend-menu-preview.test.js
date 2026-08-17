@@ -11,7 +11,6 @@ test('friend menu preview exposes an isolated menu collection', () => {
     id: 'preview-mengqi',
     name: '孟琪的私人酒单',
     ownerName: '孟琪',
-    ownerInitial: '孟',
     recipeCount: 3,
     updatedLabel: '今天 18:32'
   })
@@ -46,4 +45,10 @@ test('malformed encoded ids never throw', () => {
   assert.deepEqual(preview.decodePreviewId('%E0%A4%A'), { ok: false, reason: 'malformed-id' })
   assert.equal(preview.getMenu('%E0%A4%A').status, 'malformed-id')
   assert.equal(preview.getRecipe('preview-mengqi', '%E0%A4%A').status, 'malformed-id')
+})
+
+test('friend menu identity uses the author profile name without a generated avatar initial', () => {
+  const menu = preview.listMenus()[0]
+  assert.equal(menu.ownerName, '孟琪')
+  assert.equal(Object.prototype.hasOwnProperty.call(menu, 'ownerInitial'), false)
 })

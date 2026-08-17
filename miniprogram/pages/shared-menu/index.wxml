@@ -10,7 +10,6 @@
   </view>
   <block wx:else>
     <view class="shared-menu-hero">
-      <view class="shared-owner-avatar">{{menu.ownerInitial}}</view>
       <view class="shared-menu-copy">
         <text class="shared-menu-name">{{menu.name}}</text>
         <text class="shared-owner-name">来自好友{{menu.ownerName}}</text>

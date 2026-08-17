@@ -1,6 +1,5 @@
 .detail-page { min-height: 100vh; padding: 24rpx 24rpx 160rpx; box-sizing: border-box; }
 .friend-attribution { display: flex; box-sizing: border-box; min-height: 112rpx; margin-bottom: 20rpx; padding: 20rpx 22rpx; align-items: center; gap: 16rpx; color: #ffffff; background: #34312e; border-radius: 22rpx; box-shadow: 0 8rpx 22rpx rgba(55, 50, 43, .14); }
-.friend-attribution-avatar { display: flex; width: 64rpx; height: 64rpx; flex: none; align-items: center; justify-content: center; color: #3d2f25; background: #ead8c7; border-radius: 50%; font-size: 24rpx; font-weight: 700; }
 .friend-attribution-main { min-width: 0; flex: 1; }
 .friend-attribution-title { display: block; font-size: 25rpx; font-weight: 650; }
 .friend-attribution-sync { display: block; margin-top: 6rpx; color: #9ed0ae; font-size: 20rpx; }

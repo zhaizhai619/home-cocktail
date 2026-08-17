@@ -164,6 +164,7 @@ test('recipes home visibly separates personal and friend menus', () => {
   assert.match(template, /friendMenusState === 'error'[^]*onRetryFriendMenus/)
   assert.match(css, /\.menu-source-tabs/)
   assert.match(css, /\.friend-menu-card/)
+  assert.doesNotMatch(template, /friend-avatar|ownerInitial/)
 })
 
 test('shared menu page loads preview recipes and opens explicit friend detail route', () => {
@@ -244,7 +245,8 @@ test('shared menu page renders author ownership and preview-qualified sync statu
   assert.match(template, /bind:select="onSelectRecipe"/)
   assert.match(template, /state === 'error'[^]*bindtap="onRetry"/)
   assert.match(css, /\.shared-menu-hero/)
-  assert.match(css, /\.shared-owner-avatar/)
+  assert.doesNotMatch(template, /shared-owner-avatar|ownerInitial/)
+  assert.doesNotMatch(css, /\.shared-owner-avatar/)
 })
 
 test('friend preview detail bypasses cloud and personal repository data', async () => {
@@ -351,6 +353,8 @@ test('friend preview detail renders ownership and non-interactive author evaluat
   assert.match(template, /<block wx:else>\s*<view class="action-bar"[^]*>编辑<[^]*>删除</)
   assert.match(css, /\.friend-attribution/)
   assert.match(css, /\.viewer-action-bar/)
+  assert.doesNotMatch(template, /friend-attribution-avatar|ownerInitial/)
+  assert.doesNotMatch(css, /\.friend-attribution-avatar/)
 })
 
 test('AI naming feedback excludes a rejected song and re-generation sends the exclusion list', async () => {

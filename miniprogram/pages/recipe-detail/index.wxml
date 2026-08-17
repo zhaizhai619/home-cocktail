@@ -7,7 +7,6 @@
 
   <block wx:elif="{{detail.status === 'ok'}}">
     <view wx:if="{{viewerMode}}" class="friend-attribution">
-      <view class="friend-attribution-avatar">{{friendMenu.ownerInitial}}</view>
       <view class="friend-attribution-main"><text class="friend-attribution-title">来自好友{{friendMenu.ownerName}}</text><text class="friend-attribution-sync">实时同步 · 效果预览</text></view>
       <text class="friend-attribution-readonly">只读</text>
     </view>
