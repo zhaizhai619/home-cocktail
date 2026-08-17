@@ -70,6 +70,104 @@ test('AI naming feedback excludes a rejected song and re-generation sends the ex
   assert.deepEqual(Array.from(calls[1].payload.excludeSongIds), ['1'])
 })
 
+test('AI naming asks the user to complete material amounts before opening', async () => {
+  const modals = []
+  const scrolls = []
+  let statusCalls = 0
+  const app = { globalData: {
+    musicAssistant: { async getStatus() { statusCalls += 1; return { analyzedCount: 2 } } },
+    musicAssistantSettings: { load: () => ({ apiKey: 'secret', model: 'deepseek-v4-flash' }) }
+  } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), {
+    showModal(options) { modals.push(options) },
+    pageScrollTo(options) { scrolls.push(options) }
+  }, app)
+  const context = {
+    data: { ...page.data, form: { ...page.data.form, ingredients: [{ name: '金酒', amount: '', unit: 'ml' }], advancePreparations: [] } },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onOpenAiNaming.call(context)
+  assert.equal(statusCalls, 0)
+  assert.equal(context.data.aiNamingOpen, false)
+  assert.equal(modals.length, 1)
+  assert.match(modals[0].content, /材料和用量/)
+  assert.equal(modals[0].confirmText, '去完善')
+  assert.equal(context.data.errors && context.data.errors.ingredients, undefined)
+  modals[0].success({ confirm: true })
+  assert.equal(scrolls[0].selector, '.ingredient-section')
+})
+
+test('AI naming asks before navigating to song import when no profiles exist', async () => {
+  const modals = []
+  const navigations = []
+  const app = { globalData: {
+    musicAssistant: { async getStatus() { return { analyzedCount: 0 } } },
+    musicAssistantSettings: { load: () => ({ apiKey: 'secret', model: 'deepseek-v4-flash' }) }
+  } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), {
+    showModal(options) { modals.push(options) },
+    navigateTo(options) { navigations.push(options.url) }
+  }, app)
+  const context = {
+    data: { ...page.data, form: { ...page.data.form, ingredients: [{ name: '金酒', amount: 45, unit: 'ml' }], advancePreparations: [] } },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onOpenAiNaming.call(context)
+  assert.equal(context.data.aiNamingOpen, false)
+  assert.equal(modals.length, 1)
+  assert.match(modals[0].content, /导入.*歌曲|歌曲.*导入/)
+  assert.equal(modals[0].confirmText, '去完善')
+  assert.deepEqual(navigations, [])
+  modals[0].success({ confirm: false })
+  assert.deepEqual(navigations, [])
+
+  await page.onOpenAiNaming.call(context)
+  modals[1].success({ confirm: true })
+  assert.deepEqual(navigations, ['/pages/music-naming/index'])
+})
+
+test('AI naming opens only after materials and analyzed songs are ready', async () => {
+  const app = { globalData: {
+    musicAssistant: { async getStatus() { return { analyzedCount: 3 } } },
+    musicAssistantSettings: { load: () => ({ apiKey: 'secret', model: 'deepseek-v4-flash' }) }
+  } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), {}, app)
+  const context = {
+    data: { ...page.data, form: { ...page.data.form, ingredients: [{ name: '金酒', amount: 45, unit: 'ml' }], advancePreparations: [] } },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onOpenAiNaming.call(context)
+  assert.equal(context.data.aiNamingOpen, true)
+})
+
+test('AI naming still offers song import if profiles disappear before generation', async () => {
+  const modals = []
+  const navigations = []
+  const missing = Object.assign(new Error('请先导入并解析喜欢的歌曲'), { code: 'NO_SONG_PROFILES' })
+  const app = { globalData: {
+    musicAssistant: { async recommendNames() { throw missing } },
+    musicAssistantSettings: { load: () => ({ apiKey: 'secret', model: 'deepseek-v4-flash' }) }
+  } }
+  const page = registeredDefinition(path.join(MINI, 'pages/recipe-edit/index.js'), {
+    showModal(options) { modals.push(options) },
+    navigateTo(options) { navigations.push(options.url) }
+  }, app)
+  const context = {
+    data: { ...page.data, aiNamingOpen: true, form: { ...page.data.form, ingredients: [{ name: '金酒', amount: 45, unit: 'ml' }], advancePreparations: [] } },
+    setData(value) { Object.assign(this.data, value) }
+  }
+
+  await page.onGenerateAiNames.call(context)
+  assert.equal(modals.length, 1)
+  assert.equal(modals[0].confirmText, '去完善')
+  assert.deepEqual(navigations, [])
+  modals[0].success({ confirm: true })
+  assert.deepEqual(navigations, ['/pages/music-naming/index'])
+})
+
 function eventHandlers(wxml) {
   return [...wxml.matchAll(/\b(?:bind|catch)(?:[a-z][\w-]*|:[a-z][\w-]*)="([A-Za-z_$][\w$]*)"/g)].map((match) => match[1])
 }

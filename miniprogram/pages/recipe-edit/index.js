@@ -1,7 +1,7 @@
 const { PREP_ENTRY_TYPES, RATINGS, UNITS, RECIPE_UNITS } = require('../../domain/constants')
 const { formatPreparationDurationText, getPreparationDurationParts } = require('../../domain/recipe')
 const { getMaterialCategoryGroup, getMaterialDisplayName, getMaterialIdentityKey, materialNameMatchesQuery } = require('../../domain/material')
-const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, buildAiNamingInput, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
+const { createEmptyRecipeForm, applyMaterialSelection, reorderIngredient, createAdvancePreparation, updateAdvancePreparation, applyAdvanceMaterialSelection, removeAdvancePreparation, hydrateRecipeIngredient, hydrateEquipmentSelections, updateTriedState, updateIngredientField, normalizeAndValidateForm, buildAiNamingInput, getFormPreview, getMissingAlcoholAbvHint, orchestrateRecipeSave } = require('./model')
 const { waitForCloudReady } = require('../../services/page-ready')
 
 const NEW_CATEGORIES = [
@@ -32,6 +32,26 @@ function categoryFilterForIngredient(row) {
 
 function repository() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData && app.globalData.repository }
 function appServices() { const app = typeof getApp === 'function' && getApp(); return app && app.globalData ? app.globalData : {} }
+function showAiNamingPrompt({ title, content, confirmText = '去完善', onConfirm } = {}) {
+  if (typeof wx === 'undefined' || typeof wx.showModal !== 'function') return
+  wx.showModal({
+    title,
+    content,
+    confirmText,
+    cancelText: '暂不',
+    success: ({ confirm }) => { if (confirm && typeof onConfirm === 'function') onConfirm() }
+  })
+}
+function promptSongImport(page) {
+  showAiNamingPrompt({
+    title: '先导入歌曲',
+    content: '还没有可用于起名的歌曲，请先导入并解析喜欢的歌曲。',
+    onConfirm: () => {
+      if (page && typeof page.setData === 'function') page.setData({ aiNamingOpen: false })
+      if (typeof wx !== 'undefined' && typeof wx.navigateTo === 'function') wx.navigateTo({ url: '/pages/music-naming/index' })
+    }
+  })
+}
 function unitView(unit) { const index = RECIPE_UNITS.findIndex((item) => item.value === unit); const legacy = UNITS.find((item) => item.value === unit); return { unitIndex: index < 0 ? 0 : index, unitLabel: (index < 0 ? legacy : RECIPE_UNITS[index] || {}).label || 'ml' } }
 function displayIngredient(row) {
   if (row && row.kind === 'prepared-output') return { ...row, nameLabel: row.name || '预调成品', isPrepared: true, ...unitView(row.unit) }
@@ -86,7 +106,31 @@ Page({
     const value = event.detail.value
     this.sync({ ...this.data.form, [field]: value })
   },
-  onOpenAiNaming() { this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiCocktailProfile: null, aiExcludedSongIds: [], aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })), aiThinkingText: 'AI 思考中…' }) },
+  async onOpenAiNaming() {
+    const validation = normalizeAndValidateForm(this.data.form)
+    const materialError = validation.errors.ingredients || validation.errors.advancePreparation
+    if (materialError) {
+      showAiNamingPrompt({
+        title: '先完善配方',
+        content: '请先填写完整的材料和用量，再使用 AI 起名。',
+        onConfirm: () => {
+          if (typeof wx !== 'undefined' && typeof wx.pageScrollTo === 'function') wx.pageScrollTo({ selector: '.ingredient-section', duration: 300 })
+        }
+      })
+      return
+    }
+    const { musicAssistant } = appServices()
+    if (musicAssistant && typeof musicAssistant.getStatus === 'function') {
+      try {
+        const status = await musicAssistant.getStatus()
+        if (Number(status && status.analyzedCount) <= 0) return promptSongImport(this)
+      } catch (error) {
+        if (typeof wx !== 'undefined' && typeof wx.showToast === 'function') wx.showToast({ title: error.message || '暂时无法检查歌曲，请稍后重试', icon: 'none' })
+        return
+      }
+    }
+    this.setData({ aiNamingOpen: true, aiError: '', aiNeedsSetup: false, aiRecommendations: [], aiCocktailProfile: null, aiExcludedSongIds: [], aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })), aiThinkingText: 'AI 思考中…' })
+  },
   onCloseAiNaming() { if (!this.data.aiThinking) this.setData({ aiNamingOpen: false }) },
   onAiFieldInput(event) { this.setData({ [event.currentTarget.dataset.field]: event.detail.value }) },
   onOpenMusicSettings() { wx.navigateTo({ url: '/pages/music-naming/index' }) },
@@ -111,7 +155,10 @@ Page({
       })
       this.setData({ aiRecommendations: result.recommendations || [], aiCocktailProfile: result.cocktailProfile || null, aiFeedbackSongId: '', aiFeedbackTags: [], aiFeedbackNote: '', aiFeedbackError: '', aiFeedbackOptions: AI_FEEDBACK_OPTIONS.map((item) => ({ ...item, selected: false })) })
     } catch (error) {
-      this.setData({ aiError: error.message || '暂时没有生成合适的名字' })
+      if (error && error.code === 'NO_SONG_PROFILES') {
+        this.setData({ aiError: '' })
+        promptSongImport(this)
+      } else this.setData({ aiError: error.message || '暂时没有生成合适的名字' })
     } finally {
       clearTimeout(thinkingTimer)
       this.setData({ aiThinking: false })
