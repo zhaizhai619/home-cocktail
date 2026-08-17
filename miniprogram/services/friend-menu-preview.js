@@ -1,68 +1,3 @@
-const MENUS = [{
-  id: 'preview-mengqi',
-  name: '孟琪的酒单',
-  ownerName: '孟琪',
-  updatedLabel: '今天 18:32',
-  recipeIds: ['preview-negroni', 'preview-whiskey-sour', 'preview-mojito']
-}]
-
-const MATERIALS = [
-  { id: 'preview-gin', name: '金酒', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
-  { id: 'preview-campari', name: '金巴利', category: 'liqueur', acquisition: 'long-term', owned: true, alcoholic: true, abv: 25 },
-  { id: 'preview-vermouth', name: '甜味美思', category: 'fortified-wine', acquisition: 'long-term', owned: true, alcoholic: true, abv: 16 },
-  { id: 'preview-bourbon', name: '波本威士忌', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
-  { id: 'preview-lemon', name: '柠檬汁', category: 'citrus', acquisition: 'on-demand', freshOnHand: true, alcoholic: false },
-  { id: 'preview-syrup', name: '糖浆', category: 'syrup', acquisition: 'long-term', owned: true, alcoholic: false },
-  { id: 'preview-rum', name: '白朗姆', category: 'base-spirit', acquisition: 'long-term', owned: true, alcoholic: true, abv: 40 },
-  { id: 'preview-lime', name: '青柠汁', category: 'citrus', acquisition: 'on-demand', freshOnHand: true, alcoholic: false },
-  { id: 'preview-mint', name: '薄荷叶', category: 'herb', acquisition: 'on-demand', freshOnHand: true, alcoholic: false },
-  { id: 'preview-soda', name: '苏打水', category: 'soda/tonic', acquisition: 'on-demand', freshOnHand: true, alcoholic: false }
-]
-
-const RECIPES = [
-  {
-    id: 'preview-negroni', name: '尼格罗尼', source: '孟琪的配方', tried: true, rating: '顶尖',
-    ingredients: [
-      { materialId: 'preview-gin', amount: 30, unit: 'ml' },
-      { materialId: 'preview-campari', amount: 30, unit: 'ml' },
-      { materialId: 'preview-vermouth', amount: 30, unit: 'ml' }
-    ],
-    preparations: [{ type: '即调' }],
-    steps: ['将所有材料加入装满冰块的搅拌杯', '搅拌至充分冰镇后滤入加有大冰块的杯中', '挤压橙皮精油后作为装饰'],
-    tastingNote: '苦甜平衡很好，橙皮香气出来后更耐喝。',
-    createdAt: '2026-08-11T10:00:00.000Z', updatedAt: '2026-08-17T10:32:00.000Z'
-  },
-  {
-    id: 'preview-whiskey-sour', name: '威士忌酸', source: '孟琪的配方', tried: true, rating: '人上人',
-    ingredients: [
-      { materialId: 'preview-bourbon', amount: 50, unit: 'ml' },
-      { materialId: 'preview-lemon', amount: 25, unit: 'ml' },
-      { materialId: 'preview-syrup', amount: 15, unit: 'ml' }
-    ],
-    preparations: [{ type: '即调' }],
-    steps: ['所有材料加冰充分摇和', '双重过滤到装有冰块的杯中'],
-    tastingNote: '酸度清晰但不尖，波本的香草甜感很舒服。',
-    createdAt: '2026-08-09T09:00:00.000Z', updatedAt: '2026-08-16T08:00:00.000Z'
-  },
-  {
-    id: 'preview-mojito', name: '莫吉托', source: '孟琪的配方', tried: true, rating: '夯',
-    ingredients: [
-      { materialId: 'preview-rum', amount: 45, unit: 'ml' },
-      { materialId: 'preview-lime', amount: 20, unit: 'ml' },
-      { materialId: 'preview-syrup', amount: 15, unit: 'ml' },
-      { materialId: 'preview-mint', amount: 8, unit: 'piece' },
-      { materialId: 'preview-soda', amount: null, unit: 'top-up' }
-    ],
-    preparations: [{ type: '即调' }],
-    steps: ['轻拍薄荷后与朗姆、青柠汁和糖浆加入杯中', '加碎冰搅拌，补满苏打水'],
-    tastingNote: '薄荷只轻拍会更清爽，不会有明显草涩味。',
-    createdAt: '2026-08-07T08:00:00.000Z', updatedAt: '2026-08-15T07:00:00.000Z'
-  },
-  { id: 'preview-not-in-menu', name: '未加入当前酒单', ingredients: [] }
-]
-
-const MENU_DISPLAY_NAMES = Object.create(null)
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
@@ -77,56 +12,102 @@ function decodePreviewId(value) {
   }
 }
 
-function menuSummary(menu) {
+function normalizeContext(value) {
+  const source = value && typeof value === 'object' ? value : {}
+  const menu = source.menu && typeof source.menu === 'object' ? source.menu : {}
+  if (typeof menu.id !== 'string' || !menu.id || typeof menu.name !== 'string' || !menu.name.trim()) return null
   return {
-    id: menu.id,
-    name: MENU_DISPLAY_NAMES[menu.id] || menu.name,
-    ownerName: menu.ownerName,
-    recipeCount: menu.recipeIds.length,
-    updatedLabel: menu.updatedLabel
+    menu: {
+      id: menu.id,
+      name: menu.name.trim(),
+      ownerName: typeof menu.ownerName === 'string' ? menu.ownerName.trim() : '',
+      updatedLabel: typeof menu.updatedLabel === 'string' ? menu.updatedLabel : ''
+    },
+    recipes: (Array.isArray(source.recipes) ? source.recipes : []).filter((recipe) => recipe && typeof recipe.id === 'string' && recipe.id),
+    materials: Array.isArray(source.materials) ? source.materials : [],
+    glassware: Array.isArray(source.glassware) ? source.glassware : [],
+    tools: Array.isArray(source.tools) ? source.tools : []
   }
 }
 
-function renameMenu(rawMenuId, value) {
-  const decoded = decodePreviewId(rawMenuId)
-  if (!decoded.ok) return { status: decoded.reason }
-  const menu = MENUS.find(({ id }) => id === decoded.value)
-  if (!menu) return { status: 'missing-menu' }
-  const name = String(value || '').trim()
-  if (!name || name.length > 30) return { status: 'invalid-name' }
-  MENU_DISPLAY_NAMES[menu.id] = name
-  return { status: 'ok', menu: clone(menuSummary(menu)) }
+function createFriendMenuStore(initialContexts = []) {
+  const contexts = Object.create(null)
+  const orderedIds = []
+  const displayNames = Object.create(null)
+
+  function menuSummary(context) {
+    return {
+      id: context.menu.id,
+      name: displayNames[context.menu.id] || context.menu.name,
+      ownerName: context.menu.ownerName,
+      recipeCount: context.recipes.length,
+      updatedLabel: context.menu.updatedLabel
+    }
+  }
+
+  function receiveMenu(value) {
+    const context = normalizeContext(value)
+    if (!context) return { status: 'invalid-menu' }
+    if (!Object.prototype.hasOwnProperty.call(contexts, context.menu.id)) orderedIds.push(context.menu.id)
+    contexts[context.menu.id] = clone(context)
+    return { status: 'ok', menu: clone(menuSummary(contexts[context.menu.id])) }
+  }
+
+  function listMenus() {
+    return clone(orderedIds.map((id) => menuSummary(contexts[id])))
+  }
+
+  function getMenu(rawMenuId) {
+    const decoded = decodePreviewId(rawMenuId)
+    if (!decoded.ok) return { status: decoded.reason }
+    const context = contexts[decoded.value]
+    if (!context) return { status: 'missing-menu' }
+    return clone({
+      status: 'ok',
+      menu: menuSummary(context),
+      recipes: context.recipes,
+      materials: context.materials,
+      glassware: context.glassware,
+      tools: context.tools
+    })
+  }
+
+  function getRecipe(rawMenuId, rawRecipeId) {
+    const menuResult = getMenu(rawMenuId)
+    if (menuResult.status !== 'ok') return menuResult
+    const decodedRecipe = decodePreviewId(rawRecipeId)
+    if (!decodedRecipe.ok) return { status: decodedRecipe.reason }
+    const recipe = menuResult.recipes.find(({ id }) => id === decodedRecipe.value)
+    if (!recipe) {
+      const existsElsewhere = orderedIds.some((id) => contexts[id].recipes.some(({ id: recipeId }) => recipeId === decodedRecipe.value))
+      return { status: existsElsewhere ? 'recipe-not-in-menu' : 'missing-recipe' }
+    }
+    return clone({ ...menuResult, recipe })
+  }
+
+  function renameMenu(rawMenuId, value) {
+    const decoded = decodePreviewId(rawMenuId)
+    if (!decoded.ok) return { status: decoded.reason }
+    const context = contexts[decoded.value]
+    if (!context) return { status: 'missing-menu' }
+    const name = String(value || '').trim()
+    if (!name || name.length > 30) return { status: 'invalid-name' }
+    displayNames[context.menu.id] = name
+    return { status: 'ok', menu: clone(menuSummary(context)) }
+  }
+
+  ;(Array.isArray(initialContexts) ? initialContexts : []).forEach(receiveMenu)
+  return { listMenus, getMenu, getRecipe, renameMenu, receiveMenu }
 }
 
-function listMenus() {
-  return clone(MENUS.map(menuSummary))
-}
+const defaultStore = createFriendMenuStore()
 
-function getMenu(rawMenuId) {
-  const decoded = decodePreviewId(rawMenuId)
-  if (!decoded.ok) return { status: decoded.reason }
-  const menu = MENUS.find(({ id }) => id === decoded.value)
-  if (!menu) return { status: 'missing-menu' }
-  const recipes = menu.recipeIds.map((id) => RECIPES.find((recipe) => recipe.id === id)).filter(Boolean)
-  return clone({
-    status: 'ok',
-    menu: menuSummary(menu),
-    recipes,
-    materials: MATERIALS,
-    glassware: [],
-    tools: []
-  })
+module.exports = {
+  decodePreviewId,
+  createFriendMenuStore,
+  listMenus: defaultStore.listMenus,
+  getMenu: defaultStore.getMenu,
+  getRecipe: defaultStore.getRecipe,
+  renameMenu: defaultStore.renameMenu,
+  receiveMenu: defaultStore.receiveMenu
 }
-
-function getRecipe(rawMenuId, rawRecipeId) {
-  const menuResult = getMenu(rawMenuId)
-  if (menuResult.status !== 'ok') return menuResult
-  const decodedRecipe = decodePreviewId(rawRecipeId)
-  if (!decodedRecipe.ok) return { status: decodedRecipe.reason }
-  const recipe = RECIPES.find(({ id }) => id === decodedRecipe.value)
-  if (!recipe) return { status: 'missing-recipe' }
-  if (!menuResult.recipes.some(({ id }) => id === recipe.id)) return { status: 'recipe-not-in-menu' }
-  return clone({ ...menuResult, recipe })
-}
-
-module.exports = { decodePreviewId, listMenus, getMenu, getRecipe, renameMenu }

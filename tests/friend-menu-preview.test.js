@@ -1,65 +1,69 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const preview = require('../miniprogram/services/friend-menu-preview')
+const friendMenus = require('../miniprogram/services/friend-menu-preview')
 
-test('friend menu preview exposes an isolated menu collection', () => {
-  const menus = preview.listMenus()
+function context(id = 'menu-alice', recipeId = 'recipe-one') {
+  return {
+    menu: { id, name: 'Alice的酒单', ownerName: 'Alice', updatedLabel: '刚刚' },
+    recipes: [{ id: recipeId, name: '测试酒', ingredients: [], preparations: [], steps: [] }],
+    materials: [],
+    glassware: [],
+    tools: []
+  }
+}
 
-  assert.equal(menus.length, 1)
-  assert.deepEqual(menus[0], {
-    id: 'preview-mengqi',
-    name: '孟琪的酒单',
-    ownerName: '孟琪',
-    recipeCount: 3,
-    updatedLabel: '今天 18:32'
-  })
+test('production friend menu store starts empty without bundled examples', () => {
+  assert.deepEqual(friendMenus.listMenus(), [])
+  assert.equal(friendMenus.getMenu('menu-alice').status, 'missing-menu')
+})
 
+test('an injected friend menu store returns defensive menu and recipe context', () => {
+  const store = friendMenus.createFriendMenuStore([context()])
+  const menus = store.listMenus()
+
+  assert.deepEqual(menus, [{ id: 'menu-alice', name: 'Alice的酒单', ownerName: 'Alice', recipeCount: 1, updatedLabel: '刚刚' }])
   menus[0].name = '被修改'
-  assert.equal(preview.listMenus()[0].name, '孟琪的酒单')
-})
+  assert.equal(store.listMenus()[0].name, 'Alice的酒单')
 
-test('friend menu lookup returns defensive recipe and material context', () => {
-  const result = preview.getMenu('preview-mengqi')
-
-  assert.equal(result.status, 'ok')
-  assert.equal(result.menu.ownerName, '孟琪')
-  assert.deepEqual(result.recipes.map(({ id }) => id), [
-    'preview-negroni',
-    'preview-whiskey-sour',
-    'preview-mojito'
-  ])
-  assert.ok(result.materials.length > 0)
-
+  const result = store.getMenu('menu-alice')
   result.recipes[0].name = '被修改'
-  assert.equal(preview.getMenu('preview-mengqi').recipes[0].name, '尼格罗尼')
+  assert.equal(store.getMenu('menu-alice').recipes[0].name, '测试酒')
 })
 
-test('friend recipe must belong to the supplied menu', () => {
-  assert.equal(preview.getRecipe('preview-mengqi', 'preview-negroni').status, 'ok')
-  assert.equal(preview.getRecipe('preview-mengqi', 'preview-not-in-menu').status, 'recipe-not-in-menu')
-  assert.equal(preview.getRecipe('preview-missing-menu', 'preview-negroni').status, 'missing-menu')
+test('friend recipe lookup validates menu membership', () => {
+  const store = friendMenus.createFriendMenuStore([
+    context('menu-alice', 'recipe-one'),
+    context('menu-bob', 'recipe-two')
+  ])
+
+  assert.equal(store.getRecipe('menu-alice', 'recipe-one').status, 'ok')
+  assert.equal(store.getRecipe('menu-alice', 'recipe-two').status, 'recipe-not-in-menu')
+  assert.equal(store.getRecipe('menu-alice', 'recipe-missing').status, 'missing-recipe')
+  assert.equal(store.getRecipe('menu-missing', 'recipe-one').status, 'missing-menu')
 })
 
 test('malformed encoded ids never throw', () => {
-  assert.deepEqual(preview.decodePreviewId('%E0%A4%A'), { ok: false, reason: 'malformed-id' })
-  assert.equal(preview.getMenu('%E0%A4%A').status, 'malformed-id')
-  assert.equal(preview.getRecipe('preview-mengqi', '%E0%A4%A').status, 'malformed-id')
+  const store = friendMenus.createFriendMenuStore([context()])
+  assert.deepEqual(friendMenus.decodePreviewId('%E0%A4%A'), { ok: false, reason: 'malformed-id' })
+  assert.equal(store.getMenu('%E0%A4%A').status, 'malformed-id')
+  assert.equal(store.getRecipe('menu-alice', '%E0%A4%A').status, 'malformed-id')
 })
 
-test('friend menu identity uses the author profile name without a generated avatar initial', () => {
-  const menu = preview.listMenus()[0]
-  assert.equal(menu.ownerName, '孟琪')
-  assert.equal(menu.name, '孟琪的酒单')
-  assert.equal(Object.prototype.hasOwnProperty.call(menu, 'ownerInitial'), false)
-})
-
-test('a viewer can set a local menu display name without changing author identity', () => {
-  const renamed = preview.renameMenu('preview-mengqi', '周末调酒参考')
+test('a viewer can rename a received menu without changing author identity', () => {
+  const store = friendMenus.createFriendMenuStore([context()])
+  const renamed = store.renameMenu('menu-alice', '周末调酒参考')
 
   assert.equal(renamed.status, 'ok')
   assert.equal(renamed.menu.name, '周末调酒参考')
-  assert.equal(renamed.menu.ownerName, '孟琪')
-  assert.equal(preview.getMenu('preview-mengqi').menu.name, '周末调酒参考')
-  assert.equal(preview.renameMenu('preview-mengqi', '   ').status, 'invalid-name')
+  assert.equal(renamed.menu.ownerName, 'Alice')
+  assert.equal(store.getMenu('menu-alice').menu.name, '周末调酒参考')
+  assert.equal(store.renameMenu('menu-alice', '   ').status, 'invalid-name')
+})
+
+test('received menu contexts are validated before entering the store', () => {
+  const store = friendMenus.createFriendMenuStore()
+  assert.equal(store.receiveMenu({}).status, 'invalid-menu')
+  assert.equal(store.receiveMenu(context()).status, 'ok')
+  assert.equal(store.listMenus().length, 1)
 })

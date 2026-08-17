@@ -41,6 +41,17 @@ function registeredDefinition(jsFile, wxOverrides = {}, appOverride = null, modu
   return definition
 }
 
+function testFriendMenuService() {
+  const { createFriendMenuStore } = require('../miniprogram/services/friend-menu-preview')
+  return createFriendMenuStore([{
+    menu: { id: 'menu-test', name: '测试用户的酒单', ownerName: '测试用户', updatedLabel: '刚刚' },
+    recipes: [{ id: 'recipe-test', name: '测试酒', tried: true, rating: '顶尖', ingredients: [], preparations: [], steps: ['测试步骤'] }],
+    materials: [],
+    glassware: [],
+    tools: []
+  }])
+}
+
 test('friend menu source bypasses cloud readiness and the personal repository', async () => {
   let readyWaits = 0
   const app = { globalData: {
@@ -178,17 +189,18 @@ test('shared menu page loads preview recipes and opens explicit friend detail ro
   const context = {
     ...page,
     data: { ...page.data },
+    friendMenuService: testFriendMenuService(),
     setData(value) { Object.assign(this.data, value) }
   }
 
-  page.onLoad.call(context, { menuId: 'preview-mengqi' })
+  page.onLoad.call(context, { menuId: 'menu-test' })
   assert.equal(context.data.state, 'ok')
-  assert.equal(context.data.menu.ownerName, '孟琪')
-  assert.equal(context.data.recipes.length, 3)
+  assert.equal(context.data.menu.ownerName, '测试用户')
+  assert.equal(context.data.recipes.length, 1)
 
-  page.onSelectRecipe.call(context, { detail: { id: 'preview-negroni' } })
+  page.onSelectRecipe.call(context, { detail: { id: 'recipe-test' } })
   assert.deepEqual(navigations, [
-    '/pages/recipe-detail/index?mode=friend-preview&menuId=preview-mengqi&id=preview-negroni'
+    '/pages/recipe-detail/index?mode=friend-preview&menuId=menu-test&id=recipe-test'
   ])
 })
 
@@ -294,15 +306,15 @@ test('friend preview detail bypasses cloud and personal repository data', async 
     app,
     { '../../services/page-ready': { async waitForCloudReady() { readyWaits += 1; throw new Error('cloud readiness awaited') } } }
   )
-  const context = { ...page, data: { ...page.data }, setData(value) { Object.assign(this.data, value) } }
+  const context = { ...page, data: { ...page.data }, friendMenuService: testFriendMenuService(), setData(value) { Object.assign(this.data, value) } }
 
-  await page.onLoad.call(context, { mode: 'friend-preview', menuId: 'preview-mengqi', id: 'preview-negroni' })
+  await page.onLoad.call(context, { mode: 'friend-preview', menuId: 'menu-test', id: 'recipe-test' })
 
   assert.equal(readyWaits, 0)
   assert.equal(context.viewerMode, true)
   assert.equal(context.data.viewerMode, true)
-  assert.equal(context.data.detail.name, '尼格罗尼')
-  assert.equal(context.data.friendMenu.ownerName, '孟琪')
+  assert.equal(context.data.detail.name, '测试酒')
+  assert.equal(context.data.friendMenu.ownerName, '测试用户')
 })
 
 test('friend preview detail turns preview service failures into a safe missing state', async () => {
