@@ -40,6 +40,27 @@ Page({
     }
   },
   onRetry() { this.loadMenu() },
+  onEditMenuName() {
+    if (!this.data.menu || typeof wx === 'undefined' || !wx.showModal) return
+    wx.showModal({
+      title: '编辑酒单名称',
+      content: this.data.menu.name || '',
+      editable: true,
+      placeholderText: '请输入酒单名称',
+      confirmText: '保存',
+      success: ({ confirm, content }) => {
+        if (!confirm) return
+        const service = this.friendMenuService || friendMenuPreview
+        const result = service.renameMenu(this.menuId, content)
+        if (!result || result.status !== 'ok') {
+          if (wx.showToast) wx.showToast({ title: '请输入1到30个字', icon: 'none' })
+          return
+        }
+        this.setData({ menu: { ...this.data.menu, ...result.menu } })
+        if (wx.setNavigationBarTitle) wx.setNavigationBarTitle({ title: result.menu.name })
+      }
+    })
+  },
   onSelectRecipe(event) {
     const id = event && event.detail && event.detail.id
     if (!id || !this.menuId) return

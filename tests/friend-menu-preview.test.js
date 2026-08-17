@@ -53,3 +53,13 @@ test('friend menu identity uses the author profile name without a generated avat
   assert.equal(menu.name, '孟琪的酒单')
   assert.equal(Object.prototype.hasOwnProperty.call(menu, 'ownerInitial'), false)
 })
+
+test('a viewer can set a local menu display name without changing author identity', () => {
+  const renamed = preview.renameMenu('preview-mengqi', '周末调酒参考')
+
+  assert.equal(renamed.status, 'ok')
+  assert.equal(renamed.menu.name, '周末调酒参考')
+  assert.equal(renamed.menu.ownerName, '孟琪')
+  assert.equal(preview.getMenu('preview-mengqi').menu.name, '周末调酒参考')
+  assert.equal(preview.renameMenu('preview-mengqi', '   ').status, 'invalid-name')
+})

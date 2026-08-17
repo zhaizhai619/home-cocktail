@@ -166,6 +166,7 @@ test('recipes home visibly separates personal and friend menus', () => {
   assert.match(css, /\.menu-source-tabs/)
   assert.match(css, /\.friend-menu-card/)
   assert.doesNotMatch(template, /friend-avatar|ownerInitial/)
+  assert.doesNotMatch(template, /收到的酒单|好友更新后|界面预览|friend-section-heading/)
 })
 
 test('shared menu page loads preview recipes and opens explicit friend detail route', () => {
@@ -236,6 +237,32 @@ test('shared menu page uses the global page stack when returning normally', () =
   assert.equal(backCalls, 1)
 })
 
+test('shared menu page edits only the viewer display name', () => {
+  const modals = []
+  const page = registeredDefinition(path.join(MINI, 'pages/shared-menu/index.js'), {
+    showModal(options) { modals.push(options) },
+    setNavigationBarTitle() {}
+  })
+  const service = {
+    getMenu() {
+      return { status: 'ok', menu: { id: 'preview-mengqi', name: '孟琪的酒单', ownerName: '孟琪' }, recipes: [], materials: [], glassware: [], tools: [] }
+    },
+    renameMenu(_id, name) {
+      return { status: 'ok', menu: { id: 'preview-mengqi', name, ownerName: '孟琪' } }
+    }
+  }
+  const context = { ...page, data: { ...page.data }, friendMenuService: service, setData(value) { Object.assign(this.data, value) } }
+
+  page.onLoad.call(context, { menuId: 'preview-mengqi' })
+  page.onEditMenuName.call(context)
+  assert.equal(modals[0].editable, true)
+  assert.equal(modals[0].content, '孟琪的酒单')
+  modals[0].success({ confirm: true, content: '周末调酒参考' })
+
+  assert.equal(context.data.menu.name, '周末调酒参考')
+  assert.equal(context.data.menu.ownerName, '孟琪')
+})
+
 test('shared menu page renders author ownership and preview-qualified sync status', () => {
   const template = fs.readFileSync(path.join(MINI, 'pages/shared-menu/index.wxml'), 'utf8')
   const css = fs.readFileSync(path.join(MINI, 'pages/shared-menu/index.wxss'), 'utf8')
@@ -245,6 +272,7 @@ test('shared menu page renders author ownership and preview-qualified sync statu
   assert.match(template, />实时同步</)
   assert.doesNotMatch(template, /效果预览|shared-menu-hero|shared-context-note|来自好友|menu\.ownerName/)
   assert.match(template, /bind:select="onSelectRecipe"/)
+  assert.match(template, /bindtap="onEditMenuName"[^>]*>编辑名称</)
   assert.match(template, /state === 'error'[^]*bindtap="onRetry"/)
   assert.match(css, /\.shared-menu-heading/)
   assert.doesNotMatch(css, /\.shared-menu-hero|\.shared-context-note/)

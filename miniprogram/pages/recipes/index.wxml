@@ -89,10 +89,6 @@
   </block>
 
   <block wx:else>
-    <view class="friend-section-heading">
-      <view><text class="friend-section-title">收到的酒单</text><text class="friend-section-copy">好友更新后，这里会展示最新内容</text></view>
-      <text class="preview-badge">界面预览</text>
-    </view>
     <view wx:if="{{friendMenusState === 'loading'}}" class="loading-state friend-loading" aria-label="好友酒单加载中">
       <view class="loading-spinner" aria-hidden="true"></view><text>好友酒单加载中…</text>
     </view>

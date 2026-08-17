@@ -2,11 +2,7 @@
 .menu-source-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); box-sizing: border-box; height: 76rpx; margin-bottom: 22rpx; padding: 6rpx; background: #ebe7df; border-radius: 18rpx; }
 .menu-source-tab { display: flex; align-items: center; justify-content: center; color: #77736c; border-radius: 14rpx; font-size: 26rpx; font-weight: 600; transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
 .menu-source-tab.selected { color: #242321; background: #fffefc; box-shadow: 0 4rpx 14rpx rgba(55, 50, 43, .1); }
-.friend-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; margin: 8rpx 4rpx 26rpx; }
-.friend-section-title { display: block; color: #242321; font-size: 36rpx; font-weight: 700; }
-.friend-section-copy { display: block; margin-top: 8rpx; color: #77736c; font-size: 22rpx; }
-.preview-badge { flex: none; padding: 8rpx 14rpx; color: #7c6049; background: #f4eee8; border-radius: 999rpx; font-size: 19rpx; }
-.friend-menu-list { display: grid; gap: 18rpx; }
+.friend-menu-list { display: grid; gap: 18rpx; margin-top: 4rpx; }
 .friend-menu-card { display: flex; align-items: center; box-sizing: border-box; min-height: 184rpx; padding: 26rpx 22rpx; background: #fffefc; border: 1rpx solid #e5dfd5; border-radius: 24rpx; box-shadow: 0 10rpx 28rpx rgba(55, 50, 43, .07); }
 .friend-menu-main { min-width: 0; flex: 1; }
 .friend-menu-title-row { display: flex; min-width: 0; align-items: center; gap: 12rpx; }

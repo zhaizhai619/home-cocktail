@@ -10,7 +10,7 @@
   </view>
   <block wx:else>
     <view class="shared-menu-heading">
-      <view class="shared-menu-title-row"><text class="shared-menu-name">{{menu.name}}</text><text class="shared-readonly-badge">只读</text></view>
+      <view class="shared-menu-title-row"><text class="shared-menu-name">{{menu.name}}</text><text class="shared-name-edit" bindtap="onEditMenuName" aria-role="button">编辑名称</text><text class="shared-readonly-badge">只读</text></view>
       <view class="shared-menu-meta"><text>{{recipes.length}}款酒</text><view class="shared-sync-row"><view class="shared-sync-dot"></view><text>实时同步</text></view><text class="shared-updated">更新于{{menu.updatedLabel}}</text></view>
     </view>
     <view wx:if="{{state === 'empty'}}" class="shared-state compact">

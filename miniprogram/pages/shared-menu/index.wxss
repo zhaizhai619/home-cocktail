@@ -2,6 +2,7 @@
 .shared-menu-heading { margin: 10rpx 4rpx 28rpx; }
 .shared-menu-title-row { display: flex; min-width: 0; align-items: center; gap: 14rpx; }
 .shared-menu-name { min-width: 0; overflow: hidden; color: #242321; font-size: 38rpx; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.shared-name-edit { flex: none; color: #7c6049; font-size: 21rpx; }
 .shared-readonly-badge { flex: none; padding: 6rpx 11rpx; color: #6f6c66; background: #ebe7df; border-radius: 999rpx; font-size: 18rpx; }
 .shared-menu-meta { display: flex; min-width: 0; margin-top: 12rpx; align-items: center; gap: 14rpx; color: #77736c; font-size: 21rpx; }
 .shared-sync-row { display: flex; min-width: 0; align-items: center; gap: 8rpx; color: #4d7d67; }

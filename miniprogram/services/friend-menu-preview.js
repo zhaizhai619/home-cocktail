@@ -61,6 +61,8 @@ const RECIPES = [
   { id: 'preview-not-in-menu', name: '未加入当前酒单', ingredients: [] }
 ]
 
+const MENU_DISPLAY_NAMES = Object.create(null)
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
@@ -78,11 +80,22 @@ function decodePreviewId(value) {
 function menuSummary(menu) {
   return {
     id: menu.id,
-    name: menu.name,
+    name: MENU_DISPLAY_NAMES[menu.id] || menu.name,
     ownerName: menu.ownerName,
     recipeCount: menu.recipeIds.length,
     updatedLabel: menu.updatedLabel
   }
+}
+
+function renameMenu(rawMenuId, value) {
+  const decoded = decodePreviewId(rawMenuId)
+  if (!decoded.ok) return { status: decoded.reason }
+  const menu = MENUS.find(({ id }) => id === decoded.value)
+  if (!menu) return { status: 'missing-menu' }
+  const name = String(value || '').trim()
+  if (!name || name.length > 30) return { status: 'invalid-name' }
+  MENU_DISPLAY_NAMES[menu.id] = name
+  return { status: 'ok', menu: clone(menuSummary(menu)) }
 }
 
 function listMenus() {
@@ -116,4 +129,4 @@ function getRecipe(rawMenuId, rawRecipeId) {
   return clone({ ...menuResult, recipe })
 }
 
-module.exports = { decodePreviewId, listMenus, getMenu, getRecipe }
+module.exports = { decodePreviewId, listMenus, getMenu, getRecipe, renameMenu }
