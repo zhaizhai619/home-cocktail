@@ -1,6 +1,6 @@
 const MENUS = [{
   id: 'preview-mengqi',
-  name: '孟琪的私人酒单',
+  name: '孟琪的酒单',
   ownerName: '孟琪',
   updatedLabel: '今天 18:32',
   recipeIds: ['preview-negroni', 'preview-whiskey-sour', 'preview-mojito']

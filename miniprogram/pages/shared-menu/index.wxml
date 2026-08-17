@@ -9,15 +9,10 @@
     <button class="shared-state-button" bindtap="onBackToFriends">返回好友分享</button>
   </view>
   <block wx:else>
-    <view class="shared-menu-hero">
-      <view class="shared-menu-copy">
-        <text class="shared-menu-name">{{menu.name}}</text>
-        <text class="shared-owner-name">来自好友{{menu.ownerName}}</text>
-      </view>
-      <text class="shared-readonly-badge">只读</text>
-      <view class="shared-sync-row"><view class="shared-sync-dot"></view><text>实时同步 · 效果预览</text><text class="shared-updated">更新于{{menu.updatedLabel}}</text></view>
+    <view class="shared-menu-heading">
+      <view class="shared-menu-title-row"><text class="shared-menu-name">{{menu.name}}</text><text class="shared-readonly-badge">只读</text></view>
+      <view class="shared-menu-meta"><text>{{recipes.length}}款酒</text><view class="shared-sync-row"><view class="shared-sync-dot"></view><text>实时同步</text></view><text class="shared-updated">更新于{{menu.updatedLabel}}</text></view>
     </view>
-    <view class="shared-context-note">以下材料状态随{{menu.ownerName}}的配方一同展示，不会读取你的个人吧台。</view>
     <view wx:if="{{state === 'empty'}}" class="shared-state compact">
       <text class="shared-state-title">这份酒单暂时没有酒款</text>
       <button class="shared-state-button" bindtap="onBackToFriends">返回好友分享</button>

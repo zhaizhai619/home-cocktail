@@ -6,10 +6,6 @@
   </view>
 
   <block wx:elif="{{detail.status === 'ok'}}">
-    <view wx:if="{{viewerMode}}" class="friend-attribution">
-      <view class="friend-attribution-main"><text class="friend-attribution-title">来自好友{{friendMenu.ownerName}}</text><text class="friend-attribution-sync">实时同步 · 效果预览</text></view>
-      <text class="friend-attribution-readonly">只读</text>
-    </view>
     <image wx:if="{{detail.imagePath}}" class="hero-image" src="{{detail.imagePath}}" mode="aspectFill" />
     <view class="hero-card">
       <view class="hero-heading">
@@ -22,7 +18,7 @@
         </view>
         <text wx:if="{{detail.rating}}" class="rating-badge">{{detail.rating}}</text>
       </view>
-      <text wx:if="{{detail.source}}" class="muted">来源：{{detail.source}}</text>
+      <text wx:if="{{!viewerMode && detail.source}}" class="muted">来源：{{detail.source}}</text>
       <view class="detail-meta">
         <view wx:for="{{detail.preparations}}" wx:key="type" class="prep-item">
           <text class="prep-badge">{{item.label}}</text>
@@ -86,7 +82,7 @@
 
     <view wx:if="{{viewerMode}}" class="section friend-rating-section">
       <text class="section-title">好友评价</text>
-      <view class="friend-rating-readonly"><text class="rating-option selected">{{detail.rating || '暂未评价'}}</text><text class="friend-rating-hint">这是{{friendMenu.ownerName}}的评价，只读展示</text></view>
+      <view class="friend-rating-readonly"><text class="rating-option selected">{{detail.rating || '暂未评价'}}</text></view>
     </view>
     <view wx:else class="section">
       <text class="section-title">我的评价</text>
@@ -94,7 +90,7 @@
     </view>
 
     <view class="bottom-space"></view>
-    <view wx:if="{{viewerMode}}" class="viewer-action-bar"><button class="viewer-action secondary" bindtap="onPreviewAction">收藏酒单</button><button class="viewer-action primary" bindtap="onPreviewAction">复制到我的酒单</button></view>
+    <view wx:if="{{viewerMode}}" class="viewer-action-bar"><button class="viewer-action primary" bindtap="onPreviewAction">复制到我的酒单</button></view>
     <block wx:else><view class="action-bar"><button class="action-button edit" bindtap="onEdit">编辑</button><button class="action-button delete" bindtap="onDelete">删除</button></view></block>
   </block>
   <view wx:if="{{showMusicReason && detail.hasMusicNaming}}" class="music-reason-mask" bindtap="onCloseMusicReason">

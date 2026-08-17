@@ -9,14 +9,14 @@ test('friend menu preview exposes an isolated menu collection', () => {
   assert.equal(menus.length, 1)
   assert.deepEqual(menus[0], {
     id: 'preview-mengqi',
-    name: '孟琪的私人酒单',
+    name: '孟琪的酒单',
     ownerName: '孟琪',
     recipeCount: 3,
     updatedLabel: '今天 18:32'
   })
 
   menus[0].name = '被修改'
-  assert.equal(preview.listMenus()[0].name, '孟琪的私人酒单')
+  assert.equal(preview.listMenus()[0].name, '孟琪的酒单')
 })
 
 test('friend menu lookup returns defensive recipe and material context', () => {
@@ -50,5 +50,6 @@ test('malformed encoded ids never throw', () => {
 test('friend menu identity uses the author profile name without a generated avatar initial', () => {
   const menu = preview.listMenus()[0]
   assert.equal(menu.ownerName, '孟琪')
+  assert.equal(menu.name, '孟琪的酒单')
   assert.equal(Object.prototype.hasOwnProperty.call(menu, 'ownerInitial'), false)
 })

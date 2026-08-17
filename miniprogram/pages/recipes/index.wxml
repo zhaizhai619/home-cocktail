@@ -109,8 +109,8 @@
       <view wx:for="{{friendMenus}}" wx:key="id" class="friend-menu-card" data-id="{{item.id}}" bindtap="onSelectFriendMenu" aria-role="button" aria-label="打开{{item.ownerName}}分享的{{item.name}}">
         <view class="friend-menu-main">
           <view class="friend-menu-title-row"><text class="friend-menu-name">{{item.name}}</text><text class="readonly-badge">只读</text></view>
-          <text class="friend-menu-meta">来自{{item.ownerName}} · {{item.recipeCount}}款酒</text>
-          <view class="friend-sync-row"><view class="sync-dot"></view><text>实时同步 · 效果预览</text><text class="friend-updated">更新于{{item.updatedLabel}}</text></view>
+          <text class="friend-menu-meta">{{item.recipeCount}}款酒</text>
+          <view class="friend-sync-row"><view class="sync-dot"></view><text>实时同步</text><text class="friend-updated">更新于{{item.updatedLabel}}</text></view>
         </view>
         <text class="friend-menu-arrow">›</text>
       </view>
